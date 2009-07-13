@@ -32,7 +32,7 @@ Released for free under a Creative Commons Attribution 2.5 License
         <h2>Posts</h2>
         <ul>
           {% for post in site.posts %}
-          <li><a href="/clojureql/{{ post.url }}">{{ post.title }}</a></li>
+          <li><a href="/clojureql{{ post.url }}">{{ post.title }}</a></li>
           {% endfor %}
         </ul>
       </div>
