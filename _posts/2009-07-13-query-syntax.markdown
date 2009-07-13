@@ -9,7 +9,9 @@ All query creating forms, which involve columns, are macros which quote
 their arguments. So besides strings and keywords you may specify also
 symbols as column names.
 
+        {% highlight clojure %}
         (query ["a" :b c] [table])
+        {% endhighlight %}
 
 If there is only one column or one table in the query the vector can be
 dropped.
