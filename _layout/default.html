@@ -1,0 +1,45 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<!--
+Design by Free CSS Templates
+http://www.freecsstemplates.org
+Released for free under a Creative Commons Attribution 2.5 License
+-->
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+    <title>{{ page.title }}</title>
+    <link href="/clojureql.css" rel="stylesheet" type="text/css" />
+  </head>
+  <body>
+    <div id="header">
+      <h1><a href="#">ClojureQL</a></h1>
+      <h2><a href="http://github.com/Lau-of-DK/clojureql">make SQL dynamic</a></h2>
+    </div>
+    <div id="menu">
+      <ul>
+        <li><a href="http://Lau-of-DK.github.com/clojureql">Home</a></li>
+        <li><a href="http://github.com/Lau-of-DK/clojureql/tree/master">Code</a></li>
+        <li><a href="http://github.com/Lau-of-DK/clojureql/issues">Issues</a></li>
+      </ul>
+    </div>
+    <div id="content">
+      <div id="colOne">
+        {{ content }}
+      </div>
+      <div id="colTwo">
+        <h2>Posts</h2>
+        <ul>
+          {% for post in site.posts %}
+          <li><a href="{{ post.url }}">{{ post.title }}</a></li>
+          {% endfor %}
+        </ul>
+      </div>
+      <div style="clear: both;">&nbsp;</div>
+    </div>
+    <div id="footer">
+      <p>Copyright &copy; 2009 Lau B. Jensen, Meikel Branmdeyer</p>
+      <p>Design: Copyright &copy; 2006 Fotografix. Designed by <a href="http://freecsstemplates.org"><strong>Free CSS Templates</strong></a></p>
+    </div>
+  </body>
+</html>

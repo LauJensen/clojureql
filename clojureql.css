@@ -1,0 +1,200 @@
+/*
+Design by Free CSS Templates
+http://www.freecsstemplates.org
+Released for free under a Creative Commons Attribution 2.5 License
+*/
+
+body {
+	margin: 0;
+	padding: 0;
+	background: #333333 url(images/img1.gif) repeat-y center top;
+	font: normal small "Trebuchet MS", Arial, Helvetica, sans-serif;
+	color: #666666;
+}
+
+h1, h2, h3, h4, h5, h6 {
+	margin: 0;
+	padding: 0;
+}
+
+ul {
+	list-style: square;
+}
+
+a:hover {
+	text-decoration: none;
+}
+
+/* Header */
+
+#header {
+	width: 718px;
+	height: 80px;
+	margin: 0 auto;
+	background: #FFFFFF;
+}
+
+#header * {
+	text-transform: lowercase;
+	text-decoration: none;
+	color: #B2D553;
+}
+
+#header h1 {
+	float: left;
+	padding: 20px 0 0 20px;
+	font-size: 3em;
+}
+
+#header h2 {
+	float: right;
+	padding: 38px 20px 0 0;
+	font-size: 1.6em;
+}
+
+/* Menu */
+
+#menu {
+	width: 718px;
+	height: 35px;
+	margin: 0 auto;
+	background: #CE6318 url(images/img2.gif) repeat-x;
+}
+
+#menu ul {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+#menu li {
+	display: inline;
+}
+
+#menu a {
+	display: block;
+	float: left;
+	height: 24px;
+	padding: 8px 20px 0  20px;
+	border-bottom: 2px solid #CE6318;
+	text-transform: lowercase;
+	text-decoration: none;
+	font-size: 1em;
+	font-weight: bold;
+	color: #F7E5D9;
+}
+
+#menu a:hover {
+	background: #CE6318;
+	border-bottom-color: #DC915C;
+	color: #FFFFFF;
+}
+
+/* Content */
+
+#content {
+	width: 718px;
+	margin: 0 auto;
+}
+
+/* Column One */
+
+#colOne {
+	float: left;
+	width: 466px;
+	padding: 20px 0 0 20px;
+}
+
+#colOne h2 {
+	margin-bottom: 0;
+	font-size: 2em;
+}
+
+#colOne h3 {
+	font-size: 1.6em;
+}
+
+#colOne .file {
+	margin-top: 0;
+}
+
+#colOne .posted {
+	height: 26px;
+	margin: 0 0 20px 0;
+	padding: 8px 0 0 10px;
+	background: #EFCCB3 url(images/img4.gif) repeat-x;
+}
+
+#colOne .posted, #colOne .posted a {
+	color: #CD6216;
+}
+
+#colOne a {
+	color: #8CA640;
+}
+
+#colOne a:hover {
+	text-decoration: none;
+}
+
+/* Column Two */
+
+#colTwo {
+	float: right;
+	width: 210px;
+}
+
+#colTwo ul {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+#colTwo form {
+	padding: 20px 10px;
+}
+
+#colTwo h2 {
+	height: 26px;
+	margin: 1em 0 .5em 0;
+	padding: 7px 0 0 10px;
+	background: #CD6216 url(images/img3.gif) repeat-x;
+	font-size: 1em;
+	color: #FFFFFF;
+}
+
+#colTwo ul ul {
+	padding: 10px;
+	list-style: square inside;
+	color: #CD6216;
+}
+
+#colTwo ul ul a {
+	text-decoration: none;
+	color: #CD6216;
+}
+
+#colTwo ul ul a:hover {
+	text-decoration: underline;
+}
+
+#textfield1 {
+	width: 94%;
+}
+
+#submit1 {
+	display: none;
+}
+
+/* Footer */
+
+#footer {
+	width: 678px;
+	margin: 0 auto;
+	padding: 30px 0 30px 0;
+	font-size: smaller;
+}
+
+#footer * {
+	color: #EFCCB3;
+}
