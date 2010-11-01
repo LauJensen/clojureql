@@ -1,4 +1,5 @@
 (ns clojureql.internal
+  (:require clojure.contrib.sql.internal)
   (:use [clojure.string :only [join] :rename {join join-str}]))
 
 (def *db* {:connection nil :level 0})

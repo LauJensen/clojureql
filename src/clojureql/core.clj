@@ -77,8 +77,13 @@
              (doall rs))))
   )
 
+(defn table [connection-info table-name table-colums]
+  " Returns a reference to a table, which will be accessed via the connection-info
+    (contrib.sql spec) and query the table-name (keyword) for the colums defined in
+    table-colums.
 
-
+    (table *conn-info* :table1 [:name :id]) "
+  (Table. connection-info table-name table-colums))
 
 
 
