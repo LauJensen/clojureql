@@ -15,13 +15,13 @@
 
 
 (defprotocol Relation
-  (pick  [_    predicate]      "Queries the table using a predicate")
-  (drop  [_    predicate]      "Queries the table using an inverted predicate")
-  (conj! [this records]        "Inserts record(s) into the table")
-  (disj! [this predicate]      "Deletes record(s) from the table")
-  (take  [_    n]              "Queries the table with LIMIT n")
-  (sort  [_    col type]       "Sorts the query either :asc or :desc")
-  (join  [_    table2 join_on] "Joins two table")
+  (select [_    predicate]      "Queries the table using a predicate")
+  (drop   [_    predicate]      "Queries the table using an inverted predicate")
+  (conj!  [this records]        "Inserts record(s) into the table")
+  (disj!  [this predicate]      "Deletes record(s) from the table")
+  (take   [_    n]              "Queries the table with LIMIT n")
+  (sort   [_    col type]       "Sorts the query either :asc or :desc")
+  (join   [_    table2 join_on] "Joins two table")
   )
 
 (defrecord Table [cnx tname tcols]
@@ -32,10 +32,10 @@
              [(format "SELECT %s FROM %s" (colkeys->string tcols) (name tname))]
              (doall rs))))
   Relation
-  (pick [_ predicate]
+  (select [_ predicate]
          (with-connection cnx
            (with-query-results rs
-             [(format "SELECT %s FROM %s WHERE %s" (colkeys->string tcols) (name tname) predicate)]
+             [(format "SELECT %s FROM %s %s" (colkeys->string tcols) (name tname) predicate)]
              (doall rs))))
   (drop [_ predicate]
          (with-connection cnx
