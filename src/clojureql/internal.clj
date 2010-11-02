@@ -62,10 +62,12 @@
                                     (if (keyword? item)
                                       (name item)
                                       (str item)))))]
-    (loop [i 0 retr pred]
-      (if (= i (-> args count dec))
-        (rep retr i)
-        (recur (inc i) (rep retr i))))))
+    (if (empty? args)
+      pred
+      (loop [i 0 retr pred]
+        (if (= i (-> args count dec))
+          (rep retr i)
+          (recur (inc i) (rep retr i)))))))
 
                                         ; SQL Specifics
 
