@@ -20,7 +20,9 @@
 (defn colkeys->string
   " [:k1 :k2] becomes \"k1,k2\" "
   [tcols]
-  (->> tcols (map name) (join-str \,)))
+  (if (keyword? tcols)
+    (name tcols)
+    (->> tcols (map name) (join-str \,))))
 
 (defn map->predicate
   " {:x 5 :y 10} becomes \"x=5 AND y=10\"
