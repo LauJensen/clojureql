@@ -71,24 +71,26 @@
              (doall rs))))
   )
 
-(defn table [connection-info table-name table-colums]
+(defn table
   " Returns a reference to a table, which will be accessed via the connection-info
     (contrib.sql spec) and query the table-name (keyword) for the colums defined in
     table-colums.
 
     (table *conn-info* :table1 [:name :id]) "
+  [connection-info table-name table-colums]
   (Table. connection-info table-name table-colums))
 
 (defn table? [tinstance]
   (instance? clojureql.core.Table tinstance))
 
-(defn where [pred & args]
+(defn where
   "Returns a query string. If final argument is :invert the boolean value
    of the predicate is inverted.
 
    (where 'id=%1 OR id < %2' 15 10) => 'WHERE id=15 OR id < 10'
 
    (where 'id=%1 OR id < %2' 15 10 :invert) => 'WHERE not(id=15 OR id < 10')"
+  [pred & args]
   (str "WHERE " (if (= :invert (last args))
                   (str "not(" (apply sql-clause pred (butlast args)) ")")
                   (apply sql-clause pred args))))
