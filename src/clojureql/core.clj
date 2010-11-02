@@ -85,6 +85,41 @@
     (table *conn-info* :table1 [:name :id]) "
   (Table. connection-info table-name table-colums))
 
+(defn table? [tinstance]
+  (instance? clojureql.core.Table tinstance))
+
+(defn where [pred & args]
+  "Returns a query string.
+
+   (where 'id=%1 OR id < %2' 15 10) => 'WHERE id=15 OR id < 10'"
+  (str "WHERE " (apply sql-clause pred args)))
+
+(defn order-by
+  "Returns a query string.
+
+   (order-by :name) => ' ORDER BY name'
+
+   (-> (where 'id=%1' 5) (order-by :name)) => 'WHERE id=5 ORDER BY name"
+  ([col]      (str " ORDER BY "  (name col)))
+  ([stmt col] (str stmt (order-by col))))
+
+(defn group-by
+  "Returns a query string.
+
+   (group-by :name) => ' GROUP BY name'
+
+   (-> (where 'id=%1' 5) (group-by :name)) => 'WHERE id=5 GROUP BY name"
+  ([col]      (str " GROUP BY " (name col)))
+  ([stmt col] (str stmt (group-by col))))
+
+(defn having
+  "Returns a query string.
+
+   (-> (where 'id=%1' 5) (having '%1 < id < %2' 1 2)) =>
+    'WHERE id=5 HAVING 1 < id < 2' "
+  [stmt pred & args]
+  (str stmt " HAVING " (apply sql-clause pred args)))
+
 
 
 #_(do
@@ -105,8 +140,8 @@
 
    (join users salary #{:users.id :salary.id})
 
-   (let [where-pred (sql-clause "%1 = %2" "id" 2)]
-     (pick users where-pred)  ; select <cols> where id = 2
+   (let [where-pred (where "id > %1 AND id < %2" 1 5)]
+     (select users where-pred)  ; select <cols> where id = 2
      (drop users where-pred)) ; select <cols> where id != 2
 
    )
