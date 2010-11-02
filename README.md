@@ -25,6 +25,14 @@ Query
     (select users (where "id=1" :invert))
     > ({:id 2 :name "Christophe"} {:id 3 :name "Frank"})
 
+Aggregates
+----------
+
+    (def salary (table connection-info :salary [[:avg.wage :as :avg]]))
+
+    @salary
+    > ({:wage 150.00000M})
+
 Manipulation
 ------------
 
