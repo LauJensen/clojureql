@@ -3,7 +3,7 @@
    clojureql.internal
    [clojure.string :only [join] :rename {join join-str}]
    [clojure.contrib sql])
-  (refer-clojure :exclude [take drop sort conj! disj!] :rename {take take-coll}))
+  (refer-clojure :exclude [take sort conj! disj!] :rename {take take-coll}))
 
 
 (def db
@@ -16,7 +16,6 @@
 
 (defprotocol Relation
   (select [_    predicate]      "Queries the table using a predicate")
-  (drop   [_    predicate]      "Queries the table using an inverted predicate")
   (conj!  [this records]        "Inserts record(s) into the table")
   (disj!  [this predicate]      "Deletes record(s) from the table")
   (take   [_    n]              "Queries the table with LIMIT n")
@@ -36,11 +35,6 @@
          (with-connection cnx
            (with-query-results rs
              [(format "SELECT %s FROM %s %s" (colkeys->string tcols) (name tname) predicate)]
-             (doall rs))))
-  (drop [_ predicate]
-         (with-connection cnx
-           (with-query-results rs
-             [(format "SELECT %s FROM %s WHERE not(%s)" (colkeys->string tcols) (name tname) predicate)]
              (doall rs))))
   (conj! [this records]
          (with-connection cnx
@@ -89,10 +83,15 @@
   (instance? clojureql.core.Table tinstance))
 
 (defn where [pred & args]
-  "Returns a query string.
+  "Returns a query string. If final argument is :invert the boolean value
+   of the predicate is inverted.
 
-   (where 'id=%1 OR id < %2' 15 10) => 'WHERE id=15 OR id < 10'"
-  (str "WHERE " (apply sql-clause pred args)))
+   (where 'id=%1 OR id < %2' 15 10) => 'WHERE id=15 OR id < 10'
+
+   (where 'id=%1 OR id < %2' 15 10 :invert) => 'WHERE not(id=15 OR id < 10')"
+  (str "WHERE " (if (= :invert (last args))
+                  (str "not(" (apply sql-clause pred (butlast args)) ")")
+                  (apply sql-clause pred args))))
 
 (defn order-by
   "Returns a query string.
@@ -130,18 +129,18 @@
    @users  ; select <constructor supplied columns> from users
    ({:name "Lau" :title "Developer"} {:name "cgrand" :title "Design Guru"})
 
-   (conj! users {:name "sthuebner" :title "Mr. Macros"}) ; insert into
+   (conj! users {:name "sthuebner" :title "Mr. Macros"})    ; insert into
 
-   (disj! users {:name "Lau" 'title "Dev"}) ; remove entry with name=Lau OR title=Dev
+   (disj! users {:name "Lau" 'title "Dev"})                 ; remove entry with name=Lau OR title=Dev
 
-   (sort users :col :asc)      ; select <cols> from users order by 'col' ASC
+   (sort users :col :asc)                                   ; select <cols> from users order by 'col' ASC
 
-   (take users 5)              ; select <cols> from users LIMIT 5
+   (take users 5)                                           ; select <cols> from users LIMIT 5
 
-   (join users salary #{:users.id :salary.id})
+   (join users salary #{:users.id :salary.id})              ; join where users.id = salary.id
 
-   (let [where-pred (where "id > %1 AND id < %2" 1 5)]
-     (select users where-pred)  ; select <cols> where id = 2
-     (drop users where-pred)) ; select <cols> where id != 2
+   (select users (where "id > %1 AND id < %2" 1 5))         ;select ids between 1 and 5
+
+   (select users (where "id > %1 AND id < %2" 1 5 :invert)) ;select ids NOT between 1 and 5
 
    )
