@@ -6,7 +6,7 @@ It let's you interact with a database through a series of objects which work as 
 type.
 
 ClojureQL provides little to no assistance in creating specialized query strings, so that
-compatability with the database backend is left to the users.
+compatability with the database backend is left to the user.
 
 This project is still in the pre-alpha design phase, input is welcomed!
 
@@ -19,10 +19,10 @@ Query
     @users
     > ({:id 1 :name "Lau"} {:id 2 :name "Christophe"} {:id 3 :name "Frank"})
 
-    (pick users "id=1")
+    (select users (where "id=1"))
     > ({:id 1 :name "Lau"})
 
-    (drop users "id=1")
+    (select users (where "id=1" :invert))
     > ({:id 2 :name "Christophe"} {:id 3 :name "Frank"})
 
 Manipulation
@@ -53,6 +53,17 @@ Joins
 Helpers
 -------
 
-    (sql-clause "(%1 < %2) AND (avg(%1) < %3)" :income :cost :expenses)
-    > "(income < cost) AND (avg(income) < expenses)"
+    (where "(%1 < %2) AND (avg(%1) < %3)" :income :cost :expenses)
+    > " WHERE (income < cost) AND (avg(income) < expenses)"
 
+    (where "(%1 < %2) AND (avg(%1) < %3)" :income :cost :expenses :invert)
+    > " WHERE not((income < cost) AND (avg(income) < expenses))"
+
+    (-> (where "id > 2") (group-by :name))
+    > "WHERE id > 2 GROUP BY name"
+
+    (-> (where "id > 2") (order-by :name))
+    > "WHERE id > 2 ORDER BY name"
+
+    (-> (where "id > 2") (having "id=%1 OR id=%2" 3 5))
+    > "WHERE id > 2 HAVING id=3 OR id=5"
