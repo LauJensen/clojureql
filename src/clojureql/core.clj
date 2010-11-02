@@ -1,4 +1,10 @@
-(ns clojureql.core
+(ns
+  ^{:author "Lau B. Jensen    <lau.jensen@bestinclass.dk>"
+    :doc    "ClojureQL is superior SQL integration for Clojure, which allows
+             you to access tables and rows as objects that have uniform interfaces
+             for queries, inserts and deletions."
+    :url    "http://github.com/LauJensen/clojureql"}
+  clojureql.core
   (:use
    clojureql.internal
    [clojure.string :only [join] :rename {join join-str}]
