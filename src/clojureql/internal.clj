@@ -18,11 +18,17 @@
   `(with-cnx* ~db-spec (fn [] ~@body)))
 
 (defn colkeys->string
-  " [:k1 :k2] becomes \"k1,k2\" "
+  " [:k1 :k2]                =>  'k1,k2'
+    [:k1 [:avg.k2 :as :k3]]  =>  'k1,avg(k2) AS k3'"
   [tcols]
-  (if (keyword? tcols)
-    (name tcols)
-    (->> tcols (map name) (join-str \,))))
+  (letfn [(item->string [i] (if (vector? i)
+                              (let [[col _ alias] (map name i)
+                                    [_ fn aggr] (re-find #"(.*)\.(.*)" col)]
+                                (str fn "(" aggr ")" " AS " alias))
+                              (name i)))]
+    (if (keyword? tcols)
+      (name tcols)
+      (->> tcols (map item->string) (join-str \,)))))
 
 (defn map->predicate
   " {:x 5 :y 10} becomes \"x=5 AND y=10\"
