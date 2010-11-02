@@ -8,6 +8,8 @@ type.
 ClojureQL provides little to no assistance in creating specialized query strings, so that
 compatability with the database backend is left to the users.
 
+This project is still in the pre-alpha design phase, input is welcomed!
+
 
 Query
 -----
