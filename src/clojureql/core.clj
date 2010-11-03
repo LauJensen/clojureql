@@ -24,11 +24,11 @@
   (case (first expr)
         :or  (str "(" (join-str " OR "  (map compile-expr (rest expr))) ")")
         :and (str "(" (join-str " AND " (map compile-expr (rest expr))) ")")
-        :eq  (str (-> expr last keys first name) \= (-> expr last vals first))
-        :gt  (str (-> expr last keys first name) \> (-> expr last vals first))
-        :lt  (str (-> expr last keys first name) \< (-> expr last vals first))
-        :gt= (str (-> expr last keys first name) ">=" (-> expr last vals first))
-        :lt= (str (-> expr last keys first name) "<=" (-> expr last vals first))
+        :eq  (str (-> expr last keys first to-name) " = " (-> expr last vals first))
+        :gt  (str (-> expr last keys first to-name) " > " (-> expr last vals first))
+        :lt  (str (-> expr last keys first to-name) " < " (-> expr last vals first))
+        :gt= (str (-> expr last keys first to-name) ">=" (-> expr last vals first))
+        :lt= (str (-> expr last keys first to-name) "<=" (-> expr last vals first))
         (str expr)))
 
 (defn either

@@ -21,23 +21,37 @@
   " [:k1 :k2]                =>  'k1,k2'
     [:k1 [:avg.k2 :as :k3]]  =>  'k1,avg(k2) AS k3'"
   ([tcols]
-     (letfn [(item->string [i] (if (vector? i)
+     (letfn [(item->string [i]  (if (vector? i)
                                  (let [[col _ alias] (map name i)
                                        [_ fn aggr] (re-find #"(.*)\.(.*)" col)]
                                    (str fn "(" aggr ")" " AS " alias))
                                  (name i)))]
-       (if (keyword? tcols)
-         (name tcols)
+       (if (or (keyword? tcols)
+               (and (>= 3 (count tcols))
+                    (= :as (nth tcols 1))))
+         (item->string tcols)
          (->> tcols (map item->string) (join-str \,)))))
   ([tname tcols]
      (letfn [(item->string [i] (if (vector? i)
                                  (let [[col _ alias] (map name i)
                                        [_ fn aggr] (re-find #"(.*)\.(.*)" col)]
-                                   (str fn "(" aggr ")" " AS " alias))
+                                   (str fn "(" (name tname) \. aggr ")" " AS " alias))
                                  (str (name tname) \. (name i))))]
-       (if (keyword? tcols)
-         (str (name tname) \. (name tcols))
+       (if (or (keyword? tcols)
+               (and (>= 3 (count tcols))
+                    (= :as (nth tcols 1))))
+         (item->string tcols)
          (->> tcols (map item->string) (join-str \,))))))
+
+(defn to-name
+  " Converts a keyword to a string, checking for aggregates
+
+   (to-name :avg.y) => 'avg(y)', (to-name :y) => 'y' "
+  [c]
+  (if (.contains (name c) ".")
+    (let [[aggr col] (-> (name c) (.split "\\."))]
+      (str aggr "(" col ")"))
+    (name c)))
 
 (defn get-foreignfield
   [tname s]

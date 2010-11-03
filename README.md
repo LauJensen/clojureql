@@ -76,6 +76,9 @@ Helpers
     (where (both (= {:id 4}) (< {:wage 100})))
     > "WHERE ((id = 4) AND (wage < 100))"
 
+    (where (either (= {:id 2}) (> {:avg.id 4})))
+    > "WHERE (id = 2 OR avg(id) > 4)"
+
     (-> (where "id > 2") (group-by :name))
     > "WHERE id > 2 GROUP BY name"
 
