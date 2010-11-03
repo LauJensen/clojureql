@@ -8,8 +8,11 @@ type.
 ClojureQL provides little to no assistance in creating specialized query strings, so that
 compatability with the database backend is left to the user.
 
-This project is still in the pre-alpha design phase, input is welcomed!
+To try out this library locally, simply clone the repo, load the core namespace and run
+the fn (test-suite). Make sure you have a local MySQL installation with the user/psw combo
+"cql", "cql" or change the global 'db'.
 
+This project is still in the pre-alpha design phase, input is welcomed!
 
 Query
 -----
@@ -62,7 +65,7 @@ Joins
     (def visitors (table connection-info :visitors [:id :guest]))
 
     (join users visitors #{users.id visitors.id})
-    ({:id 1 :name "Lau" :guest "false"} {:id 3 :name "Frank" :guest "true"})
+    > ({:id 1 :name "Lau" :guest "false"} {:id 3 :name "Frank" :guest "true"})
 
 Helpers
 -------
