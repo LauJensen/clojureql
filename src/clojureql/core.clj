@@ -1,15 +1,14 @@
-(ns
+(ns clojureql.core
   ^{:author "Lau B. Jensen    <lau.jensen@bestinclass.dk>"
     :doc    "ClojureQL is superior SQL integration for Clojure, which allows
              you to access tables and rows as objects that have uniform interfaces
              for queries, inserts and deletions."
     :url    "http://github.com/LauJensen/clojureql"}
-  clojureql.core
   (:use
    clojureql.internal
    [clojure.string :only [join] :rename {join join-str}]
    [clojure.contrib sql])
-  (refer-clojure :exclude [take sort conj! disj!]
+  (refer-clojure :exclude [take sort conj! disj! < <= > >= =]
                  :rename {take take-coll}))
 
 
@@ -20,37 +19,124 @@
       :password    "cql"
       :subname     "//localhost:3306/cql"})
 
-(defprotocol DBPredicate
-  (to-string [expr] "To-Strings an expression to a String.
+(defn compile-expr
+  [expr]
+  (case (first expr)
+        :or  (str "(" (join-str " OR "  (map compile-expr (rest expr))) ")")
+        :and (str "(" (join-str " AND " (map compile-expr (rest expr))) ")")
+        :eq  (str (-> expr last keys first name) \= (-> expr last vals first))
+        :gt  (str (-> expr last keys first name) \> (-> expr last vals first))
+        :lt  (str (-> expr last keys first name) \< (-> expr last vals first))
+        :gt= (str (-> expr last keys first name) ">=" (-> expr last vals first))
+        :lt= (str (-> expr last keys first name) "<=" (-> expr last vals first))
+        (str expr)))
 
-                   []  = 'this AND that'
-                   {}  = 'key=val'
-                   #{} = 'this OR that'"))
+(defn either
+  " CQL version of OR.
 
-(extend-protocol DBPredicate
-   String
-   (to-string [expr] (str "\"" expr "\""))
-   Integer
-   (to-string [expr] expr)
-   Character
-   (to-string [expr] (str expr))
-   clojure.lang.Keyword
-   (to-string [expr] (str (name expr) "="))
-   clojure.lang.MapEntry
-   (to-string [expr]
-            (str (-> expr key name) \= (-> expr val to-string)))
-   clojure.lang.PersistentVector
-   (to-string [expr]
-              (join-str " AND " (map to-string expr)))
-   clojure.lang.ArraySeq
-   (to-string [expr]
-            (join-str " AND " (map to-string expr)))
-   clojure.lang.IPersistentSet
-   (to-string [expr]
-            (str "(" (->> expr (map to-string) (join-str " OR ")) ")"))
-   clojure.lang.PersistentArrayMap
-   (to-string [expr]
-            (->> expr (map to-string) (join-str " AND "))))
+    (either (= {:a 5)) (>= {:a 10})) means either a = 5 or a >= 10 "
+  [& conds]
+  (compile-expr (apply vector :or conds)))
+
+(defn both
+  " CQL version of AND.
+
+    (both (= {:a 5}) (>= {:b 10})) means a=5 AND b >= 10 "
+  [& conds]
+  (compile-expr (apply vector :and conds)))
+
+(defn =
+  " Alpha - Subject to sanity.
+
+    The idea is, that if this doesn't get passed a map, it assumes
+    you want Clojures regular = operator "
+  [& args]
+  (if (map? (first args))
+    (compile-expr (apply vector :eq args))
+    (apply clojure.core/= args)))
+
+(defn >
+  " Alpha - Subject to sanity.
+
+    The idea is, that if this doesn't get passed a map, it assumes
+    you want Clojures regular > operator "
+  [& args]
+  (if (map? (first args))
+    (compile-expr (apply vector :gt args))
+    (apply clojure.core/> args)))
+
+(defn <
+  " Alpha - Subject to sanity.
+
+    The idea is, that if this doesn't get passed a map, it assumes
+    you want Clojures regular < operator "
+  [& args]
+  (if (map? (first args))
+    (compile-expr (apply vector :lt args))
+    (apply clojure.core/< args)))
+
+(defn <=
+  " Alpha - Subject to sanity.
+
+    The idea is, that if this doesn't get passed a map, it assumes
+    you want Clojures regular <= operator "
+  [& args]
+  (if (map? (first args))
+    (compile-expr (apply vector :lt= args))
+    (apply clojure.core/<= args)))
+
+(defn >=
+  " Alpha - Subject to sanity.
+
+    The idea is, that if this doesn't get passed a map, it assumes
+    you want Clojures regular >= operator "
+  [& args]
+  (if (map? (first args))
+    (compile-expr (apply vector :gt= args))
+    (apply clojure.core/>= args)))
+
+(defn where
+  "Returns a query string. Can take a raw string with params as %1 %2 %n
+   or an AST which compiles using compile-expr.
+
+   (where 'id=%1 OR id < %2' 15 10) => 'WHERE id=15 OR id < 10'
+
+   (where (either (= {:id 5}) (>= {:id 10})))
+      'WHERE (id=5 OR id>=10)' "
+  ([ast]         (str "WHERE " (compile-expr ast)))
+  ([pred & args] (str "WHERE "  (apply sql-clause pred args))))
+
+(defn where-not
+  "The inverse of the where fn"
+  ([ast]         (str "WHERE not(" (compile-expr ast) ")"))
+  ([pred & args] (str "WHERE not("  (apply sql-clause pred args) ")")))
+
+(defn order-by
+  "Returns a query string.
+
+   (order-by :name) => ' ORDER BY name'
+
+   (-> (where 'id=%1' 5) (order-by :name)) => 'WHERE id=5 ORDER BY name"
+  ([col]      (str " ORDER BY "  (name col)))
+  ([stmt col] (str stmt (order-by col))))
+
+(defn group-by
+  "Returns a query string.
+
+   (group-by :name) => ' GROUP BY name'
+
+   (-> (where 'id=%1' 5) (group-by :name)) => 'WHERE id=5 GROUP BY name"
+  ([col]      (str " GROUP BY " (name col)))
+  ([stmt col] (str stmt (group-by col))))
+
+(defn having
+  "Returns a query string.
+
+   (-> (where 'id=%1' 5) (having '%1 < id < %2' 1 2)) =>
+    'WHERE id=5 HAVING 1 < id < 2' "
+  [stmt pred & args]
+  (str stmt " HAVING " (apply sql-clause pred args)))
+
 
 (defprotocol Relation
   (select [_    predicate]            "Queries the table using a predicate")
@@ -123,42 +209,6 @@
 (defn table? [tinstance]
   (instance? clojureql.core.Table tinstance))
 
-(defn where
-  "Returns a query string. If final argument is :invert the boolean value
-   of the predicate is inverted.
-
-   (where 'id=%1 OR id < %2' 15 10) => 'WHERE id=15 OR id < 10'
-
-   (where 'id=%1 OR id < %2' 15 10 :invert) => 'WHERE not(id=15 OR id < 10')"
-  ([ast]         (str "WHERE " (to-string ast)))
-  ([pred & args] (str "WHERE "  (apply sql-clause pred args))))
-
-
-(defn order-by
-  "Returns a query string.
-
-   (order-by :name) => ' ORDER BY name'
-
-   (-> (where 'id=%1' 5) (order-by :name)) => 'WHERE id=5 ORDER BY name"
-  ([col]      (str " ORDER BY "  (name col)))
-  ([stmt col] (str stmt (order-by col))))
-
-(defn group-by
-  "Returns a query string.
-
-   (group-by :name) => ' GROUP BY name'
-
-   (-> (where 'id=%1' 5) (group-by :name)) => 'WHERE id=5 GROUP BY name"
-  ([col]      (str " GROUP BY " (name col)))
-  ([stmt col] (str stmt (group-by col))))
-
-(defn having
-  "Returns a query string.
-
-   (-> (where 'id=%1' 5) (having '%1 < id < %2' 1 2)) =>
-    'WHERE id=5 HAVING 1 < id < 2' "
-  [stmt pred & args]
-  (str stmt " HAVING " (apply sql-clause pred args)))
 
 
 
