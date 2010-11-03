@@ -224,7 +224,7 @@
 
 (defmacro tst [expr]
   `(do (println "Code:   " (quote ~expr))
-       (println "Return: " ~expr)))
+       (println "Return: " ~expr "\n")))
 
 (defn test-suite []
   (letfn [(drop-if [t] (try
