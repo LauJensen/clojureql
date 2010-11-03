@@ -9,7 +9,7 @@
    clojureql.internal
    [clojure.string :only [join] :rename {join join-str}]
    [clojure.contrib sql])
-  (refer-clojure :exclude [take sort conj! disj! compile]
+  (refer-clojure :exclude [take sort conj! disj!]
                  :rename {take take-coll}))
 
 
@@ -21,7 +21,7 @@
       :subname     "//localhost:3306/cql"})
 
 (defprotocol DBPredicate
-  (compile [expr] "Compiles an expression to a String.
+  (to-string [expr] "To-Strings an expression to a String.
 
                    []  = 'this AND that'
                    {}  = 'key=val'
@@ -29,25 +29,28 @@
 
 (extend-protocol DBPredicate
    String
-   (compile [expr] (str "\"" expr "\""))
+   (to-string [expr] (str "\"" expr "\""))
    Integer
-   (compile [expr] expr)
+   (to-string [expr] expr)
    Character
-   (compile [expr] (str expr))
+   (to-string [expr] (str expr))
    clojure.lang.Keyword
-   (compile [expr] (str (name expr) "="))
+   (to-string [expr] (str (name expr) "="))
    clojure.lang.MapEntry
-   (compile [expr]
-            (str (-> expr key name) \= (-> expr val compile)))
+   (to-string [expr]
+            (str (-> expr key name) \= (-> expr val to-string)))
    clojure.lang.PersistentVector
-   (compile [expr]
-            (join-str " AND " (map compile expr)))
+   (to-string [expr]
+              (join-str " AND " (map to-string expr)))
+   clojure.lang.ArraySeq
+   (to-string [expr]
+            (join-str " AND " (map to-string expr)))
    clojure.lang.IPersistentSet
-   (compile [expr]
-            (str "(" (->> expr (map compile) (join-str " OR ")) ")"))
+   (to-string [expr]
+            (str "(" (->> expr (map to-string) (join-str " OR ")) ")"))
    clojure.lang.PersistentArrayMap
-   (compile [expr]
-            (->> expr (map compile) (join-str " AND "))))
+   (to-string [expr]
+            (->> expr (map to-string) (join-str " AND "))))
 
 (defprotocol Relation
   (select [_    predicate]            "Queries the table using a predicate")
@@ -79,7 +82,7 @@
          this)
   (disj! [this predicate]
          (with-connection cnx
-           (delete-rows tname [(compile predicate)]))
+           (delete-rows tname [(to-string predicate)]))
          this)
   (take  [_ n]
          (with-connection cnx
@@ -127,10 +130,9 @@
    (where 'id=%1 OR id < %2' 15 10) => 'WHERE id=15 OR id < 10'
 
    (where 'id=%1 OR id < %2' 15 10 :invert) => 'WHERE not(id=15 OR id < 10')"
-  [pred & args]
-  (str "WHERE " (if (= :invert (last args))
-                  (str "not(" (apply sql-clause pred (butlast args)) ")")
-                  (apply sql-clause pred args))))
+  ([ast]         (str "WHERE " (to-string ast)))
+  ([pred & args] (str "WHERE "  (apply sql-clause pred args))))
+
 
 (defn order-by
   "Returns a query string.
@@ -158,6 +160,17 @@
   [stmt pred & args]
   (str stmt " HAVING " (apply sql-clause pred args)))
 
+
+
+
+
+
+                                        ; DEMO
+
+(defmacro tst [expr]
+  `(do (println "Code:   " (quote ~expr))
+       (println "Return: " ~expr)))
+
 (defn test-suite []
   (letfn [(drop-if [t] (try
                         (drop-table t)
@@ -179,17 +192,11 @@
                 {:name "sthuebner"  :title "Mr. Macros"}
                 {:name "Frank"      :title "Engineer"}]
         wages  (map #(hash-map :wage %) [100 200 300 400])]
-    (println "Populating users table:")
-    (prn @(conj! users roster))
-    (println "Populating salary table:")
-    (prn @(conj! salary wages))
-    (println "Explicit join:")
-    (prn (join users salary #{:users.id :salary.id}))
-    (println "Removing IDs 3 and 4, then sorting in descending order:")
-    (-> (disj! users #{{:id 3} {:id 4}})
-        (sort :id :desc)
-        prn)
-    (println "Limiting output to 1 row:")
-    (prn (take users 1))
-    (println "Raw select:")
-    (prn (select users (where "id < %1 OR id=%2" 5 10)))))
+    (tst @(conj! users roster))
+    (tst @(conj! salary wages))
+    (tst (join users salary #{:users.id :salary.id}))
+    (tst (-> (disj! users #{{:id 3} {:id 4}})
+             (sort :id :desc)))
+    (tst (take users 1))
+    (tst (select users (where "id=%1 OR id=%2" 1 10)))
+    (tst (select users (where #{{:id 1} {:id 10}})))))
