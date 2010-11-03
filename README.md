@@ -19,11 +19,17 @@ Query
     @users
     > ({:id 1 :name "Lau"} {:id 2 :name "Christophe"} {:id 3 :name "Frank"})
 
-    (select users (where "id=1"))
+    (select users (where "id=%1" 1))
     > ({:id 1 :name "Lau"})
 
-    (select users (where "id=1" :invert))
+    (select users (where-not "id=1"))
     > ({:id 2 :name "Christophe"} {:id 3 :name "Frank"})
+
+    (select users (where (both (>= {:id 2}) (= {:title "Dev"}))))
+    > ()
+
+    (select users (where (either (= {:name "Lau"}) (= {:title "Dev"}))))
+    > ({:id 1 :name "Lau" :title "Dev"} {:id 4 :name "Frank" :title "Dev"})
 
 Aggregates
 ----------
@@ -62,10 +68,13 @@ Helpers
 -------
 
     (where "(%1 < %2) AND (avg(%1) < %3)" :income :cost :expenses)
-    > " WHERE (income < cost) AND (avg(income) < expenses)"
+    > "WHERE (income < cost) AND (avg(income) < expenses)"
 
-    (where "(%1 < %2) AND (avg(%1) < %3)" :income :cost :expenses :invert)
-    > " WHERE not((income < cost) AND (avg(income) < expenses))"
+    (where-not (either (= {:id 4}) (>= {:wage 200})))
+    > "WHERE not ((id = 4) OR (wage >= 200))"
+
+    (where (both (= {:id 4}) (< {:wage 100})))
+    > "WHERE ((id = 4) AND (wage < 100))"
 
     (-> (where "id > 2") (group-by :name))
     > "WHERE id > 2 GROUP BY name"
