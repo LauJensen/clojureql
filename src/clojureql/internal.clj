@@ -20,15 +20,29 @@
 (defn colkeys->string
   " [:k1 :k2]                =>  'k1,k2'
     [:k1 [:avg.k2 :as :k3]]  =>  'k1,avg(k2) AS k3'"
-  [tcols]
-  (letfn [(item->string [i] (if (vector? i)
-                              (let [[col _ alias] (map name i)
-                                    [_ fn aggr] (re-find #"(.*)\.(.*)" col)]
-                                (str fn "(" aggr ")" " AS " alias))
-                              (name i)))]
-    (if (keyword? tcols)
-      (name tcols)
-      (->> tcols (map item->string) (join-str \,)))))
+  ([tcols]
+     (letfn [(item->string [i] (if (vector? i)
+                                 (let [[col _ alias] (map name i)
+                                       [_ fn aggr] (re-find #"(.*)\.(.*)" col)]
+                                   (str fn "(" aggr ")" " AS " alias))
+                                 (name i)))]
+       (if (keyword? tcols)
+         (name tcols)
+         (->> tcols (map item->string) (join-str \,)))))
+  ([tname tcols]
+     (letfn [(item->string [i] (if (vector? i)
+                                 (let [[col _ alias] (map name i)
+                                       [_ fn aggr] (re-find #"(.*)\.(.*)" col)]
+                                   (str fn "(" aggr ")" " AS " alias))
+                                 (str (name tname) \. (name i))))]
+       (if (keyword? tcols)
+         (str (name tname) \. (name tcols))
+         (->> tcols (map item->string) (join-str \,))))))
+
+(defn get-foreignfield
+  [tname s]
+  (-> (remove #(.contains (-> % name (.split "\\.") first) (name tname)) s)
+      first))
 
 (defn non-unique-map
   " Reduces a collection of key/val pairs to a single hashmap.
@@ -86,7 +100,7 @@
   parameterized) sql query string followed by values for any parameters."
   [[sql & params :as sql-params] func]
   (when-not (vector? sql-params)
-    (throw "sql-params must be a vector"))
+    (throw (Exception. "sql-params must be a vector")))
   (with-open [stmt (.prepareStatement (:connection *db*) sql)]
     (doseq [[index value] (map vector (iterate inc 1) params)]
       (.setObject stmt index value))

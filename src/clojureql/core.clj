@@ -29,7 +29,7 @@
 
 (extend-protocol DBPredicate
    String
-   (compile [expr] expr)
+   (compile [expr] (str "\"" expr "\""))
    Integer
    (compile [expr] expr)
    Character
@@ -38,7 +38,7 @@
    (compile [expr] (str (name expr) "="))
    clojure.lang.MapEntry
    (compile [expr]
-            (str (-> expr key name) \= (val expr)))
+            (str (-> expr key name) \= (-> expr val compile)))
    clojure.lang.PersistentVector
    (compile [expr]
             (join-str " AND " (map compile expr)))
@@ -50,12 +50,12 @@
             (->> expr (map compile) (join-str " AND "))))
 
 (defprotocol Relation
-  (select [_    predicate]      "Queries the table using a predicate")
-  (conj!  [this records]        "Inserts record(s) into the table")
-  (disj!  [this predicate]      "Deletes record(s) from the table")
-  (take   [_    n]              "Queries the table with LIMIT n")
-  (sort   [_    col type]       "Sorts the query either :asc or :desc")
-  (join   [_    table2 join_on] "Joins two table")
+  (select [_    predicate]            "Queries the table using a predicate")
+  (conj!  [this records]              "Inserts record(s) into the table")
+  (disj!  [this predicate]            "Deletes record(s) from the table")
+  (take   [_    n]                    "Queries the table with LIMIT n")
+  (sort   [_    col type]             "Sorts the query either :asc or :desc")
+  (join   [_    table2 join_on]       "Joins two table")
   )
 
 (defrecord Table [cnx tname tcols]
@@ -98,11 +98,13 @@
   (join  [_ table2 join_on]
          (with-cnx cnx
            (with-results rs
-             [(format "SELECT %s FROM %s JOIN %s ON %s"
-                      (colkeys->string tcols)
+             [(format "SELECT %s,%s FROM %s JOIN %s ON %s"
+                      (colkeys->string tname tcols)
+                      (colkeys->string (:tname table2) (:tcols table2))
                       (name tname)
                       (-> table2 :tname name)
-                      (->> join_on (map name) (join-str \=)))]
+                      (->> join_on (map name) (join-str \=))
+                      )]
              (doall rs))))
   )
 
@@ -156,33 +158,38 @@
   [stmt pred & args]
   (str stmt " HAVING " (apply sql-clause pred args)))
 
-
-
-#_(do
-
-   (def users (table users [:name :title]))
-   (def salary (table salary ["*"]))
-
-   @users  ; select <constructor supplied columns> from users
-   ({:name "Lau" :title "Developer"} {:name "cgrand" :title "Design Guru"})
-
-   (conj! users {:name "sthuebner" :title "Mr. Macros"})    ; insert into
-
-   (disj! users {:name "Lau" 'title "Dev"})                 ; remove entry with name=Lau OR title=Dev
-
-   (disj! users #{{:name "Lau"} {:title "Dev"}})            ; remove entry with name=Lau OR title=Dev
-   (disj! users {:name "Lau" :title "Dev"})                 ; remove entry with name=Lau AND title=Dev
-   (disj! users [{:name "Lau"} #{{:title "Dev"}
-                                  {:id 5}}])                ; name=Lau AND (title=Dev OR id=5)
-
-   (sort users :col :asc)                                   ; select <cols> from users order by 'col' ASC
-
-   (take users 5)                                           ; select <cols> from users LIMIT 5
-
-   (join users salary #{:users.id :salary.id})              ; join where users.id = salary.id
-
-   (select users (where "id > %1 AND id < %2" 1 5))         ;select ids between 1 and 5
-
-   (select users (where "id > %1 AND id < %2" 1 5 :invert)) ;select ids NOT between 1 and 5
-
-   )
+(defn test-suite []
+  (letfn [(drop-if [t] (try
+                        (drop-table t)
+                        (catch Exception e nil)))]
+    (with-connection db
+      (drop-if :users)
+      (create-table :users
+                    [:id    :integer "PRIMARY KEY" "AUTO_INCREMENT"]
+                    [:name  "varchar(255)"]
+                    [:title "varchar(255)"])
+      (drop-if :salary)
+      (create-table :salary
+                    [:id    :integer "PRIMARY KEY" "AUTO_INCREMENT"]
+                    [:wage  :integer])))
+  (let [users  (table db :users [:id :name :title])
+        salary (table db :salary [:id :wage])
+        roster [{:name "Lau Jensen" :title "Dev"}
+                {:name "Christophe" :title "Design Guru"}
+                {:name "sthuebner"  :title "Mr. Macros"}
+                {:name "Frank"      :title "Engineer"}]
+        wages  (map #(hash-map :wage %) [100 200 300 400])]
+    (println "Populating users table:")
+    (prn @(conj! users roster))
+    (println "Populating salary table:")
+    (prn @(conj! salary wages))
+    (println "Explicit join:")
+    (prn (join users salary #{:users.id :salary.id}))
+    (println "Removing IDs 3 and 4, then sorting in descending order:")
+    (-> (disj! users #{{:id 3} {:id 4}})
+        (sort :id :desc)
+        prn)
+    (println "Limiting output to 1 row:")
+    (prn (take users 1))
+    (println "Raw select:")
+    (prn (select users (where "id < %1 OR id=%2" 5 10)))))
