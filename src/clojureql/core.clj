@@ -9,7 +9,8 @@
    clojureql.internal
    [clojure.string :only [join] :rename {join join-str}]
    [clojure.contrib sql])
-  (refer-clojure :exclude [take sort conj! disj!] :rename {take take-coll}))
+  (refer-clojure :exclude [take sort conj! disj! compile]
+                 :rename {take take-coll}))
 
 
 (def db
@@ -19,6 +20,34 @@
       :password    "cql"
       :subname     "//localhost:3306/cql"})
 
+(defprotocol DBPredicate
+  (compile [expr] "Compiles an expression to a String.
+
+                   []  = 'this AND that'
+                   {}  = 'key=val'
+                   #{} = 'this OR that'"))
+
+(extend-protocol DBPredicate
+   String
+   (compile [expr] expr)
+   Integer
+   (compile [expr] expr)
+   Character
+   (compile [expr] (str expr))
+   clojure.lang.Keyword
+   (compile [expr] (str (name expr) "="))
+   clojure.lang.MapEntry
+   (compile [expr]
+            (str (-> expr key name) \= (val expr)))
+   clojure.lang.PersistentVector
+   (compile [expr]
+            (join-str " AND " (map compile expr)))
+   clojure.lang.IPersistentSet
+   (compile [expr]
+            (str "(" (->> expr (map compile) (join-str " OR ")) ")"))
+   clojure.lang.PersistentArrayMap
+   (compile [expr]
+            (->> expr (map compile) (join-str " AND "))))
 
 (defprotocol Relation
   (select [_    predicate]      "Queries the table using a predicate")
@@ -50,7 +79,7 @@
          this)
   (disj! [this predicate]
          (with-connection cnx
-           (delete-rows tname [(map->predicate predicate)]))
+           (delete-rows tname [(compile predicate)]))
          this)
   (take  [_ n]
          (with-connection cnx
@@ -140,6 +169,11 @@
    (conj! users {:name "sthuebner" :title "Mr. Macros"})    ; insert into
 
    (disj! users {:name "Lau" 'title "Dev"})                 ; remove entry with name=Lau OR title=Dev
+
+   (disj! users #{{:name "Lau"} {:title "Dev"}})            ; remove entry with name=Lau OR title=Dev
+   (disj! users {:name "Lau" :title "Dev"})                 ; remove entry with name=Lau AND title=Dev
+   (disj! users [{:name "Lau"} #{{:title "Dev"}
+                                  {:id 5}}])                ; name=Lau AND (title=Dev OR id=5)
 
    (sort users :col :asc)                                   ; select <cols> from users order by 'col' ASC
 

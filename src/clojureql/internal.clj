@@ -30,21 +30,6 @@
       (name tcols)
       (->> tcols (map item->string) (join-str \,)))))
 
-(defn map->predicate
-  " {:x 5 :y 10} becomes \"x=5 AND y=10\"
-    {'x 5 'y 10} becomes \"x=5 OR y=10\"
-    Strings are automatically quoted. "
-  [pred]
-  (reduce (fn [acc [k v]]
-            (str acc  (if-not (empty? acc)
-                        (if (symbol? k) " OR " " AND "))
-                 (name k)
-                 \=
-                 (if (string? v)
-                   (format "'%s'" v)
-                   v)
-                 )) "" pred))
-
 (defn non-unique-map
   " Reduces a collection of key/val pairs to a single hashmap.
 
