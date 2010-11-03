@@ -133,9 +133,14 @@
   "Returns a query string.
 
    (-> (where 'id=%1' 5) (having '%1 < id < %2' 1 2)) =>
-    'WHERE id=5 HAVING 1 < id < 2' "
-  [stmt pred & args]
-  (str stmt " HAVING " (apply sql-clause pred args)))
+    'WHERE id=5 HAVING 1 < id < 2'
+
+   (-> (where (= {:id 5})) (having (either (> {:id 5}) (<= {:id 2})))) =>
+    'WHERE id=5 HAVING (id > 5 OR id <= 2)'"
+  ([stmt ast]
+     (str stmt " HAVING " (compile-expr ast)))
+  ([stmt pred & args]
+     (str stmt " HAVING " (apply sql-clause pred args))))
 
 
 (defprotocol Relation
