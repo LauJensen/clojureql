@@ -168,7 +168,7 @@
          this)
   (disj! [this predicate]
          (with-connection cnx
-           (delete-rows tname [(to-string predicate)]))
+           (delete-rows tname [(compile-expr predicate)]))
          this)
   (take  [_ n]
          (with-connection cnx
@@ -245,8 +245,8 @@
     (tst @(conj! users roster))
     (tst @(conj! salary wages))
     (tst (join users salary #{:users.id :salary.id}))
-    (tst (-> (disj! users #{{:id 3} {:id 4}})
+    (tst (-> (disj! users (either (= {:id 3}) (= {:id 4})))
              (sort :id :desc)))
     (tst (take users 1))
     (tst (select users (where "id=%1 OR id=%2" 1 10)))
-    (tst (select users (where #{{:id 1} {:id 10}})))))
+    (tst (select users (where (either (= {:id 1}) (>= {:id 10})))))))
