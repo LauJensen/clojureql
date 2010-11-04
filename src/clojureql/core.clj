@@ -27,8 +27,9 @@
         :eq  (str (-> expr last keys first to-name) " = " (-> expr last vals first))
         :gt  (str (-> expr last keys first to-name) " > " (-> expr last vals first))
         :lt  (str (-> expr last keys first to-name) " < " (-> expr last vals first))
-        :gt= (str (-> expr last keys first to-name) ">=" (-> expr last vals first))
-        :lt= (str (-> expr last keys first to-name) "<=" (-> expr last vals first))
+        :gt= (str (-> expr last keys first to-name) " >= " (-> expr last vals first))
+        :lt= (str (-> expr last keys first to-name) " <= " (-> expr last vals first))
+        :!=  (str (-> expr last keys first to-name) " != " (-> expr last vals first))
         (str expr)))
 
 (defn either
@@ -53,6 +54,13 @@
   [& args]
   (if (map? (first args))
     (compile-expr (apply vector :eq args))
+    (apply clojure.core/= args)))
+
+(defn !=
+  " Same as not= "
+  [& args]
+  (if (map? (first args))
+    (compile-expr (apply vector :!= args))
     (apply clojure.core/= args)))
 
 (defn >
