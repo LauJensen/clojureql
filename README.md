@@ -79,6 +79,9 @@ Helpers
     (where (both (= {:id 4}) (< {:wage 100})))
     > "WHERE ((id = 4) AND (wage < 100))"
 
+    (where (!= {:a 5})
+    > "WHERE a != 5"
+
     (where (either (= {:id 2}) (> {:avg.id 4})))
     > "WHERE (id = 2 OR avg(id) > 4)"
 
@@ -90,3 +93,5 @@ Helpers
 
     (-> (where "id > 2") (having "id=%1 OR id=%2" 3 5))
     > "WHERE id > 2 HAVING id=3 OR id=5"
+
+Valid operators in predicates are: or  and  =  !=  <  <=  >  >=
