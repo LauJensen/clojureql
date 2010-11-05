@@ -8,39 +8,62 @@ type.
 ClojureQL provides little to no assistance in creating specialized query strings, so that
 compatability with the database backend is left to the user.
 
-To try out this library locally, simply clone the repo, load the core namespace and run
-the fn (test-suite). Make sure you have a local MySQL installation with the user/psw combo
-"cql", "cql" or change the global 'db'.
+ClojureQL is modeled around the primitives defined in Relational Algebra.
+http://en.wikipedia.org/wiki/Relational_algebra
+
+For the user this means that all queries compose and are never executed unless dereferenced
+or called with a function that has the ! suffix.
+
+As a help for debugging, wrap your statements in (binding [*debug* true]) to see the
+resulting SQL statement.
 
 This project is still in the pre-alpha design phase, input is welcomed!
+
+Initialization
+--------------
+
+    (def db
+     {:classname   "com.mysql.jdbc.Driver"
+      :subprotocol "mysql"
+      :user        "cql"
+      :password    "cql"
+      :subname     "//localhost:3306/cql"})
 
 Query
 -----
 
-    (def users (table connection-info :users ["*"]))  ; All columns in table 'users'
+    (def users (table db :users [:id :name]))  ; Points to 2 colums in table users
 
     @users
-    > ({:id 1 :name "Lau"} {:id 2 :name "Christophe"} {:id 3 :name "Frank"})
+    >>> ({:id 1 :name "Lau"} {:id 2 :name "Christophe"} {:id 3 :name "Frank"})
 
-    (select users (where "id=%1" 1))
-    > ({:id 1 :name "Lau"})
+    @(-> users
+         (select (< {:id 3}))) ; Only selects IDs below 3
+    >>> ({:name "Lau Jensen", :id 1} {:name "Christophe", :id 2})
 
-    (select users (where-not "id=1"))
-    > ({:id 2 :name "Christophe"} {:id 3 :name "Frank"})
+    @(-> users
+         (select (< {:id 3}))
+         (project #{:title}))  ; <-- Includes a new column
+    >>> ({:name "Lau Jensen", :id 1, :title "Dev"} {:name "Christophe", :id 2, :title "Design Guru"})
 
-    (select users (where (both (>= {:id 2}) (= {:title "Dev"}))))
-    > ()
+    @(-> users
+         (select (!= {:id 3})))  <-- Matches where ID is NOT 3
+    >>> ({:name "Lau Jensen", :id 1} {:name "Christophe", :id 2})
 
-    (select users (where (either (= {:name "Lau"}) (= {:title "Dev"}))))
-    > ({:id 1 :name "Lau" :title "Dev"} {:id 4 :name "Frank" :title "Dev"})
+    @(-> users
+         (select (both (= {:id 1}) (= {:title "'Dev'"}))))
+    >>> ({:name "Lau Jensen", :id 1})
+
+    @(-> users
+         (select (either (= {:id 1}) (= {:title "'Design Guru'"}))))
+    >>> ({:name "Lau Jensen", :id 1} {:name "Christophe", :id 2})
+
+**Note:** No alteration of the query will trigger execution. Only dereferencing will!
 
 Aggregates
 ----------
 
-    (def salary (table connection-info :salary [[:avg.wage :as :avg]]))
-
-    @salary
-    > ({:wage 150.00000M})
+Coming soon!
 
 Manipulation
 ------------
@@ -51,30 +74,46 @@ Manipulation
     @(disj! users {:name "Jack"})
     > ({:id 1 :name "Lau"} {:id 2 :name "Christophe"} {:id 3 :name "Frank"})
 
+**Note:** These function execute and return a pointer to the table, so the can be chained with other calls.
+
 Compound ops
 ------------
 
-    (-> (conj! users {:name "Jack"})
-        (disj! {:name "Lau"})
-        (sort :id :desc))
+Since this is a true Relational Algebra implementation, everything composes!
+
+    @(-> (conj! users {:name "Jack"})   ; Add a row
+         (disj! (= {:name "Lau"}))      ; Remove another
+         (sort :id :desc)               ; Prepare to sort in descending order
+         (project #{:id :title})        ; Include these columns in the query
+         (select (!= {:id 5}))          ; But filter out ID = 5
+         (limit 10))                    ; Dont extract more than 10 hits
     > ({:id 3 :name "Frank"} {:id 2 :name "Christophe"})
+
+**Note:** This executes SQL statements 3 times in this order: conj!, disj!, @
 
 Joins
 ------
 
-    (def visitors (table connection-info :visitors [:id :guest]))
+    (def visitors (table db :visitors [:id :guest]))
 
-    (join users visitors #{users.id visitors.id})
+    @(join users visitors :id)                       ; USING(id)
+    > ({:id 1 :name "Lau" :guest "false"} {:id 3 :name "Frank" :guest "true"})
+
+    @(join users visitors #{:users.id visitors.id})  ; ON users.id = visitors.id
     > ({:id 1 :name "Lau" :guest "false"} {:id 3 :name "Frank" :guest "true"})
 
 Helpers
 -------
 
-    (where "(%1 < %2) AND (avg(%1) < %3)" :income :cost :expenses)
-    > "WHERE (income < cost) AND (avg(income) < expenses)"
+**(where) is not used in the relation model as the string notation is not yet available**
 
-    (where-not (either (= {:id 4}) (>= {:wage 200})))
-    > "WHERE not ((id = 4) OR (wage >= 200))"
+Below is just for inspiration. View the function (test-suite) in core.clj instead!
+
+    ;;; (where "(%1 < %2) AND (avg(%1) < %3)" :income :cost :expenses)
+    ;;; > "WHERE (income < cost) AND (avg(income) < expenses)"
+
+    ;;; (where-not (either (= {:id 4}) (>= {:wage 200})))
+    ;;; > "WHERE not ((id = 4) OR (wage >= 200))"
 
     (where (both (= {:id 4}) (< {:wage 100})))
     > "WHERE ((id = 4) AND (wage < 100))"

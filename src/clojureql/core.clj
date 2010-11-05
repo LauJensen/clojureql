@@ -11,6 +11,9 @@
   (refer-clojure :exclude [take sort conj! disj! < <= > >= =]
                  :rename {take take-coll}))
 
+                                        ; GLOBALS
+
+(def *debug* true) ; If true: Shows all SQL expressions before executing
 
 (def db
      {:classname   "com.mysql.jdbc.Driver"
@@ -18,6 +21,8 @@
       :user        "cql"
       :password    "cql"
       :subname     "//localhost:3306/cql"})
+
+                                        ; PREDICATE COMPILER
 
 (defn compile-expr
   [expr]
@@ -103,7 +108,7 @@
     (compile-expr (apply vector :gt= args))
     (apply clojure.core/>= args)))
 
-(defn where
+#_(defn where
   "Returns a query string. Can take a raw string with params as %1 %2 %n
    or an AST which compiles using compile-expr.
 
@@ -114,28 +119,10 @@
   ([ast]         (str "WHERE " (compile-expr ast)))
   ([pred & args] (str "WHERE "  (apply sql-clause pred args))))
 
-(defn where-not
+#_(defn where-not
   "The inverse of the where fn"
   ([ast]         (str "WHERE not(" (compile-expr ast) ")"))
   ([pred & args] (str "WHERE not("  (apply sql-clause pred args) ")")))
-
-(defn order-by
-  "Returns a query string.
-
-   (order-by :name) => ' ORDER BY name'
-
-   (-> (where 'id=%1' 5) (order-by :name)) => 'WHERE id=5 ORDER BY name"
-  ([col]      (str " ORDER BY "  (name col)))
-  ([stmt col] (str stmt (order-by col))))
-
-(defn group-by
-  "Returns a query string.
-
-   (group-by :name) => ' GROUP BY name'
-
-   (-> (where 'id=%1' 5) (group-by :name)) => 'WHERE id=5 GROUP BY name"
-  ([col]      (str " GROUP BY " (name col)))
-  ([stmt col] (str stmt (group-by col))))
 
 (defn having
   "Returns a query string.
@@ -151,82 +138,99 @@
      (str stmt " HAVING " (apply sql-clause pred args))))
 
 
+                                        ; RELATIONAL ALGEBRA
+
 (defprotocol Relation
-  (select [_    predicate]            "Queries the table using a predicate")
-  (conj!  [this records]              "Inserts record(s) into the table")
-  (disj!  [this predicate]            "Deletes record(s) from the table")
-  (take   [_    n]                    "Queries the table with LIMIT n")
-  (sort   [_    col type]             "Sorts the query either :asc or :desc")
-  (join   [_    table2 join_on]       "Joins two table")
+  (select     [this predicate]            "Queries the table using a predicate")
+  (project    [this fields]               "Projects fields onto the query")
+  (join       [_    table2 join_on]       "Joins two table")
+  (rename     [this newnames]             "Renames colums")
+
+  (conj!      [this records]              "Inserts record(s) into the table")
+  (disj!      [this predicate]            "Deletes record(s) from the table")
+
+  (limit      [_    n]                    "Queries the table with LIMIT n")
+  (group-by   [this col]                  "Groups the Query by the column")
+  (order-by   [this col]                  "Orders the Query by the column")
+
+  (sort       [_    col type]             "Sorts the query either :asc or :desc")
+  (options    [this opts]                 "Appends opt(ion)s to the query")
   )
 
-(defrecord Table [cnx tname tcols]
+
+(defrecord RTable [cnx tname tcols restriction renames joins options]
   clojure.lang.IDeref
   (deref [_]
-         (with-connection cnx
-           (with-query-results rs
-             [(format "SELECT %s FROM %s" (colkeys->string tcols) (name tname))]
-             (doall rs))))
+         (let [sql-string (format "SELECT %s FROM %s %s %s %s"
+                                  (colkeys->string tcols)
+                                  (if renames
+                                    (with-rename tname renames)
+                                    (name tname))
+                                  (if joins
+                                    (with-joins joins)
+                                    "")
+                                  (if restriction
+                                    (where (join-str " AND " restriction))
+                                    "")
+                                  (or options ""))]
+           (when *debug* (prn sql-string))
+           (with-cnx cnx
+             (with-results rs
+               [sql-string]
+               (doall rs)))))
   Relation
-  (select [_ predicate]
-         (with-connection cnx
-           (with-query-results rs
-             [(format "SELECT %s FROM %s %s" (colkeys->string tcols) (name tname) predicate)]
-             (doall rs))))
-  (conj! [this records]
-         (with-connection cnx
-           (if (map? records)
-             (insert-records tname records)
-             (apply insert-records tname records)))
-         this)
-  (disj! [this predicate]
-         (with-connection cnx
-           (delete-rows tname [(compile-expr predicate)]))
-         this)
-  (take  [_ n]
-         (with-connection cnx
-           (with-query-results rs
-             [(format "SELECT %s FROM %s LIMIT %d" (colkeys->string tcols) (name tname) n)]
-             (doall rs))))
-  (sort  [_ col type]
-         (with-connection cnx
-           (with-query-results rs
-             [(format "SELECT %s FROM %s ORDER BY %s %s"
-                      (colkeys->string tcols)
-                      (name tname)
-                      (name col)
-                      (if (= :asc type) "ASC" "DESC"))]
-             (doall rs))))
-  (join  [_ table2 join_on]
-         (with-cnx cnx
-           (with-results rs
-             [(format "SELECT %s,%s FROM %s JOIN %s ON %s"
-                      (colkeys->string tname tcols)
-                      (colkeys->string (:tname table2) (:tcols table2))
-                      (name tname)
-                      (-> table2 :tname name)
-                      (->> join_on (map name) (join-str \=))
-                      )]
-             (doall rs))))
+  (select   [this predicate]
+            (RTable. cnx tname tcols
+                     (conj (or restriction []) predicate)
+                     renames joins options))
+  (project  [this fields]
+            (RTable. cnx tname
+                     (apply conj (or tcols []) (qualify tname fields)) ; TODO: If this is an aggregate, dont qualify
+                     restriction renames joins options))
+  (join     [this table2 join-on]
+            (RTable. cnx tname
+                     (apply conj (or tcols [])
+                            (qualify (:tname table2) (:tcols table2)))
+                     restriction renames
+                     (assoc (or joins {}) (:tname table2) join-on)
+                     options))
+  (rename   [this newnames]
+            (RTable. cnx tname tcols restriction
+                     (merge (or renames {}) newnames)
+                     joins options))
+
+  (conj!   [this records]
+           (with-connection cnx
+             (if (map? records)
+               (insert-records tname records)
+               (apply insert-records tname records)))
+           this)
+  (disj!   [this predicate]
+           (with-connection cnx
+             (delete-rows tname [(compile-expr predicate)]))
+           this)
+
+  (options  [this opts]
+            (RTable. cnx tname tcols restriction renames joins
+                     (str options \space opts)))
+  (limit    [this n]       (.options this (str "LIMIT " n)))
+  (group-by [this col]     (.options this (str "GROUP BY " (name col))))
+  (order-by [this col]     (.options this (str "ORDER BY " (name col))))
+  (sort     [this col dir] (.options this (str "ORDER BY " (name col) \space
+                                               (if (:asc dir) "ASC" "DESC"))))
+
   )
 
 (defn table
-  " Returns a reference to a table, which will be accessed via the connection-info
-    (contrib.sql spec) and query the table-name (keyword) for the colums defined in
-    table-colums.
-
-    (table *conn-info* :table1 [:name :id]) "
-  [connection-info table-name table-colums]
-  (Table. connection-info table-name table-colums))
+  ([connection-info table-name]
+     (table connection-info table-name nil nil))
+  ([connection-info table-name colums]
+     (table connection-info table-name colums nil))
+  ([connection-info table-name colums restrictions]
+     (RTable. connection-info table-name (qualify table-name colums) restrictions nil nil nil)))
 
 (defn table? [tinstance]
-  (instance? clojureql.core.Table tinstance))
-
-
-
-
-
-
+  (instance? clojureql.core.RTable tinstance))
 
                                         ; DEMO
 
@@ -248,18 +252,20 @@
       (create-table :salary
                     [:id    :integer "PRIMARY KEY" "AUTO_INCREMENT"]
                     [:wage  :integer])))
-  (let [users  (table db :users [:id :name :title])
-        salary (table db :salary [:id :wage])
-        roster [{:name "Lau Jensen" :title "Dev"}
-                {:name "Christophe" :title "Design Guru"}
-                {:name "sthuebner"  :title "Mr. Macros"}
-                {:name "Frank"      :title "Engineer"}]
-        wages  (map #(hash-map :wage %) [100 200 300 400])]
-    (tst @(conj! users roster))
-    (tst @(conj! salary wages))
-    (tst (join users salary #{:users.id :salary.id}))
-    (tst (-> (disj! users (either (= {:id 3}) (= {:id 4})))
-             (sort :id :desc)))
-    (tst (take users 1))
-    (tst (select users (where "id=%1 OR id=%2" 1 10)))
-    (tst (select users (where (either (= {:id 1}) (>= {:id 10})))))))
+  (binding [*debug* true]
+    (let [users  (table db :users [:id :name :title])
+          salary (table db :salary [:id :wage])
+          roster [{:name "Lau Jensen" :title "Dev"}
+                  {:name "Christophe" :title "Design Guru"}
+                  {:name "sthuebner"  :title "Mr. Macros"}
+                  {:name "Frank"      :title "Engineer"}]
+          wages  (map #(hash-map :wage %) [100 200 300 400])]
+      (tst @(conj! users roster))
+      (tst @(conj! salary wages))
+      (tst @(join users salary #{:users.id :salary.id}))
+      (tst @(join users salary :id))
+      (tst @(-> (disj! users (either (= {:id 3}) (= {:id 4})))
+                (sort :id :desc)))
+      (tst @(limit users 1))
+      #_(tst (select users (where "id=%1 OR id=%2" 1 10)))
+      (tst @(select users (either (= {:id 1}) (>= {:id 10})))))))

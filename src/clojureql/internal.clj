@@ -26,30 +26,59 @@
                                        [_ fn aggr] (re-find #"(.*)\.(.*)" col)]
                                    (str fn "(" aggr ")" " AS " alias))
                                  (name i)))]
-       (if (or (keyword? tcols)
-               (and (>= 3 (count tcols))
-                    (= :as (nth tcols 1))))
-         (item->string tcols)
-         (->> tcols (map item->string) (join-str \,)))))
+       (cond
+        (= 1 (count tcols))  (-> tcols first name)
+        (or (keyword? tcols)
+            (and (>= 3 (count tcols))
+                 (= :as (nth tcols 1))))
+        (item->string tcols)
+        :else (->> tcols (map item->string) (join-str \,)))))
   ([tname tcols]
      (letfn [(item->string [i] (if (vector? i)
                                  (let [[col _ alias] (map name i)
                                        [_ fn aggr] (re-find #"(.*)\.(.*)" col)]
                                    (str fn "(" (name tname) \. aggr ")" " AS " alias))
                                  (str (name tname) \. (name i))))]
-       (if (or (keyword? tcols)
-               (and (>= 3 (count tcols))
-                    (= :as (nth tcols 1))))
-         (item->string tcols)
-         (->> tcols (map item->string) (join-str \,))))))
+       (cond
+        (= 1 (count tcols)) (str tname \. (-> tcols first name))
+        (or (keyword? tcols)
+            (and (>= 3 (count tcols))
+                 (= :as (nth tcols 1))))
+        (item->string tcols)
+        :else (->> tcols (map item->string) (join-str \,))))))
+
+(defn with-rename
+  [original renames]
+  (let [oname (name original)]
+    (if (map? renames)
+      (format "%s AS %s(%s)" oname oname
+              (join-str "," (->> renames vals (map name))))
+      (format "%s %s" oname (name renames)))))
+
+(defn with-joins
+  [joins]
+  (str "JOIN "
+       (if (keyword? ((comp first vals) joins))
+         (format "%s USING(%s) "
+                 ((comp name first keys) joins)
+                 ((comp name first vals) joins))
+         (apply format "%s ON %s = %s "
+                ((comp name first keys) joins)
+                (map name ((comp first vals) joins))))))
+
+(defn qualify
+  [parent children]
+  (map #(if (.contains (name %) ".")
+          (name %)
+          (str (name parent) \. (name %))) children))
 
 (defn to-name
   " Converts a keyword to a string, checking for aggregates
 
-   (to-name :avg.y) => 'avg(y)', (to-name :y) => 'y' "
+   (to-name :avg:y) => 'avg(y)', (to-name :y) => 'y' "
   [c]
-  (if (.contains (name c) ".")
-    (let [[aggr col] (-> (name c) (.split "\\."))]
+  (if (.contains (name c) ":")
+    (let [[aggr col] (-> (name c) (.split "\\:"))]
       (str aggr "(" col ")"))
     (name c)))
 
