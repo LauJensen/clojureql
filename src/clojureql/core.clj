@@ -26,16 +26,21 @@
 
 (defn compile-expr
   [expr]
-  (case (first expr)
-        :or  (str "(" (join-str " OR "  (map compile-expr (rest expr))) ")")
-        :and (str "(" (join-str " AND " (map compile-expr (rest expr))) ")")
-        :eq  (str (-> expr last keys first to-name) " = " (-> expr last vals first))
-        :gt  (str (-> expr last keys first to-name) " > " (-> expr last vals first))
-        :lt  (str (-> expr last keys first to-name) " < " (-> expr last vals first))
-        :gt= (str (-> expr last keys first to-name) " >= " (-> expr last vals first))
-        :lt= (str (-> expr last keys first to-name) " <= " (-> expr last vals first))
-        :!=  (str (-> expr last keys first to-name) " != " (-> expr last vals first))
-        (str expr)))
+  (letfn [(lefthand [e] (-> e last keys first to-name))
+          (righthand [e] (let [retr (-> e last vals first)]
+                           (if (string? retr)
+                             (str "'" retr "'")
+                             retr)))]
+    (case (first expr)
+          :or  (str "(" (join-str " OR "  (map compile-expr (rest expr))) ")")
+          :and (str "(" (join-str " AND " (map compile-expr (rest expr))) ")")
+          :eq  (str "(" (lefthand expr) " = " (righthand expr) ")")
+          :gt  (str "(" (lefthand expr) " > " (righthand expr) ")")
+          :lt  (str "(" (lefthand expr) " < " (righthand expr) ")")
+          :gt= (str "(" (lefthand expr) " >= " (righthand expr) ")")
+          :lt= (str "(" (lefthand expr) " <= " (righthand expr) ")")
+          :!=  (str "(" (lefthand expr) " != " (righthand expr) ")")
+          (str expr))))
 
 (defn either
   " CQL version of OR.
