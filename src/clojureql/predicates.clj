@@ -53,7 +53,7 @@
   [& args]
   (if (map? (first args))
     (compile-expr (apply vector :!= args))
-    (apply clojure.core/= args)))
+    (apply clojure.core/not= args)))
 
 (defn >
   " Alpha - Subject to sanity.
