@@ -66,6 +66,10 @@ Aggregates
     @(table db :salary [:avg:wage])
     >>> ({:avg(wage) 250.0000M})
 
+    @(table db :salary [[:avg:wage :as average]])
+    >>> ({:average 250.0000M})
+
+
     @(-> (table db :salary) (project [:avg:wage]))
     >>> ({:avg(wage) 250.0000M})
 

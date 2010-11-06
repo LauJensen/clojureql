@@ -23,7 +23,7 @@
   ([tcols]
      (letfn [(item->string [i]  (if (vector? i)
                                  (let [[col _ alias] (map name i)
-                                       [_ fn aggr] (re-find #"(.*)\.(.*)" col)]
+                                       [_ fn aggr] (re-find #"(.*)\:(.*)" col)]
                                    (str fn "(" aggr ")" " AS " alias))
                                  (name i)))]
        (cond
@@ -36,7 +36,7 @@
   ([tname tcols]
      (letfn [(item->string [i] (if (vector? i)
                                  (let [[col _ alias] (map name i)
-                                       [_ fn aggr] (re-find #"(.*)\.(.*)" col)]
+                                       [_ fn aggr] (re-find #"(.*)\:(.*)" col)]
                                    (str fn "(" (name tname) \. aggr ")" " AS " alias))
                                  (str (name tname) \. (name i))))]
        (cond
@@ -88,12 +88,15 @@
   (letfn [(qualified? [c] (.contains (name c) "."))
           (aggregate? [c] (.contains (name c) ":"))
           (singular [c]
-                    (let [childname (name c)]
-                      (if (or (qualified? c) (aggregate? c))
-                        (if (aggregate? c)
-                          (to-name c)
-                          (name c))
-                        (str (name parent) \. (name c)))))]
+                    (if (vector? c)
+                      (let [[nm _ alias] c]
+                        (str (to-name nm) " AS " (name alias)))
+                      (let [childname (name c)]
+                        (if (or (qualified? c) (aggregate? c))
+                          (if (aggregate? c)
+                            (to-name c)
+                            (name c))
+                          (str (name parent) \. (name c))))))]
     (if (keyword? children)
       (singular children)
       (map singular children))))
