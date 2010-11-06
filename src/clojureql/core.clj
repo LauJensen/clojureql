@@ -39,13 +39,20 @@
 
   (sort       [_    col type]             "Sorts the query either :asc or :desc")
   (options    [this opts]                 "Appends opt(ion)s to the query")
+
+  (compile    [this]                      "Returns an SQL statement")
   )
 
 
 (defrecord RTable [cnx tname tcols restriction renames joins options]
   clojure.lang.IDeref
-  (deref [_]
-         (let [sql-string (format "SELECT %s FROM %s %s %s %s"
+  (deref [this] (with-cnx cnx
+                  (with-results rs
+                    [(compile this)]
+                    (doall rs))))
+  Relation
+  (compile  [this]
+         (let [sql-string (-> (format "SELECT %s FROM %s %s %s %s"
                                   (colkeys->string tcols)
                                   (if renames
                                     (with-rename tname renames)
@@ -56,13 +63,10 @@
                                   (if restriction
                                     (where (join-str " AND " restriction))
                                     "")
-                                  (or options ""))]
+                                  (or options ""))
+                              .trim)]
            (when *debug* (prn sql-string))
-           (with-cnx cnx
-             (with-results rs
-               [sql-string]
-               (doall rs)))))
-  Relation
+           sql-string))
   (select   [this predicate]
             (RTable. cnx tname tcols
                      (conj (or restriction []) predicate)
