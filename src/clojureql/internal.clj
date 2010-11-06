@@ -67,20 +67,33 @@
                 (map name ((comp first vals) joins))))))
 
 (defn qualify
+  "Will fully qualify the names of the child(ren) to the parent.
+
+   :parent :child => parent.child
+   :parent :parent.child => parent.child
+   :parent :avg:sales    => avg.sales "
   [parent children]
-  (map #(if (.contains (name %) ".")
-          (name %)
-          (str (name parent) \. (name %))) children))
+  (letfn [(singular [c]
+                    (let [childname (name c)]
+                      (if (or (.contains (name c) ".")
+                              (.contains (name c) ":"))
+                        (name c)
+                        (str (name parent) \. (name c)))))]
+    (if (keyword? children)
+      (singular children)
+      (map singular children))))
 
 (defn to-name
   " Converts a keyword to a string, checking for aggregates
 
    (to-name :avg:y) => 'avg(y)', (to-name :y) => 'y' "
   [c]
-  (if (.contains (name c) ":")
-    (let [[aggr col] (-> (name c) (.split "\\:"))]
-      (str aggr "(" col ")"))
-    (name c)))
+  (if (string? c)
+    (str "'" c "'")
+    (if (.contains (name c) ":")
+      (let [[aggr col] (-> (name c) (.split "\\:"))]
+        (str aggr "(" col ")"))
+      (name c))))
 
 (defn get-foreignfield
   [tname s]
