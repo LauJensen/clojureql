@@ -108,7 +108,7 @@
     (compile-expr (apply vector :gt= args))
     (apply clojure.core/>= args)))
 
-#_(defn where
+(defn where
   "Returns a query string. Can take a raw string with params as %1 %2 %n
    or an AST which compiles using compile-expr.
 
@@ -119,7 +119,7 @@
   ([ast]         (str "WHERE " (compile-expr ast)))
   ([pred & args] (str "WHERE "  (apply sql-clause pred args))))
 
-#_(defn where-not
+(defn where-not
   "The inverse of the where fn"
   ([ast]         (str "WHERE not(" (compile-expr ast) ")"))
   ([pred & args] (str "WHERE not("  (apply sql-clause pred args) ")")))
@@ -235,7 +235,7 @@
                                         ; DEMO
 
 (defmacro tst [expr]
-  `(do (println "Code:   " (quote ~expr))
+  `(do (print "Code:   " (quote ~expr) "\nSQL:     ")
        (println "Return: " ~expr "\n")))
 
 (defn test-suite []
@@ -264,6 +264,13 @@
       (tst @(conj! salary wages))
       (tst @(join users salary #{:users.id :salary.id}))
       (tst @(join users salary :id))
+      (tst @(-> users
+                (conj! {:name "Jack"})
+                (disj! (= {:id 1}))
+                (sort :id :desc)
+                (project #{:id :title})
+                (select (<= {:id 10}))
+                (limit 10)))
       (tst @(-> (disj! users (either (= {:id 3}) (= {:id 4})))
                 (sort :id :desc)))
       (tst @(limit users 1))
