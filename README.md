@@ -63,18 +63,33 @@ Query
 Aggregates
 ----------
 
-Coming soon!
+    @(table db :salary [:avg:wage])
+    >>> ({:avg(wage) 250.0000M})
+
+    @(-> (table db :salary) (project [:avg:wage]))
+    >>> ({:avg(wage) 250.0000M})
 
 Manipulation
 ------------
 
     @(conj! users {:name "Jack"})
-    > ({:id 1 :name "Lau"} {:id 2 :name "Christophe"} {:id 3 :name "Frank"} {:id 4 :name "Jack"})
+    >>> ({:id 1 :name "Lau"} {:id 2 :name "Christophe"} {:id 3 :name "Frank"} {:id 4 :name "Jack"})
 
     @(disj! users {:name "Jack"})
-    > ({:id 1 :name "Lau"} {:id 2 :name "Christophe"} {:id 3 :name "Frank"})
+    >>> ({:id 1 :name "Lau"} {:id 2 :name "Christophe"} {:id 3 :name "Frank"})
 
 **Note:** These function execute and return a pointer to the table, so the can be chained with other calls.
+
+Joins
+------
+
+    (def visitors (table db :visitors [:id :guest]))
+
+    @(join users visitors :id)                       ; USING(id)
+    >>> ({:id 1 :name "Lau" :guest "false"} {:id 3 :name "Frank" :guest "true"})
+
+    @(join users visitors #{:users.id visitors.id})  ; ON users.id = visitors.id
+    >>> ({:id 1 :name "Lau" :guest "false"} {:id 3 :name "Frank" :guest "true"})
 
 Compound ops
 ------------
@@ -86,21 +101,11 @@ Since this is a true Relational Algebra implementation, everything composes!
          (sort :id :desc)               ; Prepare to sort in descending order
          (project #{:id :title})        ; Include these columns in the query
          (select (!= {:id 5}))          ; But filter out ID = 5
+         (join :salary :id)             ; Join with table salary USING column id
          (limit 10))                    ; Dont extract more than 10 hits
-    > ({:id 3 :name "Frank"} {:id 2 :name "Christophe"})
+    >>> ({:id 3 :name "Frank"} {:id 2 :name "Christophe"})
 
 **Note:** This executes SQL statements 3 times in this order: conj!, disj!, @
-
-Joins
-------
-
-    (def visitors (table db :visitors [:id :guest]))
-
-    @(join users visitors :id)                       ; USING(id)
-    > ({:id 1 :name "Lau" :guest "false"} {:id 3 :name "Frank" :guest "true"})
-
-    @(join users visitors #{:users.id visitors.id})  ; ON users.id = visitors.id
-    > ({:id 1 :name "Lau" :guest "false"} {:id 3 :name "Frank" :guest "true"})
 
 Helpers
 -------
