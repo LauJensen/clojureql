@@ -121,13 +121,13 @@
 
    (where (either (= {:id 5}) (>= {:id 10})))
       'WHERE (id=5 OR id>=10)' "
-  ([ast]         (str "WHERE " (compile-expr ast)))
+  ([ast]         (str "WHERE "  (compile-expr ast)))
   ([pred & args] (str "WHERE "  (apply sql-clause pred args))))
 
 (defn where-not
   "The inverse of the where fn"
   ([ast]         (str "WHERE not(" (compile-expr ast) ")"))
-  ([pred & args] (str "WHERE not("  (apply sql-clause pred args) ")")))
+  ([pred & args] (str "WHERE not(" (apply sql-clause pred args) ")")))
 
 (defn having
   "Returns a query string.
@@ -220,8 +220,8 @@
                      (str options \space opts)))
   (limit    [this n]       (.options this (str "LIMIT " n)))
   (group-by [this col]     (.options this (str "GROUP BY " (name col))))
-  (order-by [this col]     (.options this (str "ORDER BY " (name col))))
-  (sort     [this col dir] (.options this (str "ORDER BY " (name col) \space
+  (order-by [this col]     (.options this (str "ORDER BY " (qualify tname col))))
+  (sort     [this col dir] (.options this (str "ORDER BY " (qualify tname col) \space
                                                (if (:asc dir) "ASC" "DESC"))))
 
   )
