@@ -1,5 +1,5 @@
 (ns clojureql.predicates
-  (refer-clojure :exclude [take sort conj! disj! < <= > >= =]
+  (:refer-clojure :exclude [take sort conj! disj! < <= > >= =]
                  :rename {take take-coll})
   (:use clojureql.internal
         [clojure.string :only [join] :rename {join join-str}]))
