@@ -48,23 +48,29 @@
         :else (->> tcols (map item->string) (join-str \,))))))
 
 (defn with-rename
-  [original renames]
-  (let [oname (name original)]
+  [tname tcols renames]
+  (let [oname (name tname)]
     (if (map? renames)
       (format "%s AS %s(%s)" oname oname
-              (join-str "," (->> renames vals (map name))))
-      (format "%s %s" oname (name renames)))))
+              (reduce #(let [[orig new] %2]
+                         (.replaceAll %1 (name orig) (name new)))
+                      (join-str "," (->> tcols (map name)
+                                         (filter #(.contains % oname))
+                                         (map #(subs % (inc (.indexOf % "."))))))
+                      renames))
+      (str oname (name renames)))))
 
 (defn with-joins
   [joins]
+  (prn joins)
   (str "JOIN "
        (if (keyword? ((comp first vals) joins))
          (format "%s USING(%s) "
                  ((comp name first keys) joins)
                  ((comp name first vals) joins))
-         (apply format "%s ON %s = %s "
+         (apply format "%s ON %s"
                 ((comp name first keys) joins)
-                (map name ((comp first vals) joins))))))
+                (vals joins)))))
 
 (defn to-name
   " Converts a keyword to a string, checking for aggregates

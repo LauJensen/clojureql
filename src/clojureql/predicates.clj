@@ -10,9 +10,10 @@
   [expr]
   (letfn [(lefthand [e] (-> e last keys first to-name))
           (righthand [e] (let [retr (-> e last vals first)]
-                           (if (string? retr)
-                             (str "'" retr "'")
-                             retr)))]
+                           (cond
+                            (string? retr)  (str "'" retr "'")
+                            (keyword? retr) (name retr)
+                            :else retr)))]
     (case (first expr)
           :or  (str "(" (join-str " OR "  (map compile-expr (rest expr))) ")")
           :and (str "(" (join-str " AND " (map compile-expr (rest expr))) ")")

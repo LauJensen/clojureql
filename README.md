@@ -92,7 +92,7 @@ Joins
     @(join users visitors :id)                       ; USING(id)
     >>> ({:id 1 :name "Lau" :guest "false"} {:id 3 :name "Frank" :guest "true"})
 
-    @(join users visitors #{:users.id visitors.id})  ; ON users.id = visitors.id
+    @(join users visitors (= {:users.id visitors.id}))  ; ON users.id = visitors.id
     >>> ({:id 1 :name "Lau" :guest "false"} {:id 3 :name "Frank" :guest "true"})
 
 Compound ops

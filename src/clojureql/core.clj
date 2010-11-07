@@ -55,7 +55,7 @@
          (let [sql-string (-> (format "SELECT %s FROM %s %s %s %s"
                                   (colkeys->string tcols)
                                   (if renames
-                                    (with-rename tname renames)
+                                    (with-rename tname tcols renames)
                                     (name tname))
                                   (if joins
                                     (with-joins joins)
@@ -73,7 +73,7 @@
                      renames joins options))
   (project  [this fields]
             (RTable. cnx tname
-                     (apply conj (or tcols []) (qualify tname fields)) ; TODO: If this is an aggregate, dont qualify
+                     (apply conj (or tcols []) (qualify tname fields))
                      restriction renames joins options))
   (join     [this table2 join-on]
             (RTable. cnx tname
@@ -150,7 +150,7 @@
           wages  (map #(hash-map :wage %) [100 200 300 400])]
       (tst @(conj! users roster))                              ; Add multiple rows
       (tst @(conj! salary wages))                              ; Same
-      (tst @(join users salary #{:users.id :salary.id}))       ; Join two tables explicitly
+      (tst @(join users salary (= {:users.id :salary.id})))    ; Join two tables explicitly
       (tst @(join users salary :id))                           ; Join two tables with USING
       (tst @(-> users
                 (conj! {:name "Jack"})                         ; Add a single row
