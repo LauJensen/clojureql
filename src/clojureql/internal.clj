@@ -75,13 +75,20 @@
   " Converts a keyword to a string, checking for aggregates
 
    (to-name :avg:y) => 'avg(y)', (to-name :y) => 'y' "
-  [c]
-  (if (string? c)
-    (str "'" c "'")
-    (if (.contains (name c) ":")
-      (let [[aggr col] (-> (name c) (.split "\\:"))]
-        (str aggr "(" col ")"))
-      (name c))))
+  ([c]
+     (if (string? c)
+       (str "'" c "'")
+       (if (.contains (name c) ":")
+         (let [[aggr col] (-> (name c) (.split "\\:"))]
+           (str aggr "(" col ")"))
+         (name c))))
+  ([p c]
+     (if (string? c)
+       (str "'" c "'")
+       (if (.contains (name c) ":")
+         (let [[aggr col] (-> (name c) (.split "\\:"))]
+           (str aggr "(" (name p) \. col ")"))
+         (str (name p) \. (name c))))))
 
 (defn qualify
   "Will fully qualify the names of the child(ren) to the parent.
@@ -95,11 +102,11 @@
           (singular [c]
                     (if (vector? c)
                       (let [[nm _ alias] c]
-                        (str (to-name nm) " AS " (name alias)))
+                        (str (to-name parent nm) " AS " (name alias)))
                       (let [childname (name c)]
                         (if (or (qualified? c) (aggregate? c))
                           (if (aggregate? c)
-                            (to-name c)
+                            (to-name parent c)
                             (name c))
                           (str (name parent) \. (name c))))))]
     (if (keyword? children)

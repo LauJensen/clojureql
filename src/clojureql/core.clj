@@ -44,6 +44,16 @@
   (compile    [this]                      "Returns an SQL statement")
   )
 
+(defn has-aggregate?
+  [tble]
+  (loop [[v & vs] (:tcols tble)]
+    (when v
+      (prn v)
+      (if (or (vector? v)
+              (.contains (name v) ":"))
+        true
+        (recur vs)))))
+
 
 (defrecord RTable [cnx tname tcols restriction renames joins options]
   clojure.lang.IDeref
@@ -54,7 +64,7 @@
   Relation
   (compile  [this]
          (let [sql-string (-> (format "SELECT %s FROM %s %s %s %s"
-                                  (colkeys->string tcols)
+                                  (->> tcols (qualify tname) colkeys->string)
                                   (if renames
                                     (with-rename tname tcols renames)
                                     (name tname))
@@ -72,10 +82,10 @@
                      renames joins options))
   (project  [this fields]
             (RTable. cnx tname
-                     (apply conj (or tcols []) (qualify tname fields))
+                     (apply conj (or tcols []) fields)
                      restriction renames joins options))
   (join     [this table2 join-on]
-            (RTable. cnx tname
+            (RTable. cnx tname  ; If aggregation, take table2.tname-aggregate and do subselect
                      (apply conj (or tcols [])
                             (qualify (:tname table2) (:tcols table2)))
                      restriction renames

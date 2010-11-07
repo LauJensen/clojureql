@@ -11,9 +11,9 @@
          (-> (table {} :users [:id :name]) compile)
          "SELECT users.id,users.name FROM users"
          (-> (table {} :users [:avg:wage]) compile)
-         "SELECT avg(wage) FROM users"
+         "SELECT avg(users.wage) FROM users"
          (-> (table {} :users [[:avg:wage :as :avg]]) compile)
-         "SELECT avg(wage) AS avg FROM users"))
+         "SELECT avg(users.wage) AS avg FROM users"))
   (testing "Where predicates"
     (are [x y] (= x y)
          (-> (table {} :users [:id])
