@@ -48,12 +48,22 @@
   [tble]
   (loop [[v & vs] (:tcols tble)]
     (when v
-      (prn v)
       (if (or (vector? v)
               (.contains (name v) ":"))
         true
         (recur vs)))))
 
+(defn derrived-fields [tname cols table-alias col-alias]
+  (str (->> cols (qualify tname) colkeys->string)
+       ","
+       (str table-alias \. col-alias )))
+
+(defn find-first-alias [tble]
+  (loop [[x & xs] tble]
+    (when x
+      (if (and (vector? x) (= 3 (count x)))
+        (-> x last name)
+        (recur xs)))))
 
 (defrecord RTable [cnx tname tcols restriction renames joins options]
   clojure.lang.IDeref
@@ -63,19 +73,31 @@
                     (doall rs))))
   Relation
   (compile  [this]
-         (let [sql-string (-> (format "SELECT %s FROM %s %s %s %s"
-                                  (->> tcols (qualify tname) colkeys->string)
-                                  (if renames
-                                    (with-rename tname (qualify tname tcols) renames)
-                                    (name tname))
-                                  (if joins (with-joins joins)
-                                    "")
-                                  (if restriction (where (join-str " AND " restriction))
-                                    "")
+            (let [sql-string
+                  (if (vector? joins) ; Are we joining on a table containing aggregates?
+                    (let [[[t2 pred]]  joins
+                          t2name       (-> t2 :tname name)
+                          colalias     (find-first-alias (:tcols t2))
+                          t2alias      (str t2name "_aggregation")]
+                      (-> (format "SELECT %s FROM %s LEFT OUTER JOIN (%s) AS %s ON %s %s"
+                                  (derrived-fields tname tcols t2alias colalias)
+                                  (name tname)
+                                  (-> (.group-by t2 (-> t2 :tcols first)) compile)
+                                  t2alias
+                                  (.replaceAll pred t2name t2alias)
                                   (or options ""))
-                              .trim)]
-           (when *debug* (prn sql-string))
-           sql-string))
+                          .trim))
+                    (-> (format "SELECT %s FROM %s %s %s %s"
+                                (->> tcols (qualify tname) colkeys->string)
+                                (if renames
+                                  (with-rename tname (qualify tname tcols) renames)
+                                  (name tname))
+                                (if joins (with-joins joins) "")
+                                (if restriction (where (join-str " AND " restriction)) "")
+                                (or options ""))
+                        .trim))]
+              (when *debug* (prn sql-string))
+              sql-string))
   (select   [this predicate]
             (RTable. cnx tname tcols
                      (conj (or restriction []) predicate)
@@ -85,12 +107,16 @@
                      (apply conj (or tcols []) fields)
                      restriction renames joins options))
   (join     [this table2 join-on]
-            (RTable. cnx tname  ; If aggregation, take table2.tname-aggregate and do subselect
-                     (apply conj (or tcols [])
-                            (qualify (:tname table2) (:tcols table2)))
-                     restriction renames
-                     (assoc (or joins {}) (:tname table2) join-on)
-                     options))
+            (if (has-aggregate? table2)
+              (RTable. cnx tname tcols restriction renames
+                       (conj (or joins []) [table2 join-on])
+                       options)
+              (RTable. cnx tname
+                       (apply conj (or tcols [])
+                              (qualify (:tname table2) (:tcols table2)))
+                       restriction renames
+                       (assoc (or joins {}) (:tname table2) join-on)
+                       options)))
   (rename   [this newnames]
             (RTable. cnx tname tcols restriction
                      (merge (or renames {}) newnames)
