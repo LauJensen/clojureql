@@ -4,8 +4,9 @@
              you to access tables and rows as objects that have uniform interfaces
              for queries, inserts and deletions."
     :url    "http://github.com/LauJensen/clojureql"}
-  (:refer-clojure :exclude [take sort conj! disj! < <= > >= =]
-                 :rename {take take-coll})
+  (:refer-clojure
+   :exclude [take sort conj! disj! < <= > >= =]
+   :rename {take take-coll})
   (:use
    [clojureql internal predicates]
    [clojure.string :only [join] :rename {join join-str}]
@@ -28,7 +29,7 @@
   (select     [this predicate]            "Queries the table using a predicate")
   (project    [this fields]               "Projects fields onto the query")
   (join       [_    table2 join_on]       "Joins two table")
-  (rename     [this newnames]             "Renames colums")
+  (rename     [this newnames]             "Renames colums in a join")
 
   (conj!      [this records]              "Inserts record(s) into the table")
   (disj!      [this predicate]            "Deletes record(s) from the table")
@@ -57,11 +58,9 @@
                                   (if renames
                                     (with-rename tname tcols renames)
                                     (name tname))
-                                  (if joins
-                                    (with-joins joins)
+                                  (if joins (with-joins joins)
                                     "")
-                                  (if restriction
-                                    (where (join-str " AND " restriction))
+                                  (if restriction (where (join-str " AND " restriction))
                                     "")
                                   (or options ""))
                               .trim)]

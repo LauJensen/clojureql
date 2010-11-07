@@ -62,7 +62,6 @@
 
 (defn with-joins
   [joins]
-  (prn joins)
   (str "JOIN "
        (if (keyword? ((comp first vals) joins))
          (format "%s USING(%s) "
