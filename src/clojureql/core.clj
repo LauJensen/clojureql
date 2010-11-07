@@ -66,7 +66,7 @@
          (let [sql-string (-> (format "SELECT %s FROM %s %s %s %s"
                                   (->> tcols (qualify tname) colkeys->string)
                                   (if renames
-                                    (with-rename tname tcols renames)
+                                    (with-rename tname (qualify tname tcols) renames)
                                     (name tname))
                                   (if joins (with-joins joins)
                                     "")
@@ -124,7 +124,7 @@
   ([connection-info table-name colums]
      (table connection-info table-name colums nil))
   ([connection-info table-name colums restrictions]
-     (RTable. connection-info table-name (qualify table-name colums) restrictions nil nil nil)))
+     (RTable. connection-info table-name colums restrictions nil nil nil)))
 
 (defn table? [tinstance]
   (instance? clojureql.core.RTable tinstance))

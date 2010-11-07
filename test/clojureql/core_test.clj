@@ -43,24 +43,24 @@
          (-> (table {} :users [:id])
              (project #{:name :title})
              compile)
-         "SELECT users.title,users.name,users.id FROM users"))
+         "SELECT users.id,users.name,users.title FROM users"))
   (testing "Joins"
     (are [x y] (= x y)
          (-> (table {} :users [:id])
                     (join (table {} :salary [:wage]) :id)
                     compile)
-         "SELECT salary.wage,users.id FROM users JOIN salary USING(id)"
+         "SELECT users.id,salary.wage FROM users JOIN salary USING(id)"
          (-> (table {} :users [:id])
                     (join (table {} :salary [:wage]) (= {:user.id :salary.id}))
                     compile)
-         "SELECT salary.wage,users.id FROM users JOIN salary ON (user.id = salary.id)"))
+         "SELECT users.id,salary.wage FROM users JOIN salary ON (user.id = salary.id)"))
   (testing "Renaming in joins"
     (are [x y] (= x y)
          (-> (table {} :users [:id])
                     (join (table {} :salary [:wage]) (= {:user.id :salary.id}))
                     (rename {:id :idx}) ; TODO: This should only work with fully qualified names
                     compile)
-         "SELECT salary.wage,users.id FROM users AS users(idx) JOIN salary ON (user.id = salary.id)"))
+         "SELECT users.id,salary.wage FROM users AS users(idx) JOIN salary ON (user.id = salary.id)"))
 
 
 )
