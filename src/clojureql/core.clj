@@ -44,69 +44,69 @@
                     (doall rs))))
   Relation
   (compile  [this]
-            (let [sql-string
-                  (if (vector? joins) ; Are we joining on a table containing aggregates?
-                    (let [[[t2 pred]]  joins
-                          t2name       (-> t2 :tname name)
-                          colalias     (find-first-alias (:tcols t2))
-                          t2alias      (str t2name "_aggregation")]
-                      (-> (format "SELECT %s FROM %s LEFT OUTER JOIN (%s) AS %s ON %s %s"
-                                  (derrived-fields tname tcols t2alias colalias)
-                                  (name tname)
-                                  (-> (.group-by t2 (-> t2 :tcols first)) compile)
-                                  t2alias
-                                  (.replaceAll pred t2name t2alias)
-                                  (or options ""))
-                          .trim))
-                    (-> (format "SELECT %s FROM %s %s %s %s"
-                                (->> tcols (qualify tname) colkeys->string)
-                                (if renames
-                                  (with-rename tname (qualify tname tcols) renames)
-                                  (name tname))
-                                (if joins (with-joins joins) "")
-                                (if restriction (where (join-str " AND " restriction)) "")
-                                (or options ""))
-                        .trim))]
-              (when *debug* (prn sql-string))
-              sql-string))
+    (let [sql-string
+          (if (vector? joins) ; Are we joining on a table containing aggregates?
+            (let [[[t2 pred]]  joins
+                  t2name       (-> t2 :tname name)
+                  colalias     (find-first-alias (:tcols t2))
+                  t2alias      (str t2name "_aggregation")]
+              (-> (format "SELECT %s FROM %s LEFT OUTER JOIN (%s) AS %s ON %s %s"
+                          (derrived-fields tname tcols t2alias colalias)
+                          (name tname)
+                          (-> (.group-by t2 (-> t2 :tcols first)) compile)
+                          t2alias
+                          (.replaceAll pred t2name t2alias)
+                          (or options ""))
+                  .trim))
+            (-> (format "SELECT %s FROM %s %s %s %s"
+                        (->> tcols (qualify tname) colkeys->string)
+                        (if renames
+                          (with-rename tname (qualify tname tcols) renames)
+                          (name tname))
+                        (if joins (with-joins joins) "")
+                        (if restriction (where (join-str " AND " restriction)) "")
+                        (or options ""))
+                .trim))]
+      (when *debug* (prn sql-string))
+      sql-string))
   (select   [this predicate]
-            (RTable. cnx tname tcols
-                     (conj (or restriction []) predicate)
-                     renames joins options))
+    (RTable. cnx tname tcols
+             (conj (or restriction []) predicate)
+             renames joins options))
   (project  [this fields]
-            (RTable. cnx tname
-                     (apply conj (or tcols []) fields)
-                     restriction renames joins options))
+    (RTable. cnx tname
+             (apply conj (or tcols []) fields)
+             restriction renames joins options))
   (join     [this table2 join-on]
-            (if (has-aggregate? table2)
-              (RTable. cnx tname tcols restriction renames
-                       (conj (or joins []) [table2 join-on])
-                       options)
-              (RTable. cnx tname
-                       (apply conj (or tcols [])
-                              (qualify (:tname table2) (:tcols table2)))
-                       restriction renames
-                       (assoc (or joins {}) (:tname table2) join-on)
-                       options)))
+    (if (has-aggregate? table2)
+      (RTable. cnx tname tcols restriction renames
+               (conj (or joins []) [table2 join-on])
+               options)
+      (RTable. cnx tname
+               (apply conj (or tcols [])
+                      (qualify (:tname table2) (:tcols table2)))
+               restriction renames
+               (assoc (or joins {}) (:tname table2) join-on)
+               options)))
   (rename   [this newnames]
-            (RTable. cnx tname tcols restriction
-                     (merge (or renames {}) newnames)
-                     joins options))
+    (RTable. cnx tname tcols restriction
+             (merge (or renames {}) newnames)
+             joins options))
 
   (conj!   [this records]
-           (with-connection cnx
-             (if (map? records)
-               (insert-records tname records)
-               (apply insert-records tname records)))
-           this)
+    (with-connection cnx
+      (if (map? records)
+        (insert-records tname records)
+        (apply insert-records tname records)))
+    this)
   (disj!   [this predicate]
-           (with-connection cnx
-             (delete-rows tname [(compile-expr predicate)]))
-           this)
+    (with-connection cnx
+      (delete-rows tname [(compile-expr predicate)]))
+    this)
 
   (options  [this opts]
-            (RTable. cnx tname tcols restriction renames joins
-                     (str options \space opts)))
+    (RTable. cnx tname tcols restriction renames joins
+             (str options \space opts)))
   (limit    [this n]       (.options this (str "LIMIT " n)))
   (group-by [this col]     (.options this (str "GROUP BY " (name col))))
   (order-by [this col]     (.options this (str "ORDER BY " (qualify tname col))))
