@@ -23,12 +23,12 @@
   (project    [this fields]               "Projects fields onto the query")
   (join       [this table2 join_on]       "Joins two table")
   (rename     [this newnames]             "Renames colums in a join")
+  (aggregate  [this aggregates group-by]  "Computes aggregate with optional grouping")
 
   (conj!      [this records]              "Inserts record(s) into the table")
   (disj!      [this predicate]            "Deletes record(s) from the table")
 
   (limit      [this n]                    "Queries the table with LIMIT n")
-  (group-by   [this col]                  "Groups the Query by the column")
   (order-by   [this col]                  "Orders the Query by the column")
 
   (sort       [this col type]             "Sorts the query either :asc or :desc")
@@ -89,6 +89,12 @@
   (rename [this newnames]
     (assoc this :renames (merge (or renames {}) newnames)))
 
+  (aggregate [this aggregates group-by]
+    (let [table (project this (into group-by aggregates))]
+      (if (seq group-by)
+        (.options table (str "GROUP BY " (join-str "," (map name group-by))))
+        table)))
+
   (conj! [this records]
     (with-connection cnx
       (if (map? records)
@@ -105,7 +111,6 @@
     (assoc this :options (str options \space opts)))
 
   (limit    [this n]       (.options this (str "LIMIT " n)))
-  (group-by [this col]     (.options this (str "GROUP BY " (name col))))
   (order-by [this col]     (.options this (str "ORDER BY " (qualify tname col))))
   (sort     [this col dir] (.options this (str "ORDER BY " (qualify tname col) \space
                                               (if (:asc dir) "ASC" "DESC")))))

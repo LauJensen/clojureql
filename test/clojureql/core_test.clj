@@ -61,6 +61,17 @@
                     (rename {:id :idx}) ; TODO: This should only work with fully qualified names
                     compile)
          "SELECT users.id,salary.wage FROM users AS users(idx) JOIN salary ON (user.id = salary.id)"))
-
+  (testing "Aggregate functions"
+    (are [x y] (= x y)
+         (-> (table {} :users)
+             (select (= {:admin true}))
+             (aggregate [:count:*] [])
+             compile)
+         "SELECT count(users.*) FROM users  WHERE (admin = true)"
+         (-> (table {} :users)
+             (select (= {:admin true}))
+             (aggregate [:count:*] [:country])
+             compile)
+         "SELECT users.country,count(users.*) FROM users  WHERE (admin = true)  GROUP BY country"))
 
 )
