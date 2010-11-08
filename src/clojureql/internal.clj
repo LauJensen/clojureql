@@ -1,6 +1,7 @@
 (ns clojureql.internal
   (:require clojure.contrib.sql.internal)
-  (:use [clojure.string :only [join] :rename {join join-str}]))
+  (:use [clojure.string :only [join] :rename {join join-str}]
+        [clojure.contrib.core :only [-?>]]))
 
 (def *db* {:connection nil :level 0})
 
@@ -47,30 +48,6 @@
         (item->string tcols)
         :else (->> tcols (map item->string) (join-str \,))))))
 
-(defn with-rename
-  [tname tcols renames]
-  (let [oname (name tname)]
-    (if (map? renames)
-      (format "%s AS %s(%s)" oname oname
-              (reduce #(let [[orig new] %2]
-                         (.replaceAll %1 (name orig) (name new)))
-                      (join-str "," (->> tcols (map name)
-                                         (filter #(.contains % oname))
-                                         (map #(subs % (inc (.indexOf % "."))))))
-                      renames))
-      (str oname (name renames)))))
-
-(defn with-joins
-  [joins]
-  (str "JOIN "
-       (if (keyword? ((comp first vals) joins))
-         (format "%s USING(%s) "
-                 ((comp name first keys) joins)
-                 ((comp name first vals) joins))
-         (apply format "%s ON %s"
-                ((comp name first keys) joins)
-                (vals joins)))))
-
 (defn to-name
   " Converts a keyword to a string, checking for aggregates
 
@@ -112,6 +89,43 @@
     (if (keyword? children)
       (singular children)
       (map singular children))))
+
+(defn has-aggregate?
+  [tble]
+  (some #(or (vector? %) (.contains (name %) ":"))
+        (:tcols tble)))
+
+(defn derrived-fields [tname cols table-alias col-alias]
+  (str (->> cols (qualify tname) colkeys->string) ","
+       (str table-alias \. col-alias )))
+
+(defn find-first-alias [tble]
+  (-?> (filter #(and (vector? %) (= 3 (count %))) [:a [:avg:y :as :z]])
+       first last name))
+
+(defn with-rename
+  [tname tcols renames]
+  (let [oname (name tname)]
+    (if (map? renames)
+      (format "%s AS %s(%s)" oname oname
+              (reduce #(let [[orig new] %2]
+                         (.replaceAll %1 (name orig) (name new)))
+                      (join-str "," (->> tcols (map name)
+                                         (filter #(.contains % oname))
+                                         (map #(subs % (inc (.indexOf % "."))))))
+                      renames))
+      (str oname (name renames)))))
+
+(defn with-joins
+  [joins]
+  (str "JOIN "
+       (if (keyword? ((comp first vals) joins))
+         (format "%s USING(%s) "
+                 ((comp name first keys) joins)
+                 ((comp name first vals) joins))
+         (apply format "%s ON %s"
+                ((comp name first keys) joins)
+                (vals joins)))))
 
 (defn get-foreignfield
   [tname s]

@@ -10,60 +10,31 @@
   (:use
    [clojureql internal predicates]
    [clojure.string :only [join] :rename {join join-str}]
-   [clojure.contrib sql]))
+   [clojure.contrib sql [core :only [-?>]]]))
 
                                         ; GLOBALS
 
-(def *debug* true) ; If true: Shows all SQL expressions before executing
-
-(def db
-     {:classname   "com.mysql.jdbc.Driver"
-      :subprotocol "mysql"
-      :user        "cql"
-      :password    "cql"
-      :subname     "//localhost:3306/cql"})
+(def *debug* false) ; If true: Shows all SQL expressions before executing
 
                                         ; RELATIONAL ALGEBRA
 
 (defprotocol Relation
   (select     [this predicate]            "Queries the table using a predicate")
   (project    [this fields]               "Projects fields onto the query")
-  (join       [_    table2 join_on]       "Joins two table")
+  (join       [this table2 join_on]       "Joins two table")
   (rename     [this newnames]             "Renames colums in a join")
 
   (conj!      [this records]              "Inserts record(s) into the table")
   (disj!      [this predicate]            "Deletes record(s) from the table")
 
-  (limit      [_    n]                    "Queries the table with LIMIT n")
+  (limit      [this n]                    "Queries the table with LIMIT n")
   (group-by   [this col]                  "Groups the Query by the column")
   (order-by   [this col]                  "Orders the Query by the column")
 
-  (sort       [_    col type]             "Sorts the query either :asc or :desc")
+  (sort       [this col type]             "Sorts the query either :asc or :desc")
   (options    [this opts]                 "Appends opt(ion)s to the query")
 
-  (compile    [this]                      "Returns an SQL statement")
-  )
-
-(defn has-aggregate?
-  [tble]
-  (loop [[v & vs] (:tcols tble)]
-    (when v
-      (if (or (vector? v)
-              (.contains (name v) ":"))
-        true
-        (recur vs)))))
-
-(defn derrived-fields [tname cols table-alias col-alias]
-  (str (->> cols (qualify tname) colkeys->string)
-       ","
-       (str table-alias \. col-alias )))
-
-(defn find-first-alias [tble]
-  (loop [[x & xs] tble]
-    (when x
-      (if (and (vector? x) (= 3 (count x)))
-        (-> x last name)
-        (recur xs)))))
+  (compile    [this]                      "Returns an SQL statement"))
 
 (defrecord RTable [cnx tname tcols restriction renames joins options]
   clojure.lang.IDeref
@@ -140,9 +111,7 @@
   (group-by [this col]     (.options this (str "GROUP BY " (name col))))
   (order-by [this col]     (.options this (str "ORDER BY " (qualify tname col))))
   (sort     [this col dir] (.options this (str "ORDER BY " (qualify tname col) \space
-                                               (if (:asc dir) "ASC" "DESC"))))
-
-  )
+                                               (if (:asc dir) "ASC" "DESC")))))
 
 (defn table
   ([connection-info table-name]
@@ -154,53 +123,3 @@
 
 (defn table? [tinstance]
   (instance? clojureql.core.RTable tinstance))
-
-                                        ; DEMO
-
-(defmacro tst [expr]
-  `(do (print "Code:   " (quote ~expr) "\nSQL:     ")
-       (println "Return: " ~expr "\n")))
-
-(defn test-suite []
-  (letfn [(drop-if [t] (try
-                        (drop-table t)
-                        (catch Exception e nil)))]
-    (with-connection db
-      (drop-if :users)
-      (create-table :users
-                    [:id    :integer "PRIMARY KEY" "AUTO_INCREMENT"]
-                    [:name  "varchar(255)"]
-                    [:title "varchar(255)"])
-      (drop-if :salary)
-      (create-table :salary
-                    [:id    :integer "PRIMARY KEY" "AUTO_INCREMENT"]
-                    [:wage  :integer])))
-  (binding [*debug* true]                                      ; Causes all SQL statements to be printed
-    (let [users  (table db :users [:id :name :title])
-          salary (table db :salary [:id :wage])
-          roster [{:name "Lau Jensen" :title "Dev"}
-                  {:name "Christophe" :title "Design Guru"}
-                  {:name "sthuebner"  :title "Mr. Macros"}
-                  {:name "Frank"      :title "Engineer"}]
-          wages  (map #(hash-map :wage %) [100 200 300 400])]
-      (tst @(conj! users roster))                              ; Add multiple rows
-      (tst @(conj! salary wages))                              ; Same
-      (tst @(join users salary (= {:users.id :salary.id})))    ; Join two tables explicitly
-      (tst @(join users salary :id))                           ; Join two tables with USING
-      (tst @(-> users
-                (conj! {:name "Jack"})                         ; Add a single row
-                (disj! (= {:id 1}))                            ; Remove anothern
-                (sort :id :desc)                               ; Prepare to sort
-                (project #{:id :title})                        ; Returns colums id and title
-                (select (<= {:id 10}))                         ; Where ID is <= 10
-                (join salary :id)                              ; Join with table salary
-                (limit 10)))                                   ; Limit return to 10 rows
-      (tst @(-> (disj! users (either (= {:id 3}) (= {:id 4})))
-                (sort :id :desc)))
-      (tst @(limit users 1))
-      (tst @(-> (table db :salary) (project [:avg:wage])))
-      #_(tst (select users (where "id=%1 OR id=%2" 1 10)))
-      (tst @(select users (either (= {:id 1}) (>= {:id 10})))))))
-
-
-
