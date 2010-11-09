@@ -5,81 +5,76 @@
 
 (def *db* {:connection nil :level 0})
 
-(defn with-cnx*
-  "Evaluates func in the context of a new connection to a database then
-  closes the connection."
-  [db-spec func]
-  (with-open [con (clojure.contrib.sql.internal/get-connection db-spec)]
-    (binding [*db* (assoc *db*
-                     :connection con :level 0 :rollback (atom false))]
-      (func))))
+(defn qualified? [c]
+  (.contains (name c) "."))
 
-(defmacro with-cnx
-  [db-spec & body]
-  `(with-cnx* ~db-spec (fn [] ~@body)))
+(defn aggregate? [c]
+  (.contains (name c) "#"))
 
-(defn colkeys->string
-  " [:k1 :k2]                =>  'k1,k2'
-    [:k1 [:avg.k2 :as :k3]]  =>  'k1,avg(k2) AS k3'"
-  ([tcols]
-     (letfn [(item->string [i]  (if (vector? i)
-                                 (let [[col _ alias] (map name i)
-                                       [_ fn aggr] (re-find #"(.*)\:(.*)" col)]
-                                   (str fn "(" aggr ")" " AS " alias))
-                                 (name i)))]
-       (cond
-        (= 1 (count tcols))  (-> tcols first name)
-        (or (keyword? tcols)
-            (and (>= 3 (count tcols))
-                 (= :as (nth tcols 1))))
-        (item->string tcols)
-        :else (->> tcols (map item->string) (join-str \,)))))
-  ([tname tcols]
-     (letfn [(item->string [i] (if (vector? i)
-                                 (let [[col _ alias] (map name i)
-                                       [_ fn aggr] (re-find #"(.*)\:(.*)" col)]
-                                   (str fn "(" (name tname) \. aggr ")" " AS " alias))
-                                 (str (name tname) \. (name i))))]
-       (cond
-        (= 1 (count tcols)) (str tname \. (-> tcols first name))
-        (or (keyword? tcols)
-            (and (>= 3 (count tcols))
-                 (= :as (nth tcols 1))))
-        (item->string tcols)
-        :else (->> tcols (map item->string) (join-str \,))))))
+(defn to-tablename
+  [c]
+  (cond
+   (nil? c)         nil
+   (keyword? c)     (name c)
+   (string? c)      c
+   :else            ; Map denotes rename
+   (let [[orig new] (map name (first c))]
+     (str orig \space new))))
 
 (defn to-name
   " Converts a keyword to a string, checking for aggregates
 
-   (to-name :avg:y) => 'avg(y)', (to-name :y) => 'y' "
-  ([c]
-     (if (string? c)
-       (str "'" c "'")
-       (if (.contains (name c) ":")
-         (let [[aggr col] (-> (name c) (.split "\\:"))]
-           (str aggr "(" col ")"))
-         (name c))))
+   (to-name :avg#y) => 'avg(y)'
+   (to-name :y) => 'y'
+   (to-name :parent :fn#field => 'fn(master.field)' "
+  ([c]   (to-name :none c))
   ([p c]
-     (if (string? c)
-       (str "'" c "'")
-       (if (.contains (name c) ":")
-         (let [[aggr col] (-> (name c) (.split "\\:"))]
-           (str aggr "(" (name p) \. col ")"))
-         (str (name p) \. (name c))))))
+     (let [p  (if (= :none p) "" (str (to-tablename p) \.))]
+       (if (string? c)
+         (str "'" c "'")
+         (if (aggregate? c)
+           (let [[aggr col] (-> (name c) (.split "\\#"))]
+             (str aggr "(" p col ")"))
+           (str p (name c)))))))
 
-(defn to-tablename
-  [c]
-  (if (keyword? c)
-    (name c)
-    (let [[orig new] (map name (first c))]
-      (str orig \space new))))
+(defn to-fieldlist
+  "Converts a column specification to SQL notation field list
+
+   :tble [:sum#k1 :k2 [:avg#k3 :as :c]] => 'sum(tble.k1),tble.k2,avg(tble.k3) AS c'"
+  ([tcols] (to-fieldlist nil tcols))
+  ([tname tcols]
+     (let [tname (if-let [tname (to-tablename tname)]
+                   (str tname \.) "")]
+       (letfn [(split-aggregate [item] (re-find #"(.*)\#(.*)" (name item)))
+               (item->string [i]
+                 (if (vector? i)
+                   (if (aggregate? (first i))
+                     (let [[col _ alias] (map name i)
+                           [_ fn aggr] (split-aggregate col)]
+                       (str fn "(" tname aggr ")" " AS " alias))
+                     (->> (map #(to-fieldlist [%]) i)
+                          (interpose \space)
+                          (apply str)))
+                   (if (aggregate? i)
+                     (let [[_ fn aggr] (split-aggregate (name i))]
+                       (str fn "(" tname aggr ")"))
+                     (str tname (name i)))))]
+         (cond
+          (= 1 (count tcols)) (str tname (-> tcols first name))
+          (or (keyword? tcols)
+              (and (>= 3 (count tcols))
+                   (= :as (nth tcols 1))))
+          (item->string tcols)
+          :else (->> tcols (map item->string) (join-str \,)))))))
 
 (defn qualify
   "Will fully qualify the names of the child(ren) to the parent.
 
-   :parent :child => parent.child
-   :parent :parent.child => parent.child
-   :parent :avg:sales    => avg.sales "
+   :parent :child        => parent.child
+   :parent :other.child  => other.child
+   :parent :avg#sales    => avg(parent.sales)
+   :parent [:a :fn#b [:c :as :d]] => ('parent.a', 'fn(parent.b)'
+                                      'parent.c as parent.d')    "
   [parent children]
   (let [parent (cond
                 (string? parent) ; has this already been treated as an alias?
@@ -90,12 +85,10 @@
                 parent)]
     (if (nil? children)
       ""
-      (letfn [(qualified? [c] (.contains (name c) "."))
-              (aggregate? [c] (.contains (name c) ":"))
-              (singular [c]
+      (letfn [(singular [c]
                 (if (vector? c)
                   (let [[nm _ alias] c]
-                    (str (to-name parent nm) " AS " (name alias)))
+                    (str (to-name parent nm) " AS " (to-name parent alias)))
                   (let [childname (name c)]
                     (if (or (qualified? c) (aggregate? c))
                       (if (aggregate? c)
@@ -108,20 +101,33 @@
 
 (defn has-aggregate?
   [tble]
-  (some #(or (vector? %) (.contains (name %) ":"))
-        (:tcols tble)))
+  (some #(or (vector? %) (aggregate? %)) (:tcols tble)))
 
-(defn derrived-fields [tname cols table-alias col-alias]
-  (str (->> cols (qualify tname) colkeys->string) ","
-       (str table-alias \. col-alias )))
+(defn derrived-fields
+  "Computes the resulting fields from its input
 
-(defn find-first-alias [tble]
-  (-?> (filter #(and (vector? %) (= 3 (count %))) tble)
+   :one [:a :b :c] :two :cnt => 'one.a,one.b,one.c,two.cnt
+
+   Note: Used internally when compiling a join with an aggregate "
+  [tname cols table-alias col-alias]
+  (str (->> cols (qualify tname) to-fieldlist)
+       (when (and table-alias col-alias)
+         (str "," (name table-alias) \. (name col-alias) ))))
+
+(defn find-first-alias
+  "Scans a column spec to find the first alias"
+  [tcols]
+  (-?> (filter #(and (vector? %) (= 3 (count %))) tcols)
        first last name))
 
 (defn with-rename
+  "Renames fields that have had their parent aliased.
+   (name is horribly misleading, it protects against errors when
+    tables have been renamed)
+
+   :one [:one.a :one.b] {:one :two} => 'one AS one(a,b)' "
   [tname tcols renames]
-  (let [oname (name tname)]
+  (let [oname (to-tablename tname)]
     (if (map? renames)
       (format "%s AS %s(%s)" oname oname
               (reduce #(let [[orig new] %2]
@@ -130,9 +136,14 @@
                                          (filter #(.contains % oname))
                                          (map #(subs % (inc (.indexOf % "."))))))
                       renames))
-      (str oname (name renames)))))
+      (str oname "(" (to-fieldlist tcols) ")"))))
 
-(defn with-joins
+(defn build-join
+  "Generates a JOIN statement from the joins field of a table
+
+   {:t2 (= {:a 5})} => 'JOIN t2 ON (a = 5)'
+
+   {:t2 :id}        => 'JOIN t2 USING(id)'                   "
   [joins]
   (str "JOIN "
        (if (keyword? ((comp first vals) joins))
@@ -144,6 +155,9 @@
                 (vals joins)))))
 
 (defn get-foreignfield
+  "Extracts the first foreign field in a column spec
+
+   :t1 [:t1.x :t2x]  => :t2.x "
   [tname s]
   (-> (remove #(.contains (-> % name (.split "\\.") first) (name tname)) s)
       first))
@@ -180,9 +194,22 @@
 
                                         ; SQL Specifics
 
+(defn with-cnx*
+  "Evaluates func in the context of a new connection to a database then
+  closes the connection."
+  [db-spec func]
+  (with-open [con (clojure.contrib.sql.internal/get-connection db-spec)]
+    (binding [*db* (assoc *db*
+                     :connection con :level 0 :rollback (atom false))]
+      (func))))
+
+(defmacro with-cnx
+  [db-spec & body]
+  `(with-cnx* ~db-spec (fn [] ~@body)))
+
 (defn result-seq
   "Creates and returns a lazy sequence of structmaps corresponding to
-  the rows in the java.sql.ResultSet rs"
+  the rows in the java.sql.ResultSet rs. Accepts duplicate keys"
   [^java.sql.ResultSet rs]
   (let [rsmeta (. rs (getMetaData))
         idxs (range 1 (inc (. rsmeta (getColumnCount))))

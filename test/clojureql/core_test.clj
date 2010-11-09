@@ -10,10 +10,10 @@
          "SELECT users.* FROM users"
          (-> (table {} :users [:id :name]) compile)
          "SELECT users.id,users.name FROM users"
-         (-> (table {} :users [:avg:wage]) compile)
+         (-> (table {} :users [:avg#wage]) compile)
          "SELECT avg(users.wage) FROM users"
-         (-> (table {} :users [[:avg:wage :as :avg]]) compile)
-         "SELECT avg(users.wage) AS avg FROM users"))
+         (-> (table {} :users [[:avg#wage :as :avg]]) compile)
+         "SELECT avg(users.wage) AS users.avg FROM users"))
   (testing "Where predicates"
     (are [x y] (= x y)
          (-> (table {} :users [:id])
@@ -65,12 +65,12 @@
     (are [x y] (= x y)
          (-> (table {} :users)
              (select (= {:admin true}))
-             (aggregate [:count:*] [])
+             (aggregate [:count#*] [])
              compile)
          "SELECT count(users.*) FROM users  WHERE (admin = true)"
          (-> (table {} :users)
              (select (= {:admin true}))
-             (aggregate [:count:*] [:country])
+             (aggregate [:count#*] [:country])
              compile)
          "SELECT users.country,count(users.*) FROM users  WHERE (admin = true)  GROUP BY country"))
   (testing "Table aliases"

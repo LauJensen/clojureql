@@ -62,11 +62,11 @@
                           (or options ""))
                   .trim))
             (-> (format "SELECT %s FROM %s %s %s %s"
-                        (->> tcols (qualify tname) colkeys->string)
+                        (->> tcols (qualify tname) to-fieldlist)
                         (if renames
                           (with-rename tname (qualify tname tcols) renames)
                           (to-tablename tname))
-                        (if joins (with-joins joins) "")
+                        (if joins (build-join joins) "")
                         (if restriction (where (join-str " AND " restriction)) "")
                         (or options ""))
                 .trim))]
