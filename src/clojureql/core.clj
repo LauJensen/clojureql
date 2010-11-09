@@ -23,7 +23,7 @@
   (project    [this fields]               "Projects fields onto the query")
   (join       [this table2 join_on]       "Joins two table")
   (rename     [this newnames]             "Renames colums in a join")
-  (aggregate  [this aggregates group-by]  "Computes aggregate with optional grouping")
+  (aggregate  [this fields]               "Computes aggregates, non-aggregate fields are used for grouping")
 
   (conj!      [this records]              "Inserts record(s) into the table")
   (disj!      [this predicate]            "Deletes record(s) from the table")
@@ -92,9 +92,9 @@
   (rename [this newnames]
     (assoc this :renames (merge (or renames {}) newnames)))
 
-  (aggregate [this aggregates group-by]
-    (let [table (project this (into group-by aggregates))]
-      (if (seq group-by)
+  (aggregate [this fields]
+    (let [table (project this fields)]
+      (if-let [group-by (seq (remove aggregate? fields))]
         (.options table (str "GROUP BY " (join-str "," (map name group-by))))
         table)))
 

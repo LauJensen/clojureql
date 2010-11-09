@@ -93,12 +93,12 @@ aggregations, use the **aggregate** function.
 
      (-> (table {} :users)
          (select (= {:admin true}))
-         (aggregate [:count:*] []))
+         (aggregate [:count#*]))
      >>> "SELECT count(users.*) FROM users  WHERE (admin = true)"
 
      (-> (table {} :users)
          (select (= {:admin true}))
-         (aggregate [:count:*] [:country]))
+         (aggregate [:count#* :country]))
      >>> "SELECT users.country,count(users.*) FROM users  WHERE (admin = true)  GROUP BY country"
 
 Manipulation

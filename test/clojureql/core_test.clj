@@ -65,12 +65,12 @@
     (are [x y] (= x y)
          (-> (table {} :users)
              (select (= {:admin true}))
-             (aggregate [:count#*] [])
+             (aggregate [:count#*])
              compile)
          "SELECT count(users.*) FROM users  WHERE (admin = true)"
          (-> (table {} :users)
              (select (= {:admin true}))
-             (aggregate [:count#*] [:country])
+             (aggregate [:country :count#*])
              compile)
          "SELECT users.country,count(users.*) FROM users  WHERE (admin = true)  GROUP BY country"))
   (testing "Table aliases"
