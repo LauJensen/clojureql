@@ -73,6 +73,19 @@ Aggregates
     @(-> (table db :salary) (project [:avg:wage]))
     >>> ({:avg(wage) 250.0000M})
 
+**Note:** These examples demonstrate a simple uniform interface across ClojureQL. For more advanced
+aggretations, use the aggregate function.
+
+     (-> (table {} :users)
+         (select (= {:admin true}))
+         (aggregate [:count:*] []))
+     >>> "SELECT count(users.*) FROM users  WHERE (admin = true)"
+
+     (-> (table {} :users)
+         (select (= {:admin true}))
+         (aggregate [:count:*] [:country]))
+     >>> "SELECT users.country,count(users.*) FROM users  WHERE (admin = true)  GROUP BY country"
+
 Manipulation
 ------------
 
@@ -116,7 +129,7 @@ Helpers
 
 **(where) is not used in the relation model as the string notation is not yet available**
 
-Below is just for inspiration. View the function (test-suite) in core.clj instead!
+Below is just for inspiration. View the function (test-suite) in demo.clj instead!
 
     ;;; (where "(%1 < %2) AND (avg(%1) < %3)" :income :cost :expenses)
     ;;; > "WHERE (income < cost) AND (avg(income) < expenses)"

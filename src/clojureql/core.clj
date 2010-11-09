@@ -5,7 +5,7 @@
              for queries, inserts and deletions."
     :url    "http://github.com/LauJensen/clojureql"}
   (:refer-clojure
-   :exclude [take sort conj! disj! < <= > >= =]
+   :exclude [compile take sort conj! disj! < <= > >= =]
    :rename {take take-coll})
   (:use
    [clojureql internal predicates]
