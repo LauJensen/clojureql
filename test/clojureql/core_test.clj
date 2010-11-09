@@ -73,5 +73,17 @@
              (aggregate [:count:*] [:country])
              compile)
          "SELECT users.country,count(users.*) FROM users  WHERE (admin = true)  GROUP BY country"))
-
+  (testing "Table aliases"
+    (are [x y] (= x y)
+        (let [u1 (table {} {:users :u1} [:id :article :price])
+              w1 (table {} {:salary :w1})]
+          (compile (join u1 w1 (= {:u1.id :w1.id}))))
+        "SELECT u1.id,u1.article,u1.price FROM users u1 JOIN salary w1 ON (u1.id = w1.id)"
+        (let [u1 (table {} {:users :u1} [:id :article :price])
+              w1 (table {} {:salary :w1} [])]
+          (-> (join u1 w1 (= {:u1.id :w1.id}))
+              (select (= {:s2.article "NULL"}))
+              compile))
+        (str "SELECT u1.id,u1.article,u1.price FROM users u1 "
+             "JOIN salary w1 ON (u1.id = w1.id) WHERE (s2.article = 'NULL')")))
 )

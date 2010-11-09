@@ -60,6 +60,21 @@ Query
 
 **Note:** No alteration of the query will trigger execution. Only dereferencing will!
 
+Aliasing
+--------
+
+*Tables:*
+
+    (-> (table db {:salary :s1} [:*])
+        (select (= {:s1.id 5})))
+    >>> "SELECT s1.* FROM salary s1  WHERE (s1.id = 5)"
+
+*Columns:*
+
+    (-> (table db :salary [[:id :as :userid]])
+        (select (= {:userid 5})))
+    >>> "SELECT salary.id AS userid FROM salary  WHERE (userid = 5)"
+
 Aggregates
 ----------
 
@@ -74,7 +89,7 @@ Aggregates
     >>> ({:avg(wage) 250.0000M})
 
 **Note:** These examples demonstrate a simple uniform interface across ClojureQL. For more advanced
-aggretations, use the aggregate function.
+aggregations, use the **aggregate** function.
 
      (-> (table {} :users)
          (select (= {:admin true}))

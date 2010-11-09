@@ -49,13 +49,14 @@
     (let [sql-string
           (if (vector? joins) ; Are we joining on a table containing aggregates?
             (let [[[t2 pred]]  joins
-                  t2name       (-> t2 :tname name)
+                  t2name       (-> t2 :tname to-tablename)
                   colalias     (find-first-alias (:tcols t2))
                   t2alias      (str t2name "_aggregation")]
               (-> (format "SELECT %s FROM %s LEFT OUTER JOIN (%s) AS %s ON %s %s"
                           (derrived-fields tname tcols t2alias colalias)
-                          (name tname)
-                          (-> (.group-by t2 (-> t2 :tcols first)) compile)
+                          (to-tablename tname)
+                          (-> (.options t2 (str "GROUP BY " (-> t2 :tcols first name)))
+                              compile)
                           t2alias
                           (.replaceAll pred t2name t2alias)
                           (or options ""))
@@ -64,7 +65,7 @@
                         (->> tcols (qualify tname) colkeys->string)
                         (if renames
                           (with-rename tname (qualify tname tcols) renames)
-                          (name tname))
+                          (to-tablename tname))
                         (if joins (with-joins joins) "")
                         (if restriction (where (join-str " AND " restriction)) "")
                         (or options ""))
@@ -82,9 +83,11 @@
     (if (has-aggregate? table2)
       (assoc this :joins (conj (or joins []) [table2 join-on]))
       (assoc this
-        :tcols (apply conj (or tcols [])
-                      (qualify (:tname table2) (:tcols table2)))
-        :joins (assoc (or joins {}) (:tname table2) join-on))))
+        :tcols (if-let [t2cols (seq (:tcols table2))]
+                 (apply conj (or tcols [])
+                        (qualify (to-tablename (:tname table2)) t2cols))
+                 tcols)
+        :joins (assoc (or joins {}) (to-tablename (:tname table2)) join-on))))
 
   (rename [this newnames]
     (assoc this :renames (merge (or renames {}) newnames)))

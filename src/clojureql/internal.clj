@@ -67,6 +67,13 @@
            (str aggr "(" (name p) \. col ")"))
          (str (name p) \. (name c))))))
 
+(defn to-tablename
+  [c]
+  (if (keyword? c)
+    (name c)
+    (let [[orig new] (map name (first c))]
+      (str orig \space new))))
+
 (defn qualify
   "Will fully qualify the names of the child(ren) to the parent.
 
@@ -74,21 +81,30 @@
    :parent :parent.child => parent.child
    :parent :avg:sales    => avg.sales "
   [parent children]
-  (letfn [(qualified? [c] (.contains (name c) "."))
-          (aggregate? [c] (.contains (name c) ":"))
-          (singular [c]
-                    (if (vector? c)
-                      (let [[nm _ alias] c]
-                        (str (to-name parent nm) " AS " (name alias)))
-                      (let [childname (name c)]
-                        (if (or (qualified? c) (aggregate? c))
-                          (if (aggregate? c)
-                            (to-name parent c)
-                            (name c))
-                          (str (name parent) \. (name c))))))]
-    (if (keyword? children)
-      (singular children)
-      (map singular children))))
+  (let [parent (cond
+                (string? parent) ; has this already been treated as an alias?
+                (-> parent (.split " ") last)
+                (map? parent) ; is an alias
+                (-> parent vals first name)
+                :else
+                parent)]
+    (if (nil? children)
+      ""
+      (letfn [(qualified? [c] (.contains (name c) "."))
+              (aggregate? [c] (.contains (name c) ":"))
+              (singular [c]
+                (if (vector? c)
+                  (let [[nm _ alias] c]
+                    (str (to-name parent nm) " AS " (name alias)))
+                  (let [childname (name c)]
+                    (if (or (qualified? c) (aggregate? c))
+                      (if (aggregate? c)
+                        (to-name parent c)
+                        (name c))
+                      (str (name parent) \. (name c))))))]
+        (if (keyword? children)
+          (singular children)
+          (map singular children))))))
 
 (defn has-aggregate?
   [tble]
@@ -100,7 +116,7 @@
        (str table-alias \. col-alias )))
 
 (defn find-first-alias [tble]
-  (-?> (filter #(and (vector? %) (= 3 (count %))) [:a [:avg:y :as :z]])
+  (-?> (filter #(and (vector? %) (= 3 (count %))) tble)
        first last name))
 
 (defn with-rename
