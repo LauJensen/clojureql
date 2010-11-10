@@ -9,7 +9,8 @@
   (.contains (name c) "."))
 
 (defn aggregate? [c]
-  (.contains (name c) "#"))
+  (or (and (string? c) (.contains c "("))
+      (.contains (name c) "#")))
 
 (defn to-tablename
   [c]
@@ -33,7 +34,7 @@
        (if (string? c)
          (str "'" c "'")
          (if (aggregate? c)
-           (let [[aggr col] (-> (name c) (.split "\\#"))]
+           (let [[aggr col] (-> (name c) (.split "#"))]
              (str aggr "(" p col ")"))
            (str p (name c)))))))
 
@@ -44,23 +45,27 @@
   ([tcols] (to-fieldlist nil tcols))
   ([tname tcols]
      (let [tname (if-let [tname (to-tablename tname)]
-                   (str tname \.) "")]
+                   (str (-> tname (.split " ") last) \.) "")]
        (letfn [(split-aggregate [item] (re-find #"(.*)\#(.*)" (name item)))
                (item->string [i]
-                 (if (vector? i)
-                   (if (aggregate? (first i))
-                     (let [[col _ alias] (map name i)
-                           [_ fn aggr] (split-aggregate col)]
-                       (str fn "(" tname aggr ")" " AS " alias))
-                     (->> (map #(to-fieldlist [%]) i)
-                          (interpose \space)
-                          (apply str)))
-                   (if (aggregate? i)
-                     (let [[_ fn aggr] (split-aggregate (name i))]
-                       (str fn "(" tname aggr ")"))
-                     (str tname (name i)))))]
+                 (cond
+                  (vector? i)
+                  (if (aggregate? (first i))
+                    (let [[col _ alias] (map name i)
+                          [_ fn aggr] (split-aggregate col)]
+                      (str fn "(" tname aggr ")" " AS " alias))
+                    (->> (map #(to-fieldlist tname [%]) i)
+                         (interpose \space)
+                         (apply str)))
+                   (and (aggregate? i) (not (string? i)))
+                   (let [[_ fn aggr :as x] (split-aggregate (name i))]
+                     (str fn "(" tname aggr ")"))
+                   (string? i)
+                   i
+                   :else (str tname (name i))))]
          (cond
-          (= 1 (count tcols)) (str tname (-> tcols first name))
+          (= 1 (count tcols))
+          (-> tcols first item->string)
           (or (keyword? tcols)
               (and (>= 3 (count tcols))
                    (= :as (nth tcols 1))))
@@ -141,18 +146,14 @@
 (defn build-join
   "Generates a JOIN statement from the joins field of a table
 
-   {:t2 (= {:a 5})} => 'JOIN t2 ON (a = 5)'
+   [:t2 (= {:a 5})] => 'JOIN t2 ON (a = 5)'
 
-   {:t2 :id}        => 'JOIN t2 USING(id)'                   "
-  [joins]
+   [:t2 :id]        => 'JOIN t2 USING(id)'                   "
+  [[tname pred]]
   (str "JOIN "
-       (if (keyword? ((comp first vals) joins))
-         (format "%s USING(%s) "
-                 ((comp name first keys) joins)
-                 ((comp name first vals) joins))
-         (apply format "%s ON %s"
-                ((comp name first keys) joins)
-                (vals joins)))))
+       (if (keyword? pred)
+         (format "%s USING(%s) " tname (name pred))
+         (format "%s ON %s" tname pred))))
 
 (defn get-foreignfield
   "Extracts the first foreign field in a column spec

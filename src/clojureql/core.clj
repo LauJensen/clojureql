@@ -15,13 +15,14 @@
                                         ; GLOBALS
 
 (def *debug* false) ; If true: Shows all SQL expressions before executing
-
+(declare table?)
                                         ; RELATIONAL ALGEBRA
 
 (defprotocol Relation
   (select     [this predicate]            "Queries the table using a predicate")
   (project    [this fields]               "Projects fields onto the query")
   (join       [this table2 join_on]       "Joins two table")
+  (outer-join [this table2 type join_on]  "Makes an outer join of type :left|:right|:full")
   (rename     [this newnames]             "Renames colums in a join")
   (aggregate  [this fields]               "Computes aggregates, non-aggregate fields are used for grouping")
 
@@ -47,29 +48,45 @@
   Relation
   (compile [this]
     (let [sql-string
-          (if (vector? joins) ; Are we joining on a table containing aggregates?
-            (let [[[t2 pred]]  joins
-                  t2name       (-> t2 :tname to-tablename)
-                  colalias     (find-first-alias (:tcols t2))
-                  t2alias      (str t2name "_aggregation")]
-              (-> (format "SELECT %s FROM %s LEFT OUTER JOIN (%s) AS %s ON %s %s"
-                          (derrived-fields tname tcols t2alias colalias)
-                          (to-tablename tname)
-                          (-> (.options t2 (str "GROUP BY " (-> t2 :tcols first name)))
-                              compile)
-                          t2alias
-                          (.replaceAll pred t2name t2alias)
-                          (or options ""))
-                  .trim))
-            (-> (format "SELECT %s FROM %s %s %s %s"
-                        (->> tcols (qualify tname) to-fieldlist)
-                        (if renames
-                          (with-rename tname (qualify tname tcols) renames)
-                          (to-tablename tname))
-                        (if joins (build-join joins) "")
-                        (if restriction (where (join-str " AND " restriction)) "")
-                        (or options ""))
-                .trim))]
+      (if (seq joins)
+        (cond
+                                        ;joining with a table containing aggregates
+         (table? (-> joins :data first))
+         (let [[t2 pred]    (:data joins)
+               t2name       (-> t2 :tname to-tablename)
+               colalias     (find-first-alias (:tcols t2))
+               t2alias      (str t2name "_aggregation")]
+           (-> (format "SELECT %s FROM %s %s %s JOIN (%s) AS %s ON %s %s"
+                       (derrived-fields tname tcols t2alias colalias)
+                       (to-tablename tname)
+                       (-> (:position joins) name .toUpperCase)
+                       (-> (:type joins) name .toUpperCase)
+                       (-> (.options t2 (str "GROUP BY " (-> t2 :tcols first name)))
+                           compile)
+                       t2alias
+                       (.replaceAll pred t2name t2alias)
+                       (or options ""))
+               .trim))
+         :else
+                                        ;joining with non-aggregate table
+         (-> (format "SELECT %s FROM %s %s %s %s"
+                     (->> tcols (to-fieldlist tname))
+                     (if renames
+                       (with-rename tname (qualify tname tcols) renames)
+                       (to-tablename tname))
+                     (if joins (build-join (:data joins)) "")
+                     (if restriction (where (join-str " AND " restriction)) "")
+                     (or options ""))
+             .trim))
+                                        ; Non Join compile
+         (-> (format "SELECT %s FROM %s %s %s"
+                     (->> tcols (to-fieldlist tname))
+                     (if renames
+                       (with-rename tname (qualify tname tcols) renames)
+                       (to-tablename tname))
+                     (if restriction (where (join-str " AND " restriction)) "")
+                     (or options ""))
+             .trim))]
       (when *debug* (prn sql-string))
       sql-string))
 
@@ -81,13 +98,37 @@
 
   (join [this table2 join-on]
     (if (has-aggregate? table2)
-      (assoc this :joins (conj (or joins []) [table2 join-on]))
+      (assoc this
+        :joins (assoc (or joins {})
+                 :data     [table2 join-on]
+                 :type     :join
+                 :position ""))
       (assoc this
         :tcols (if-let [t2cols (seq (:tcols table2))]
                  (apply conj (or tcols [])
                         (qualify (to-tablename (:tname table2)) t2cols))
                  tcols)
-        :joins (assoc (or joins {}) (to-tablename (:tname table2)) join-on))))
+        :joins (assoc (or joins {})
+                 :data     [(to-tablename (:tname table2)) join-on]
+                 :type     :join
+                 :position ""))))
+
+  (outer-join [this table2 type join-on]
+    (if (has-aggregate? table2)
+      (assoc this
+        :joins (assoc (or joins {})
+                 :data     [table2 join-on]
+                 :type     :outer
+                 :position type))
+      (assoc this
+        :tcols (if-let [t2cols (seq (:tcols table2))]
+                 (apply conj (or tcols [])
+                        (qualify (to-tablename (:tname table2)) t2cols))
+                 tcols)
+        :joins (assoc (or joins {})
+                 :data     [(to-tablename (:tname table2)) join-on]
+                 :type     :outer
+                 :position type))))
 
   (rename [this newnames]
     (assoc this :renames (merge (or renames {}) newnames)))

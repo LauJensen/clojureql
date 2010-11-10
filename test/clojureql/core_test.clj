@@ -13,31 +13,31 @@
          (-> (table {} :users [:avg#wage]) compile)
          "SELECT avg(users.wage) FROM users"
          (-> (table {} :users [[:avg#wage :as :avg]]) compile)
-         "SELECT avg(users.wage) AS users.avg FROM users"))
+         "SELECT avg(users.wage) AS avg FROM users"))
   (testing "Where predicates"
     (are [x y] (= x y)
          (-> (table {} :users [:id])
                     (select (= {:id 5}))
                     compile)
-         "SELECT users.id FROM users  WHERE (id = 5)"
+         "SELECT users.id FROM users WHERE (id = 5)"
          (-> (table {} :users [:id])
              (select (either (= {:id 5}) (>= {:id 10})))
              compile)
-         "SELECT users.id FROM users  WHERE ((id = 5) OR (id >= 10))"
+         "SELECT users.id FROM users WHERE ((id = 5) OR (id >= 10))"
          (-> (table {} :users [:id])
              (select (both (= {:id 5}) (>= {:id 10})))
              compile)
-         "SELECT users.id FROM users  WHERE ((id = 5) AND (id >= 10))"
+         "SELECT users.id FROM users WHERE ((id = 5) AND (id >= 10))"
          (-> (table {} :users [:id])
                     (select (both (= {:id 5}) (either (>= {:id 10})
                                                       (<= {:id 20}))))
                     compile)
-         "SELECT users.id FROM users  WHERE ((id = 5) AND ((id >= 10) OR (id <= 20)))"
+         "SELECT users.id FROM users WHERE ((id = 5) AND ((id >= 10) OR (id <= 20)))"
          (-> (table {} :users [:id])
                     (select (both (!= {:id 5}) (either (> {:id 10})
                                                        (< {:id 20}))))
                     compile)
-         "SELECT users.id FROM users  WHERE ((id != 5) AND ((id > 10) OR (id < 20)))"))
+         "SELECT users.id FROM users WHERE ((id != 5) AND ((id > 10) OR (id < 20)))"))
   (testing "Projections"
     (are [x y] (= x y)
          (-> (table {} :users [:id])
@@ -67,12 +67,12 @@
              (select (= {:admin true}))
              (aggregate [:count#*])
              compile)
-         "SELECT count(users.*) FROM users  WHERE (admin = true)"
+         "SELECT count(users.*) FROM users WHERE (admin = true)"
          (-> (table {} :users)
              (select (= {:admin true}))
              (aggregate [:country :count#*])
              compile)
-         "SELECT users.country,count(users.*) FROM users  WHERE (admin = true)  GROUP BY country"))
+         "SELECT users.country,count(users.*) FROM users WHERE (admin = true)  GROUP BY country"))
   (testing "Table aliases"
     (are [x y] (= x y)
         (let [u1 (table {} {:users :u1} [:id :article :price])
