@@ -65,14 +65,14 @@
     (are [x y] (= x y)
          (-> (table {} :users)
              (select (= {:admin true}))
-             (aggregate [:count#*])
+             (aggregate [:count#* :avg#wage])
              compile)
-         "SELECT count(users.*) FROM users WHERE (admin = true)"
+         "SELECT count(users.*),avg(users.wage) FROM users WHERE (admin = true)"
          (-> (table {} :users)
              (select (= {:admin true}))
-             (aggregate [:country :count#*])
+             (aggregate [:count#*, "corr(x,y)"] [:country :city])
              compile)
-         "SELECT users.country,count(users.*) FROM users WHERE (admin = true)  GROUP BY country"))
+         "SELECT users.country,users.city,count(users.*),corr(x,y) FROM users WHERE (admin = true)  GROUP BY users.country,users.city"))
   (testing "Table aliases"
     (are [x y] (= x y)
         (let [u1 (table {} {:users :u1} [:id :article :price])

@@ -24,7 +24,8 @@
   (join       [this table2 join_on]       "Joins two table")
   (outer-join [this table2 type join_on]  "Makes an outer join of type :left|:right|:full")
   (rename     [this newnames]             "Renames colums in a join")
-  (aggregate  [this fields]               "Computes aggregates, non-aggregate fields are used for grouping")
+  (aggregate  [this aggregates]
+              [this aggregates group-by]  "Computes aggregates grouped by the specified fields")
 
   (conj!      [this records]              "Inserts record(s) into the table")
   (disj!      [this predicate]            "Deletes record(s) from the table")
@@ -133,10 +134,13 @@
   (rename [this newnames]
     (assoc this :renames (merge (or renames {}) newnames)))
 
-  (aggregate [this fields]
-    (let [table (project this fields)]
-      (if-let [group-by (seq (remove aggregate? fields))]
-        (.options table (str "GROUP BY " (join-str "," (map name group-by))))
+  (aggregate [this aggregates]
+    (aggregate this aggregates []))
+
+  (aggregate [this aggregates group-by]
+    (let [table (project this (into group-by aggregates))]
+      (if (seq group-by)
+        (.options table (str "GROUP BY " (to-fieldlist tname group-by)))
         table)))
 
   (conj! [this records]
