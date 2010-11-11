@@ -29,6 +29,7 @@
 
   (conj!      [this records]              "Inserts record(s) into the table")
   (disj!      [this predicate]            "Deletes record(s) from the table")
+  (update-in! [this pred records]         "Inserts or updates record(s) where pred is true")
 
   (limit      [this n]                    "Queries the table with LIMIT n")
   (order-by   [this col]                  "Orders the Query by the column")
@@ -154,6 +155,13 @@
     (with-connection cnx
       (delete-rows tname [(compile-expr predicate)]))
     this)
+
+  (update-in! [this pred records]
+     (with-connection cnx
+       (if (map? records)
+         (update-or-insert-values tname [pred] records)
+         (apply update-or-insert-values tname [pred] records))
+       this))
 
   (options [this opts]
     (assoc this :options (str options \space opts)))

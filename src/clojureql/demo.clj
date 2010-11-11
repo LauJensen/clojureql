@@ -44,7 +44,8 @@
       (tst @(join users salary :id))                           ; Join two tables with USING
       (tst @(-> users
                 (conj! {:name "Jack"})                         ; Add a single row
-                (disj! (= {:id 1}))                            ; Remove anothern
+                (disj! (= {:id 1}))                            ; Remove another
+                (update-in! (= {:id 2}) {:name "John"})        ; Update a third
                 (sort :id :desc)                               ; Prepare to sort
                 (project #{:id :title})                        ; Returns colums id and title
                 (select (<= {:id 10}))                         ; Where ID is <= 10

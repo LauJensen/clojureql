@@ -113,6 +113,11 @@ Manipulation
     @(disj! users {:name "Jack"})
     >>> ({:id 1 :name "Lau"} {:id 2 :name "Christophe"} {:id 3 :name "Frank"})
 
+    @(update-in! users (= {:id 1}) {:name "Test"})
+    >>> ({:id 1 :name "Tst"} {:id 2 :name "Christophe"} {:id 3 :name "Frank"})
+
+**Note:** All of these take either a single map or a collection of maps as their final argument.
+
 **Note:** These function execute and return a pointer to the table, so the can be chained with other calls.
 
 Joins
