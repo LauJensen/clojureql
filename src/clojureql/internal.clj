@@ -51,12 +51,17 @@
 (defn to-fieldlist
   "Converts a column specification to SQL notation field list
 
-   :tble [:sum/k1 :k2 [:avg/k3 :as :c]] => 'sum(tble.k1),tble.k2,avg(tble.k3) AS c'"
+   :tble [:sum/k1 :k2 [:avg/k3 :as :c]] => 'sum(tble.k1),tble.k2,avg(tble.k3) AS c'
+   :tble :t1 [:avg/a:b] => 'avg(t1.a, t1.b)' "
   ([tcols] (to-fieldlist nil tcols))
   ([tname tcols]
      (let [tname (if-let [tname (to-tablename tname)]
                    (str (-> tname (.split " ") last) \.) "")]
-       (letfn [(split-aggregate [item]  (re-find #"(.*)\/(.*)" (nskeyword item)))
+       (letfn [(split-fields [t a] (->> (.split a ":")
+                                        (map #(str t %))
+                                        (interpose ",")
+                                        (apply str)))
+               (split-aggregate [item]  (re-find #"(.*)\/(.*)" (nskeyword item)))
                (item->string [i]
                  (cond
                   (string? i) i
@@ -64,12 +69,12 @@
                   (if (aggregate? (first i))
                     (let [[col _ alias] (map nskeyword i)
                           [_ fn aggr] (split-aggregate col)]
-                      (str fn "(" tname aggr ")" " AS " alias))
+                      (str fn "(" (split-fields tname aggr) ")" " AS " alias))
                     (let [[col _ alias] (map nskeyword i)]
                       (str tname col " AS " alias)))
                    (and (aggregate? i) (not (string? i)))
                    (let [[_ fn aggr :as x] (split-aggregate i)]
-                     (str fn "(" tname aggr ")"))
+                     (str fn "(" (split-fields tname aggr) ")"))
                    (string? i)
                    i
                    :else (str tname (nskeyword i))))]
@@ -90,8 +95,9 @@
    :parent :child        => parent.child
    :parent :other.child  => other.child
    :parent :avg/sales    => avg(parent.sales)
+   :parent :avg/a:b      => avg(parent.a, parent.b)
    :parent [:a :fn/b [:c :as :d]] => ('parent.a', 'fn(parent.b)'
-                                      'parent.c as parent.d')    "
+                                      'parent.c as parent.d') "
   [parent children]
   (let [parent (cond
                 (string? parent) ; has this already been treated as an alias?
@@ -113,7 +119,7 @@
                   (let [childname (name c)]
                     (if (or (qualified? c) (aggregate? c))
                       (if (aggregate? c)
-                        (to-name parent c)
+                        (to-fieldlist parent [c])
                         (name c))
                       (str (name parent) \. (name c))))))]
         (if (keyword? children)

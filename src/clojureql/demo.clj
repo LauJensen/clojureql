@@ -53,6 +53,6 @@
       (tst @(-> (disj! users (either (= {:id 3}) (= {:id 4})))
                 (sort :id :desc)))
       (tst @(limit users 1))
-      (tst @(-> (table db :salary) (project [:avg#wage])))
+      (tst @(-> (table db :salary) (project [:avg/wage])))
       #_(tst (select users (where "id=%1 OR id=%2" 1 10)))
       (tst @(select users (either (= {:id 1}) (>= {:id 10})))))))

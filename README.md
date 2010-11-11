@@ -78,27 +78,30 @@ Aliasing
 Aggregates
 ----------
 
-    @(table db :salary [:avg:wage])
+    @(table db :salary [:avg/wage])
     >>> ({:avg(wage) 250.0000M})
 
-    @(table db :salary [[:avg:wage :as average]])
+    @(table db :salary [[:avg/wage :as average]])
     >>> ({:average 250.0000M})
 
 
-    @(-> (table db :salary) (project [:avg:wage]))
+    @(-> (table db :salary) (project [:avg/wage]))
     >>> ({:avg(wage) 250.0000M})
+
+    (-> (table db :salary) (project [:avg/wage:expenses]) compile)
+    >>> "SELECT avg(salary.wage, salary.expenses) FROM salary;
 
 **Note:** These examples demonstrate a simple uniform interface across ClojureQL. For more advanced
 aggregations, use the **aggregate** function.
 
      (-> (table {} :users)
          (select (= {:admin true}))
-         (aggregate [:count#*]))
+         (aggregate [:count/*]))
      >>> "SELECT count(users.*) FROM users  WHERE (admin = true)"
 
      (-> (table {} :users)
          (select (= {:admin true}))
-         (aggregate [:count#* :country]))
+         (aggregate [:count/* :country]))
      >>> "SELECT users.country,count(users.*) FROM users  WHERE (admin = true)  GROUP BY country"
 
 Manipulation

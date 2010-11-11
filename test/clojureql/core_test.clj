@@ -73,7 +73,12 @@
              (select (= {:admin true}))
              (aggregate [:count/*, "corr(x,y)"] [:country :city])
              compile)
-         "SELECT users.country,users.city,count(users.*),corr(x,y) FROM users WHERE (admin = true)  GROUP BY users.country,users.city"))
+         "SELECT users.country,users.city,count(users.*),corr(x,y) FROM users WHERE (admin = true)  GROUP BY users.country,users.city"
+         (-> (table {} :users)
+             (select (= {:admin true}))
+             (aggregate [:count/*, :corr/x:y] [:country :city])
+             compile)
+         "SELECT users.country,users.city,count(users.*),corr(users.x,users.y) FROM users WHERE (admin = true)  GROUP BY users.country,users.city"))
   (testing "Table aliases"
     (are [x y] (= x y)
         (let [u1 (table {} {:users :u1} [:id :article :price])
