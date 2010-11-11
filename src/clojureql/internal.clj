@@ -5,12 +5,22 @@
 
 (def *db* {:connection nil :level 0})
 
+(defn nskeyword
+  "Converts a namespace qualified keyword to a string"
+  [k]
+  (if (string? k)
+    k
+    (let [[kns nm] ((juxt namespace name) k)]
+      (if kns
+        (apply str (interpose "/" [kns nm]))
+        nm))))
+
 (defn qualified? [c]
-  (.contains (name c) "."))
+  (.contains (nskeyword c) "."))
 
 (defn aggregate? [c]
-  (or (and (string? c) (.contains c "("))
-      (.contains (name c) "#")))
+  (or (and (string? c) (.contains c "(")) ; Best guess
+      (not-any? nil? ((juxt namespace name) c))))
 
 (defn to-tablename
   [c]
@@ -25,45 +35,47 @@
 (defn to-name
   " Converts a keyword to a string, checking for aggregates
 
-   (to-name :avg#y) => 'avg(y)'
+   (to-name :avg/y) => 'avg(y)'
    (to-name :y) => 'y'
-   (to-name :parent :fn#field => 'fn(master.field)' "
+   (to-name :parent :fn/field => 'fn(master.field)' "
   ([c]   (to-name :none c))
   ([p c]
      (let [p  (if (= :none p) "" (str (to-tablename p) \.))]
        (if (string? c)
          (str "'" c "'")
          (if (aggregate? c)
-           (let [[aggr col] (-> (name c) (.split "#"))]
+           (let [[aggr col] (-> (nskeyword c) (.split "/"))]
              (str aggr "(" p col ")"))
-           (str p (name c)))))))
+           (str p (nskeyword c)))))))
 
 (defn to-fieldlist
   "Converts a column specification to SQL notation field list
 
-   :tble [:sum#k1 :k2 [:avg#k3 :as :c]] => 'sum(tble.k1),tble.k2,avg(tble.k3) AS c'"
+   :tble [:sum/k1 :k2 [:avg/k3 :as :c]] => 'sum(tble.k1),tble.k2,avg(tble.k3) AS c'"
   ([tcols] (to-fieldlist nil tcols))
   ([tname tcols]
      (let [tname (if-let [tname (to-tablename tname)]
                    (str (-> tname (.split " ") last) \.) "")]
-       (letfn [(split-aggregate [item] (re-find #"(.*)\#(.*)" (name item)))
+       (letfn [(split-aggregate [item]  (re-find #"(.*)\/(.*)" (nskeyword item)))
                (item->string [i]
                  (cond
+                  (string? i) i
                   (vector? i)
                   (if (aggregate? (first i))
-                    (let [[col _ alias] (map name i)
+                    (let [[col _ alias] (map nskeyword i)
                           [_ fn aggr] (split-aggregate col)]
                       (str fn "(" tname aggr ")" " AS " alias))
-                    (->> (map #(to-fieldlist tname [%]) i)
-                         (interpose \space)
-                         (apply str)))
+                    (let [[col _ alias] (map nskeyword i)]
+                      (str tname col " AS " alias)))
                    (and (aggregate? i) (not (string? i)))
-                   (let [[_ fn aggr :as x] (split-aggregate (name i))]
+                   (let [[_ fn aggr :as x] (split-aggregate i)]
                      (str fn "(" tname aggr ")"))
                    (string? i)
                    i
-                   :else (str tname (name i))))]
+                   :else (str tname (nskeyword i))))]
          (cond
+          (every? string? tcols)
+          (join-str "," tcols)
           (= 1 (count tcols))
           (-> tcols first item->string)
           (or (keyword? tcols)
@@ -77,8 +89,8 @@
 
    :parent :child        => parent.child
    :parent :other.child  => other.child
-   :parent :avg#sales    => avg(parent.sales)
-   :parent [:a :fn#b [:c :as :d]] => ('parent.a', 'fn(parent.b)'
+   :parent :avg/sales    => avg(parent.sales)
+   :parent [:a :fn/b [:c :as :d]] => ('parent.a', 'fn(parent.b)'
                                       'parent.c as parent.d')    "
   [parent children]
   (let [parent (cond
@@ -91,9 +103,13 @@
     (if (nil? children)
       ""
       (letfn [(singular [c]
-                (if (vector? c)
-                  (let [[nm _ alias] c]
-                    (str (to-name parent nm) " AS " (to-name parent alias)))
+                (cond
+                 (vector? c)
+                 (let [[nm _ alias] c]
+                   (str (to-name parent nm) " AS " (to-name parent alias)))
+                 (string? c)
+                 c ; TODO: We might want to check for a period
+                 :else
                   (let [childname (name c)]
                     (if (or (qualified? c) (aggregate? c))
                       (if (aggregate? c)
@@ -117,7 +133,7 @@
   [tname cols table-alias col-alias]
   (str (->> cols (qualify tname) to-fieldlist)
        (when (and table-alias col-alias)
-         (str "," (name table-alias) \. (name col-alias) ))))
+         (str "," (name table-alias) \. (nskeyword col-alias) ))))
 
 (defn find-first-alias
   "Scans a column spec to find the first alias"

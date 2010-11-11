@@ -10,9 +10,9 @@
          "SELECT users.* FROM users"
          (-> (table {} :users [:id :name]) compile)
          "SELECT users.id,users.name FROM users"
-         (-> (table {} :users [:avg#wage]) compile)
+         (-> (table {} :users [:avg/wage]) compile)
          "SELECT avg(users.wage) FROM users"
-         (-> (table {} :users [[:avg#wage :as :avg]]) compile)
+         (-> (table {} :users [[:avg/wage :as :avg]]) compile)
          "SELECT avg(users.wage) AS avg FROM users"))
   (testing "Where predicates"
     (are [x y] (= x y)
@@ -61,16 +61,17 @@
                     (rename {:id :idx}) ; TODO: This should only work with fully qualified names
                     compile)
          "SELECT users.id,salary.wage FROM users AS users(idx) JOIN salary ON (user.id = salary.id)"))
+                                        ; TODO: Shouldn't this be ON (users.idx = salary.id) ?
   (testing "Aggregate functions"
     (are [x y] (= x y)
          (-> (table {} :users)
              (select (= {:admin true}))
-             (aggregate [:count#* :avg#wage])
+             (aggregate [:count/* :avg/wage])
              compile)
          "SELECT count(users.*),avg(users.wage) FROM users WHERE (admin = true)"
          (-> (table {} :users)
              (select (= {:admin true}))
-             (aggregate [:count#*, "corr(x,y)"] [:country :city])
+             (aggregate [:count/*, "corr(x,y)"] [:country :city])
              compile)
          "SELECT users.country,users.city,count(users.*),corr(x,y) FROM users WHERE (admin = true)  GROUP BY users.country,users.city"))
   (testing "Table aliases"
