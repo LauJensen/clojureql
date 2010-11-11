@@ -145,19 +145,19 @@
         table)))
 
   (conj! [this records]
-    (with-connection cnx
+    (with-cnx cnx
       (if (map? records)
         (insert-records tname records)
         (apply insert-records tname records)))
     this)
 
   (disj! [this predicate]
-    (with-connection cnx
+    (with-cnx cnx
       (delete-rows tname [(compile-expr predicate)]))
     this)
 
   (update-in! [this pred records]
-     (with-connection cnx
+     (with-cnx cnx
        (if (map? records)
          (update-or-insert-values tname [pred] records)
          (apply update-or-insert-values tname [pred] records))

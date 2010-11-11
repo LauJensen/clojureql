@@ -3,8 +3,6 @@
   (:use [clojure.string :only [join] :rename {join join-str}]
         [clojure.contrib.core :only [-?>]]))
 
-(def *db* {:connection nil :level 0})
-
 (defn nskeyword
   "Converts a namespace qualified keyword to a string"
   [k]
@@ -217,14 +215,42 @@
 
                                         ; SQL Specifics
 
+(def global-connections (atom {}))
+
+(defn open-global [id specs]
+  (swap! global-connections assoc
+         id (clojure.contrib.sql.internal/get-connection specs)))
+
+
+(defn close-global
+  "Supplied with a keyword identifying a global connection, that connection
+  is closed and the reference dropped."
+  [conn-name]
+  (if-let [conn (conn-name @global-connections)]
+    (do
+      (.close conn)
+      (swap! global-connections dissoc conn-name))
+    (throw
+     (Exception. (format "No global connection by that name is open (%s)" conn-name)))))
+
 (defn with-cnx*
   "Evaluates func in the context of a new connection to a database then
   closes the connection."
-  [db-spec func]
-  (with-open [con (clojure.contrib.sql.internal/get-connection db-spec)]
-    (binding [*db* (assoc *db*
-                     :connection con :level 0 :rollback (atom false))]
-      (func))))
+  [con-info func]
+  (io!
+   (if (keyword? con-info)
+     (if-let [con (@global-connections con-info)]
+       (binding [clojure.contrib.sql.internal/*db*
+                 (assoc clojure.contrib.sql.internal/*db* :connection con
+                        :level 0 :rollback (atom false))]
+         (func))
+       (throw
+        (Exception. "No such global connection currently open!")))
+     (with-open [con (clojure.contrib.sql.internal/get-connection con-info)]
+       (binding [clojure.contrib.sql.internal/*db*
+                 (assoc clojure.contrib.sql.internal/*db* :connection con
+                        :level 0 :rollback (atom false))]
+         (func))))))
 
 (defmacro with-cnx
   [db-spec & body]
@@ -255,9 +281,10 @@
   [[sql & params :as sql-params] func]
   (when-not (vector? sql-params)
     (throw (Exception. "sql-params must be a vector")))
-  (with-open [stmt (.prepareStatement (:connection *db*) sql)]
+  (with-open [stmt (.prepareStatement (:connection clojure.contrib.sql.internal/*db*) sql)]
     (doseq [[index value] (map vector (iterate inc 1) params)]
       (.setObject stmt index value))
+
     (with-open [rset (.executeQuery stmt)]
       (func (result-seq rset)))))
 
