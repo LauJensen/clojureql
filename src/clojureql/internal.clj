@@ -218,8 +218,10 @@
 (def global-connections (atom {}))
 
 (defn open-global [id specs]
-  (swap! global-connections assoc
-         id (clojure.contrib.sql.internal/get-connection specs)))
+  (let [con (clojure.contrib.sql.internal/get-connection specs)]
+    (when-let [ac (-> specs :auto-commit)]
+      (.setAutoCommit con ac))
+    (swap! global-connections assoc id con)))
 
 
 (defn close-global
@@ -250,6 +252,7 @@
        (binding [clojure.contrib.sql.internal/*db*
                  (assoc clojure.contrib.sql.internal/*db* :connection con
                         :level 0 :rollback (atom false))]
+         (.setAutoCommit con (or (-> con-info :auto-commit) true))
          (func))))))
 
 (defmacro with-cnx

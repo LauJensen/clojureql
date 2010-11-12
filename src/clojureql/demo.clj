@@ -10,6 +10,7 @@
       :subprotocol "mysql"
       :user        "cql"
       :password    "cql"
+      :auto-commit true
       :subname     "//localhost:3306/cql"})
 
 (defmacro tst [expr]
