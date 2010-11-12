@@ -42,10 +42,9 @@
 (defrecord RTable [cnx tname tcols restriction renames joins options]
   clojure.lang.IDeref
   (deref [this]
-    (with-cnx cnx
-      (with-results rs
-        [(compile this)]
-        (doall rs))))
+    (if cnx
+      (with-cnx cnx (with-results rs [(compile this)] (doall rs)))
+      (with-results rs [(compile this)] (doall rs))))
 
   Relation
   (compile [this]
@@ -145,23 +144,28 @@
         table)))
 
   (conj! [this records]
-    (with-cnx cnx
-      (if (map? records)
-        (insert-records tname records)
-        (apply insert-records tname records)))
+    (letfn [(exec [] (if (map? records)
+                       (insert-records tname records)
+                       (apply insert-records tname records)))]
+      (if cnx
+        (with-cnx cnx (exec))
+        (exec)))
     this)
 
   (disj! [this predicate]
-    (with-cnx cnx
-      (delete-rows tname [(compile-expr predicate)]))
+     (if cnx
+       (with-cnx cnx (delete-rows tname [(compile-expr predicate)]))
+       (delete-rows tname [(compile-expr predicate)]))
     this)
 
   (update-in! [this pred records]
-     (with-cnx cnx
-       (if (map? records)
-         (update-or-insert-values tname [pred] records)
-         (apply update-or-insert-values tname [pred] records))
-       this))
+     (letfn [(exec [] (if (map? records)
+                        (update-or-insert-values tname [pred] records)
+                        (apply update-or-insert-values tname [pred] records)))]
+       (if cnx
+         (with-cnx cnx (exec))
+         (exec)))
+     this)
 
   (options [this opts]
     (assoc this :options (str options \space opts)))
