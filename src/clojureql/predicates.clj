@@ -1,29 +1,22 @@
 (ns clojureql.predicates
-  (:refer-clojure
-   :exclude [take sort conj! disj! < <= > >= =]
-   :rename {take take-coll})
   (:use clojureql.internal
+        clojure.walk
         [clojure.string :only [join] :rename {join join-str}]))
 
                                         ; PREDICATE COMPILER
 
 (defn compile-expr
   [expr]
-  (letfn [(lefthand [e] (-> e last keys first to-name))
-          (righthand [e] (let [retr (-> e last vals first)]
-                           (cond
-                            (string? retr)  (str "'" retr "'")
-                            (keyword? retr) (name retr)
-                            :else retr)))]
+  (letfn [(sanitize [e] (->> (rest e) (map #(if (keyword? %) (name %) %))))]
     (case (first expr)
           :or  (str "(" (join-str " OR "  (map compile-expr (rest expr))) ")")
           :and (str "(" (join-str " AND " (map compile-expr (rest expr))) ")")
-          :eq  (str "(" (lefthand expr) " = " (righthand expr) ")")
-          :gt  (str "(" (lefthand expr) " > " (righthand expr) ")")
-          :lt  (str "(" (lefthand expr) " < " (righthand expr) ")")
-          :gt= (str "(" (lefthand expr) " >= " (righthand expr) ")")
-          :lt= (str "(" (lefthand expr) " <= " (righthand expr) ")")
-          :!=  (str "(" (lefthand expr) " != " (righthand expr) ")")
+          :eq  (str "(" (join-str " = " (sanitize expr)) ")")
+          :gt  (str "(" (join-str " > " (sanitize expr)) ")")
+          :lt  (str "(" (join-str " < " (sanitize expr)) ")")
+          :gt= (str "(" (join-str " >= " (sanitize expr)) ")")
+          :lt= (str "(" (join-str " <= " (sanitize expr)) ")")
+          :!=  (str "(" (join-str " != " (sanitize expr)) ")")
           (str expr))))
 
 (defn either
@@ -40,64 +33,43 @@
   [& conds]
   (compile-expr (apply vector :and conds)))
 
-(defn =
-  " Alpha - Subject to sanity.
-
-    The idea is, that if this doesn't get passed a map, it assumes
-    you want Clojures regular = operator "
+(defn =*
   [& args]
-  (if (map? (first args))
-    (compile-expr (apply vector :eq args))
-    (apply clojure.core/= args)))
+  (compile-expr (apply vector :eq args)))
 
-(defn !=
+(defn !=*
   " Same as not= "
   [& args]
-  (if (map? (first args))
-    (compile-expr (apply vector :!= args))
-    (apply clojure.core/not= args)))
+  (compile-expr (apply vector :!= args)))
 
-(defn >
-  " Alpha - Subject to sanity.
-
-    The idea is, that if this doesn't get passed a map, it assumes
-    you want Clojures regular > operator "
+(defn >*
   [& args]
-  (if (map? (first args))
-    (compile-expr (apply vector :gt args))
-    (apply clojure.core/> args)))
+  (compile-expr (apply vector :gt args)))
 
-(defn <
-  " Alpha - Subject to sanity.
-
-    The idea is, that if this doesn't get passed a map, it assumes
-    you want Clojures regular < operator "
+(defn <*
   [& args]
-  (if (map? (first args))
-    (compile-expr (apply vector :lt args))
-    (apply clojure.core/< args)))
+  (compile-expr (apply vector :lt args)))
 
-(defn <=
-  " Alpha - Subject to sanity.
-
-    The idea is, that if this doesn't get passed a map, it assumes
-    you want Clojures regular <= operator "
+(defn <=*
   [& args]
-  (if (map? (first args))
-    (compile-expr (apply vector :lt= args))
-    (apply clojure.core/<= args)))
+  (compile-expr (apply vector :lt= args)))
 
-(defn >=
-  " Alpha - Subject to sanity.
-
-    The idea is, that if this doesn't get passed a map, it assumes
-    you want Clojures regular >= operator "
+(defn >=*
   [& args]
-  (if (map? (first args))
-    (compile-expr (apply vector :gt= args))
-    (apply clojure.core/>= args)))
+  (compile-expr (apply vector :gt= args)))
 
-(defn where
+(defn where* [clause]
+  (-> (postwalk-replace '{=   clojureql.predicates/=*
+                          !=  clojureql.predicates/!=*
+                          <   clojureql.predicates/<*
+                          >   clojureql.predicates/>*
+                          <=  clojureql.predicates/<=*
+                          >=  clojureql.predicates/>=*
+                          and clojureql.predicates/both
+                          or  clojureql.predicates/either} clause)
+      eval))
+
+(defn restrict
   "Returns a query string. Can take a raw string with params as %1 %2 %n
    or an AST which compiles using compile-expr.
 
@@ -108,7 +80,7 @@
   ([ast]         (str "WHERE "  (compile-expr ast)))
   ([pred & args] (str "WHERE "  (apply sql-clause pred args))))
 
-(defn where-not
+(defn restrict-not
   "The inverse of the where fn"
   ([ast]         (str "WHERE not(" (compile-expr ast) ")"))
   ([pred & args] (str "WHERE not(" (apply sql-clause pred args) ")")))

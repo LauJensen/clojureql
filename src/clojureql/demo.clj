@@ -43,21 +43,22 @@
           wages  (map #(hash-map :wage %) [100 200 300 400])]
       (tst @(conj! users roster))                              ; Add multiple rows
       (tst @(conj! salary wages))                              ; Same
-      (tst @(join users salary (= {:users.id :salary.id})))    ; Join two tables explicitly
+      (tst @(join users salary (where (= :users.id
+                                         :salary.id))))        ; Join two tables explicitly
       (tst @(join users salary :id))                           ; Join two tables with USING
       (tst @(-> users
                 (conj! {:name "Jack"})                         ; Add a single row
-                (disj! (= {:id 1}))                            ; Remove another
-                (update-in! (= {:id 2}) {:name "John"})        ; Update a third
+                (disj! (where (= :id 1)))                      ; Remove another
+                (update-in! (=* :id 2) {:name "John"})         ; Update a third
                 (sort :id :desc)                               ; Prepare to sort
                 (project #{:id :title})                        ; Returns colums id and title
-                (select (<= {:id 10}))                         ; Where ID is <= 10
+                (select (where (<= :id 10)))                   ; Where ID is <= 10
                 (join salary :id)                              ; Join with table salary
                 (limit 10)))                                   ; Limit return to 10 rows
-      (tst @(-> (disj! users (either (= {:id 3}) (= {:id 4})))
+      (tst @(-> (disj! users (where (either (= :id 3) (= :id 4))))
                 (sort :id :desc)))
       (tst @(limit users 1))
       (tst @(-> (table db :salary) (project [:avg/wage])))
       #_(tst (select users (where "id=%1 OR id=%2" 1 10)))
-      (tst @(select users (either (= {:id 1}) (>= {:id 10}))))))
+      (tst @(select users (where (either (= :id 1) (>= :id 10)))))))
   (close-global :mysql))

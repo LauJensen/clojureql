@@ -1,7 +1,9 @@
 (ns clojureql.core-test
-  (:use [clojureql core predicates]
-        clojure.test))
-
+  (:use [clojureql core internal predicates]
+        clojure.test)
+  (:refer-clojure
+   :exclude [compile take sort conj! disj!]
+   :rename {take take-coll}))
 
 (deftest sql-compilation
   (testing "Simple selects"
@@ -17,26 +19,26 @@
   (testing "Where predicates"
     (are [x y] (= x y)
          (-> (table {} :users [:id])
-                    (select (= {:id 5}))
+                    (select (where (= :id 5)))
                     compile)
          "SELECT users.id FROM users WHERE (id = 5)"
          (-> (table {} :users [:id])
-             (select (either (= {:id 5}) (>= {:id 10})))
+             (select (where (or (= :id 5) (>= :id 10))))
              compile)
          "SELECT users.id FROM users WHERE ((id = 5) OR (id >= 10))"
          (-> (table {} :users [:id])
-             (select (both (= {:id 5}) (>= {:id 10})))
+             (select (where (and (= :id 5) (>= :id 10))))
              compile)
          "SELECT users.id FROM users WHERE ((id = 5) AND (id >= 10))"
          (-> (table {} :users [:id])
-                    (select (both (= {:id 5}) (either (>= {:id 10})
-                                                      (<= {:id 20}))))
+             (select (where (and (= :id 5) (or (>= :id 10)
+                                               (<= :id 20)))))
                     compile)
          "SELECT users.id FROM users WHERE ((id = 5) AND ((id >= 10) OR (id <= 20)))"
          (-> (table {} :users [:id])
-                    (select (both (!= {:id 5}) (either (> {:id 10})
-                                                       (< {:id 20}))))
-                    compile)
+             (select (where (and (!= :id 5) (or (> :id 10)
+                                                (< :id 20)))))
+             compile)
          "SELECT users.id FROM users WHERE ((id != 5) AND ((id > 10) OR (id < 20)))"))
   (testing "Projections"
     (are [x y] (= x y)
@@ -51,13 +53,13 @@
                     compile)
          "SELECT users.id,salary.wage FROM users JOIN salary USING(id)"
          (-> (table {} :users [:id])
-                    (join (table {} :salary [:wage]) (= {:user.id :salary.id}))
+                    (join (table {} :salary [:wage]) (where (= :user.id :salary.id)))
                     compile)
          "SELECT users.id,salary.wage FROM users JOIN salary ON (user.id = salary.id)"))
   (testing "Renaming in joins"
     (are [x y] (= x y)
          (-> (table {} :users [:id])
-                    (join (table {} :salary [:wage]) (= {:user.id :salary.id}))
+                    (join (table {} :salary [:wage]) (where (= :user.id :salary.id)))
                     (rename {:id :idx}) ; TODO: This should only work with fully qualified names
                     compile)
          "SELECT users.id,salary.wage FROM users AS users(idx) JOIN salary ON (user.id = salary.id)"))
@@ -65,17 +67,17 @@
   (testing "Aggregate functions"
     (are [x y] (= x y)
          (-> (table {} :users)
-             (select (= {:admin true}))
+             (select (where (= :admin true)))
              (aggregate [:count/* :avg/wage])
              compile)
          "SELECT count(users.*),avg(users.wage) FROM users WHERE (admin = true)"
          (-> (table {} :users)
-             (select (= {:admin true}))
+             (select (where (= :admin true)))
              (aggregate [:count/*, "corr(x,y)"] [:country :city])
              compile)
          "SELECT users.country,users.city,count(users.*),corr(x,y) FROM users WHERE (admin = true)  GROUP BY users.country,users.city"
          (-> (table {} :users)
-             (select (= {:admin true}))
+             (select (where (= :admin true)))
              (aggregate [:count/*, :corr/x:y] [:country :city])
              compile)
          "SELECT users.country,users.city,count(users.*),corr(users.x,users.y) FROM users WHERE (admin = true)  GROUP BY users.country,users.city"))
@@ -83,13 +85,13 @@
     (are [x y] (= x y)
         (let [u1 (table {} {:users :u1} [:id :article :price])
               w1 (table {} {:salary :w1})]
-          (compile (join u1 w1 (= {:u1.id :w1.id}))))
+          (compile (join u1 w1 (where (= :u1.id :w1.id)))))
         "SELECT u1.id,u1.article,u1.price FROM users u1 JOIN salary w1 ON (u1.id = w1.id)"
         (let [u1 (table {} {:users :u1} [:id :article :price])
               w1 (table {} {:salary :w1} [])]
-          (-> (join u1 w1 (= {:u1.id :w1.id}))
-              (select (= {:s2.article "NULL"}))
+          (-> (join u1 w1 (where (= :u1.id :w1.id)))
+              (select (where (= :s2.article "NULL")))
               compile))
         (str "SELECT u1.id,u1.article,u1.price FROM users u1 "
-             "JOIN salary w1 ON (u1.id = w1.id) WHERE (s2.article = 'NULL')")))
+             "JOIN salary w1 ON (u1.id = w1.id) WHERE (s2.article = NULL)")))
 )

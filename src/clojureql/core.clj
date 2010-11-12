@@ -76,7 +76,7 @@
                        (with-rename tname (qualify tname tcols) renames)
                        (to-tablename tname))
                      (if joins (build-join (:data joins)) "")
-                     (if restriction (where (join-str " AND " restriction)) "")
+                     (if restriction (restrict (join-str " AND " restriction)) "")
                      (or options ""))
              .trim))
                                         ; Non Join compile
@@ -85,7 +85,7 @@
                      (if renames
                        (with-rename tname (qualify tname tcols) renames)
                        (to-tablename tname))
-                     (if restriction (where (join-str " AND " restriction)) "")
+                     (if restriction (restrict (join-str " AND " restriction)) "")
                      (or options ""))
              .trim))]
       (when *debug* (prn sql-string))
@@ -185,3 +185,7 @@
 
 (defn table? [tinstance]
   (instance? clojureql.core.RTable tinstance))
+
+(defmacro where [clause]
+  `(where* '~clause))
+

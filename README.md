@@ -67,24 +67,24 @@ Query
     >>> ({:id 1 :name "Lau"} {:id 2 :name "Christophe"} {:id 3 :name "Frank"})
 
     @(-> users
-         (select (< {:id 3}))) ; Only selects IDs below 3
+         (select (where (< :id 3)))) ; Only selects IDs below 3
     >>> ({:name "Lau Jensen", :id 1} {:name "Christophe", :id 2})
 
     @(-> users
-         (select (< {:id 3}))
+         (select (where (< :id 3)))
          (project #{:title}))  ; <-- Includes a new column
     >>> ({:name "Lau Jensen", :id 1, :title "Dev"} {:name "Christophe", :id 2, :title "Design Guru"})
 
     @(-> users
-         (select (!= {:id 3})))  <-- Matches where ID is NOT 3
+         (select (where (!= :id 3))))  <-- Matches where ID is NOT 3
     >>> ({:name "Lau Jensen", :id 1} {:name "Christophe", :id 2})
 
     @(-> users
-         (select (both (= {:id 1}) (= {:title "'Dev'"}))))
+         (select (where (and (= :id 1) (= :title "'Dev'")))))
     >>> ({:name "Lau Jensen", :id 1})
 
     @(-> users
-         (select (either (= {:id 1}) (= {:title "'Design Guru'"}))))
+         (select (where (or (= :id 1) (= :title "'Design Guru'")))))
     >>> ({:name "Lau Jensen", :id 1} {:name "Christophe", :id 2})
 
 **Note:** No alteration of the query will trigger execution. Only dereferencing will!
@@ -95,13 +95,13 @@ Aliasing
 *Tables:*
 
     (-> (table db {:salary :s1} [:*])
-        (select (= {:s1.id 5})))
+        (select (where (= :s1.id 5))))
     >>> "SELECT s1.* FROM salary s1  WHERE (s1.id = 5)"
 
 *Columns:*
 
     (-> (table db :salary [[:id :as :userid]])
-        (select (= {:userid 5})))
+        (select (where (= :userid 5))))
     >>> "SELECT salary.id AS userid FROM salary  WHERE (userid = 5)"
 
 Aggregates
@@ -124,12 +124,12 @@ Aggregates
 aggregations, use the **aggregate** function.
 
      (-> (table {} :users)
-         (select (= {:admin true}))
+         (select (where (= :admin true)))
          (aggregate [:count/*]))
      >>> "SELECT count(users.*) FROM users  WHERE (admin = true)"
 
      (-> (table {} :users)
-         (select (= {:admin true}))
+         (select (where (= :admin true)))
          (aggregate [:count/* :country]))
      >>> "SELECT users.country,count(users.*) FROM users  WHERE (admin = true)  GROUP BY country"
 
@@ -142,7 +142,7 @@ Manipulation
     @(disj! users {:name "Jack"})
     >>> ({:id 1 :name "Lau"} {:id 2 :name "Christophe"} {:id 3 :name "Frank"})
 
-    @(update-in! users (= {:id 1}) {:name "Test"})
+    @(update-in! users (where (= :id 1)) {:name "Test"})
     >>> ({:id 1 :name "Tst"} {:id 2 :name "Christophe"} {:id 3 :name "Frank"})
 
 **Note:** All of these take either a single map or a collection of maps as their final argument.
@@ -157,7 +157,7 @@ Joins
     @(join users visitors :id)                       ; USING(id)
     >>> ({:id 1 :name "Lau" :guest "false"} {:id 3 :name "Frank" :guest "true"})
 
-    @(join users visitors (= {:users.id visitors.id}))  ; ON users.id = visitors.id
+    @(join users visitors (where (= :users.id visitors.id))  ; ON users.id = visitors.id
     >>> ({:id 1 :name "Lau" :guest "false"} {:id 3 :name "Frank" :guest "true"})
 
 Compound ops
@@ -165,13 +165,13 @@ Compound ops
 
 Since this is a true Relational Algebra implementation, everything composes!
 
-    @(-> (conj! users {:name "Jack"})   ; Add a row
-         (disj! (= {:name "Lau"}))      ; Remove another
-         (sort :id :desc)               ; Prepare to sort in descending order
-         (project #{:id :title})        ; Include these columns in the query
-         (select (!= {:id 5}))          ; But filter out ID = 5
-         (join :salary :id)             ; Join with table salary USING column id
-         (limit 10))                    ; Dont extract more than 10 hits
+    @(-> (conj! users {:name "Jack"})      ; Add a row
+         (disj! (where (= {:name "Lau"}))) ; Remove another
+         (sort :id :desc)                  ; Prepare to sort in descending order
+         (project #{:id :title})           ; Include these columns in the query
+         (select (where (!= :id 5)))       ; But filter out ID = 5
+         (join :salary :id)                ; Join with table salary USING column id
+         (limit 10))                       ; Dont extract more than 10 hits
     >>> ({:id 3 :name "Frank"} {:id 2 :name "Christophe"})
 
 **Note:** This executes SQL statements 3 times in this order: conj!, disj!, @
@@ -179,21 +179,26 @@ Since this is a true Relational Algebra implementation, everything composes!
 Helpers
 -------
 
-**(where) is not used in the relation model as the string notation is not yet available**
+**(where) is now a macro which auto sugars operator names**
 
-Below is just for inspiration. View the function (test-suite) in demo.clj instead!
+    (where (= 5 4)) expands to (=* 5 4)
+    (where (< 5 4)) expands to (<* 5 4)
+    (where (> 5 4)) expands to (>* 5 4)
 
-    ;;; (where "(%1 < %2) AND (avg(%1) < %3)" :income :cost :expenses)
-    ;;; > "WHERE (income < cost) AND (avg(income) < expenses)"
+etc
 
-    ;;; (where-not (either (= {:id 4}) (>= {:wage 200})))
-    ;;; > "WHERE not ((id = 4) OR (wage >= 200))"
+The old fns both/either are gone, now just use and/or
 
-    (where (both (= {:id 4}) (< {:wage 100})))
-    > "WHERE ((id = 4) AND (wage < 100))"
+    (where (or (= :title "Admin") (>= :id 50)))
 
-    (where (!= {:a 5})
-    > "WHERE a != 5"
+**Finally, you can use strings**
+
+    (restrict "(%1 < %2) AND (avg(%1) < %3)" :income :cost :expenses)
+    > "WHERE (income < cost) AND (avg(income) < expenses)"
+
+
+
+** STOP READING: Below are outdated notes **
 
     (where (either (= {:id 2}) (> {:avg.id 4})))
     > "WHERE (id = 2 OR avg(id) > 4)"
