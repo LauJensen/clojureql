@@ -22,12 +22,41 @@ This project is still in the pre-alpha design phase, input is welcomed!
 Initialization
 --------------
 
+
+**Example**:
+
     (def db
      {:classname   "com.mysql.jdbc.Driver"
       :subprotocol "mysql"
       :user        "cql"
       :password    "cql"
       :subname     "//localhost:3306/cql"})
+
+**Complete specification**:
+
+    Factory:
+      :factory     (required) a function of one argument, a map of params
+      (others)     (optional) passed to the factory function in a map
+
+    DriverManager:
+      :classname   (required) a String, the jdbc driver class name
+      :subprotocol (required) a String, the jdbc subprotocol
+      :subname     (required) a String, the jdbc subname
+      (others)     (optional) passed to the driver as properties.
+
+    DataSource:
+      :datasource  (required) a javax.sql.DataSource
+      :username    (optional) a String
+      :password    (optional) a String, required if :username is supplied
+
+    JNDI:
+      :name        (required) a String or javax.naming.Name
+      :environment (optional) a java.util.Map"
+
+    Options:
+      :auto-commit (optional) a Boolean
+      :fetch-size  (optional) an integer
+
 
 Query
 -----

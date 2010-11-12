@@ -1,5 +1,7 @@
 (ns clojureql.internal
-  (:require clojure.contrib.sql.internal)
+  (:require
+   [clojure.contrib.sql.internal :as sqlint]
+   [clojure.contrib.sql :as csql])
   (:use [clojure.string :only [join] :rename {join join-str}]
         [clojure.contrib.core :only [-?>]]))
 
@@ -218,10 +220,10 @@
 (def global-connections (atom {}))
 
 (defn open-global [id specs]
-  (let [con (clojure.contrib.sql.internal/get-connection specs)]
+  (let [con (sqlint/get-connection specs)]
     (when-let [ac (-> specs :auto-commit)]
       (.setAutoCommit con ac))
-    (swap! global-connections assoc id con)))
+    (swap! global-connections assoc id {:connection con :opts specs})))
 
 
 (defn close-global
@@ -230,8 +232,9 @@
   [conn-name]
   (if-let [conn (conn-name @global-connections)]
     (do
-      (.close conn)
-      (swap! global-connections dissoc conn-name))
+      (.close (:connection conn))
+      (swap! global-connections dissoc conn-name)
+      true)
     (throw
      (Exception. (format "No global connection by that name is open (%s)" conn-name)))))
 
@@ -242,16 +245,22 @@
   (io!
    (if (keyword? con-info)
      (if-let [con (@global-connections con-info)]
-       (binding [clojure.contrib.sql.internal/*db*
-                 (assoc clojure.contrib.sql.internal/*db* :connection con
-                        :level 0 :rollback (atom false))]
+       (binding [sqlint/*db*
+                 (assoc sqlint/*db*
+                   :connection (:connection con)
+                   :level 0
+                   :rollback (atom false)
+                   :opts     (:opts con))]
          (func))
        (throw
         (Exception. "No such global connection currently open!")))
-     (with-open [con (clojure.contrib.sql.internal/get-connection con-info)]
-       (binding [clojure.contrib.sql.internal/*db*
-                 (assoc clojure.contrib.sql.internal/*db* :connection con
-                        :level 0 :rollback (atom false))]
+     (with-open [con (sqlint/get-connection con-info)]
+       (binding [sqlint/*db*
+                 (assoc sqlint/*db*
+                   :connection con
+                   :level 0
+                   :rollback (atom false)
+                   :opts     con-info)]
          (.setAutoCommit con (or (-> con-info :auto-commit) true))
          (func))))))
 
@@ -284,12 +293,18 @@
   [[sql & params :as sql-params] func]
   (when-not (vector? sql-params)
     (throw (Exception. "sql-params must be a vector")))
-  (with-open [stmt (.prepareStatement (:connection clojure.contrib.sql.internal/*db*) sql)]
+  (with-open [stmt (.prepareStatement (:connection sqlint/*db*) sql)]
+    (when-let [fetch-size (-> sqlint/*db* :opts :fetch-size)]
+      (.setFetchSize stmt fetch-size)
+      (csql/transaction
+       (doseq [[index value] (map vector (iterate inc 1) params)]
+         (.setObject stmt index value))
+       (with-open [rset (.executeQuery stmt)]
+         (func (result-seq rset)))))
     (doseq [[index value] (map vector (iterate inc 1) params)]
-      (.setObject stmt index value))
-
-    (with-open [rset (.executeQuery stmt)]
-      (func (result-seq rset)))))
+        (.setObject stmt index value))
+      (with-open [rset (.executeQuery stmt)]
+        (func (result-seq rset)))))
 
 (defmacro with-results
   "Executes a query, then evaluates body with results bound to a seq of the

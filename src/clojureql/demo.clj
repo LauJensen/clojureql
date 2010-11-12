@@ -11,6 +11,7 @@
       :user        "cql"
       :password    "cql"
       :auto-commit true
+      :fetch-size  500
       :subname     "//localhost:3306/cql"})
 
 (defmacro tst [expr]
