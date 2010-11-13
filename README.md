@@ -117,7 +117,7 @@ Aggregates
     @(-> (table db :salary) (project [:avg/wage]))
     >>> ({:avg(wage) 250.0000M})
 
-    (-> (table db :salary) (project [:avg/wage:expenses]) compile)
+    (-> (table db :salary) (project [:avg/wage:expenses]) sql)
     >>> "SELECT avg(salary.wage, salary.expenses) FROM salary;
 
 **Note:** These examples demonstrate a simple uniform interface across ClojureQL. For more advanced
@@ -136,13 +136,13 @@ aggregations, use the **aggregate** function.
 Manipulation
 ------------
 
-    @(conj! users {:name "Jack"})
+    @(insert! users {:name "Jack"})
     >>> ({:id 1 :name "Lau"} {:id 2 :name "Christophe"} {:id 3 :name "Frank"} {:id 4 :name "Jack"})
 
-    @(disj! users {:name "Jack"})
+    @(delete! users {:name "Jack"})
     >>> ({:id 1 :name "Lau"} {:id 2 :name "Christophe"} {:id 3 :name "Frank"})
 
-    @(update-in! users (where (= :id 1)) {:name "Test"})
+    @(update! users (where (= :id 1)) {:name "Test"})
     >>> ({:id 1 :name "Tst"} {:id 2 :name "Christophe"} {:id 3 :name "Frank"})
 
 **Note:** All of these take either a single map or a collection of maps as their final argument.
@@ -165,16 +165,16 @@ Compound ops
 
 Since this is a true Relational Algebra implementation, everything composes!
 
-    @(-> (conj! users {:name "Jack"})      ; Add a row
-         (disj! (where (= {:name "Lau"}))) ; Remove another
-         (sort :id :desc)                  ; Prepare to sort in descending order
-         (project #{:id :title})           ; Include these columns in the query
-         (select (where (!= :id 5)))       ; But filter out ID = 5
-         (join :salary :id)                ; Join with table salary USING column id
-         (limit 10))                       ; Dont extract more than 10 hits
+    @(-> (insert! users {:name "Jack"})      ; Add a row
+         (delete! (where (= {:name "Lau"}))) ; Remove another
+         (order-by [:id:desc])               ; Prepare to sort in descending order
+         (project #{:id :title})             ; Include these columns in the query
+         (select (where (!= :id 5)))         ; But filter out ID = 5
+         (join :salary :id)                  ; Join with table salary USING column id
+         (take-limit 10))                    ; Don't extract more than 10 hits
     >>> ({:id 3 :name "Frank"} {:id 2 :name "Christophe"})
 
-**Note:** This executes SQL statements 3 times in this order: conj!, disj!, @
+**Note:** This executes SQL statements 3 times in this order: insert!, delete!, @
 
 Helpers
 -------

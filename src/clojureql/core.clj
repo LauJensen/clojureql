@@ -4,9 +4,6 @@
              you to access tables and rows as objects that have uniform interfaces
              for queries, inserts and deletions."
     :url    "http://github.com/LauJensen/clojureql"}
-  (:refer-clojure
-   :exclude [compile take sort conj! disj! < <= > >= =]
-   :rename {take take-coll})
   (:use
    [clojureql internal predicates]
    [clojure.string :only [join] :rename {join join-str}]
@@ -19,35 +16,34 @@
                                         ; RELATIONAL ALGEBRA
 
 (defprotocol Relation
-  (select     [this predicate]            "Queries the table using a predicate")
-  (project    [this fields]               "Projects fields onto the query")
-  (join       [this table2 join_on]       "Joins two table")
-  (outer-join [this table2 type join_on]  "Makes an outer join of type :left|:right|:full")
-  (rename     [this newnames]             "Renames colums in a join")
-  (aggregate  [this aggregates]
-              [this aggregates group-by]  "Computes aggregates grouped by the specified fields")
+  (select      [this predicate]            "Queries the table using a predicate")
+  (project     [this fields]               "Projects fields onto the query")
+  (join        [this table2 join_on]       "Joins two table")
+  (outer-join  [this table2 type join_on]  "Makes an outer join of type :left|:right|:full")
+  (rename      [this newnames]             "Renames colums in a join")
+  (aggregate   [this aggregates]
+               [this aggregates group-by]  "Computes aggregates grouped by the specified fields")
 
-  (conj!      [this records]              "Inserts record(s) into the table")
-  (disj!      [this predicate]            "Deletes record(s) from the table")
-  (update-in! [this pred records]         "Inserts or updates record(s) where pred is true")
+  (insert!     [this records]              "Inserts record(s) into the table")
+  (delete!     [this predicate]            "Deletes record(s) from the table")
+  (update!     [this pred records]         "Updates record(s) where pred is true")
 
-  (limit      [this n]                    "Queries the table with LIMIT n")
-  (order-by   [this col]                  "Orders the Query by the column")
+  (take-limit  [this n]                    "Queries the table with LIMIT n")
+  (drop-offset [this n]                    "Queries the table with OFFSET n")
+  (order-by    [this fields]               "Orders the results by fields.")
+  (options     [this opts]                 "Appends opt(ion)s to the query")
 
-  (sort       [this col type]             "Sorts the query either :asc or :desc")
-  (options    [this opts]                 "Appends opt(ion)s to the query")
-
-  (compile    [this]                      "Returns an SQL statement"))
+  (sql         [this]                      "Returns an SQL statement"))
 
 (defrecord RTable [cnx tname tcols restriction renames joins options]
   clojure.lang.IDeref
   (deref [this]
     (if cnx
-      (with-cnx cnx (with-results rs [(compile this)] (doall rs)))
-      (with-results rs [(compile this)] (doall rs))))
+      (with-cnx cnx (with-results rs [(sql this)] (doall rs)))
+      (with-results rs [(sql this)] (doall rs))))
 
   Relation
-  (compile [this]
+  (sql [this]
     (let [sql-string
       (if (seq joins)
         (cond
@@ -63,7 +59,7 @@
                        (-> (:position joins) name .toUpperCase)
                        (-> (:type joins) name .toUpperCase)
                        (-> (.options t2 (str "GROUP BY " (-> t2 :tcols first name)))
-                           compile)
+                           sql)
                        t2alias
                        (.replaceAll pred t2name t2alias)
                        (or options ""))
@@ -143,7 +139,7 @@
         (.options table (str "GROUP BY " (to-fieldlist tname group-by)))
         table)))
 
-  (conj! [this records]
+  (insert! [this records]
     (letfn [(exec [] (if (map? records)
                        (insert-records tname records)
                        (apply insert-records tname records)))]
@@ -152,13 +148,13 @@
         (exec)))
     this)
 
-  (disj! [this predicate]
+  (delete! [this predicate]
      (if cnx
        (with-cnx cnx (delete-rows tname [(compile-expr predicate)]))
        (delete-rows tname [(compile-expr predicate)]))
     this)
 
-  (update-in! [this pred records]
+  (update! [this pred records]
      (letfn [(exec [] (if (map? records)
                         (update-or-insert-values tname [pred] records)
                         (apply update-or-insert-values tname [pred] records)))]
@@ -170,10 +166,9 @@
   (options [this opts]
     (assoc this :options (str options \space opts)))
 
-  (limit    [this n]       (.options this (str "LIMIT " n)))
-  (order-by [this col]     (.options this (str "ORDER BY " (qualify tname col))))
-  (sort     [this col dir] (.options this (str "ORDER BY " (qualify tname col) \space
-                                              (if (:asc dir) "ASC" "DESC")))))
+  (take-limit  [this n]       (.options this (str "LIMIT " n)))
+  (drop-offset [this n]       (.options this (str "OFFSET " n)))
+  (order-by    [this fields]  (.options this (str "ORDER BY " (to-fieldlist tname fields)))))
 
 (defn table
   ([connection-info table-name]
