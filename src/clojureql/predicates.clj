@@ -7,7 +7,11 @@
 
 (defn compile-expr
   [expr]
-  (letfn [(sanitize [e] (->> (rest e) (map #(if (keyword? %) (name %) %))))]
+  (letfn [(sanitize [e] (->> (rest e)
+                             (map #(cond (keyword? %)     (name %)
+                                         (and (string? %) (.contains % "(")) %
+                                         (string? %)      (str "'" % "'")
+                                         :else %))))]
     (case (first expr)
           :or  (str "(" (join-str " OR "  (map compile-expr (rest expr))) ")")
           :and (str "(" (join-str " AND " (map compile-expr (rest expr))) ")")
