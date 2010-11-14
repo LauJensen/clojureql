@@ -157,11 +157,13 @@
                .trim))
          :else
                                         ;joining with non-aggregate table
-         (-> (format "SELECT %s FROM %s %s %s %s"
+         (-> (format "SELECT %s FROM %s %s %s %s %s %s"
                      (->> tcols (to-fieldlist tname))
                      (if renames
                        (with-rename tname (qualify tname tcols) renames)
                        (to-tablename tname))
+                     (-> (:position joins) name .toUpperCase)
+                     (-> (:type joins) name .toUpperCase)
                      (if joins (build-join (:data joins)) "")
                      (if restriction (restrict (join-str " AND " restriction)) "")
                      (or options ""))
