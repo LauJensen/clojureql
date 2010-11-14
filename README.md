@@ -5,9 +5,6 @@ ClojureQL is an abstraction layer sitting on top of standard low-level JDBC SQL 
 It let's you interact with a database through a series of objects which work as Clojure data
 type.
 
-ClojureQL provides little to no assistance in creating specialized query strings, so that
-compatability with the database backend is left to the user.
-
 ClojureQL is modeled around the primitives defined in Relational Algebra.
 http://en.wikipedia.org/wiki/Relational_algebra
 
@@ -15,9 +12,32 @@ For the user this means that all queries compose and are never executed unless d
 or called with a function that has the ! suffix.
 
 As a help for debugging, wrap your statements in (binding [*debug* true]) to see the
-resulting SQL statement.
+compiled SQL statement printed to stdout.
 
-This project is still in the pre-alpha design phase, input is welcomed!
+Installation
+============
+
+Add the following to your **project.clj** or pom.xml:
+
+Cake/Lein artifact:
+
+    TBA
+
+Maven:
+
+    TBA
+
+Then execute
+
+    cake deps
+
+And import the library into your namespace
+
+    (:use clojureql.core)
+
+
+Manual
+============
 
 Initialization
 --------------
@@ -58,26 +78,31 @@ Initialization
       :fetch-size  (optional) an integer
 
 
-Query
+Queries
 -----
 
     (def users (table db :users [:id :name]))  ; Points to 2 colums in table users
 
     @users
-    >>> ({:id 1 :name "Lau"} {:id 2 :name "Christophe"} {:id 3 :name "Frank"})
+    >>> ({:id 1 :name "Lau"}
+         {:id 2 :name "Christophe"}
+         {:id 3 :name "Frank"})
 
     @(-> users
          (select (where (< :id 3)))) ; Only selects IDs below 3
-    >>> ({:name "Lau Jensen", :id 1} {:name "Christophe", :id 2})
+    >>> ({:name "Lau Jensen", :id 1}
+         {:name "Christophe", :id 2})
 
     @(-> users
          (select (where (< :id 3)))
          (project #{:title}))  ; <-- Includes a new column
-    >>> ({:name "Lau Jensen", :id 1, :title "Dev"} {:name "Christophe", :id 2, :title "Design Guru"})
+    >>> ({:name "Lau Jensen", :id 1, :title "Dev"}
+         {:name "Christophe", :id 2, :title "Design Guru"})
 
     @(-> users
          (select (where (!= :id 3))))  <-- Matches where ID is NOT 3
-    >>> ({:name "Lau Jensen", :id 1} {:name "Christophe", :id 2})
+    >>> ({:name "Lau Jensen", :id 1}
+         {:name "Christophe", :id 2})
 
     @(-> users
          (select (where (and (= :id 1) (= :title "'Dev'")))))
@@ -85,9 +110,16 @@ Query
 
     @(-> users
          (select (where (or (= :id 1) (= :title "'Design Guru'")))))
-    >>> ({:name "Lau Jensen", :id 1} {:name "Christophe", :id 2})
+    >>> ({:name "Lau Jensen", :id 1}
+         {:name "Christophe", :id 2})
 
-**Note:** No alteration of the query will trigger execution. Only dereferencing will!
+For lazy traversal of the results, use **with-results**
+
+    (with-results users rs
+       (doseq [r rs]
+         (println r)))
+
+**Note:** No alteration of the query will trigger execution. Only dereferencing (@) will!
 
 Aliasing
 --------
@@ -113,14 +145,13 @@ Aggregates
     @(table db :salary [[:avg/wage :as average]])
     >>> ({:average 250.0000M})
 
-
     @(-> (table db :salary) (project [:avg/wage]))
     >>> ({:avg(wage) 250.0000M})
 
     (-> (table db :salary) (project [:avg/wage:expenses]) compile)
     >>> "SELECT avg(salary.wage, salary.expenses) FROM salary;
 
-**Note:** These examples demonstrate a simple uniform interface across ClojureQL. For more advanced
+**Note:** The examples above demonstrate a simple uniform interface across ClojureQL. For more advanced
 aggregations, use the **aggregate** function.
 
      (-> (table {} :users)
@@ -137,13 +168,20 @@ Manipulation
 ------------
 
     @(conj! users {:name "Jack"})
-    >>> ({:id 1 :name "Lau"} {:id 2 :name "Christophe"} {:id 3 :name "Frank"} {:id 4 :name "Jack"})
+    >>> ({:id 1 :name "Lau"}
+         {:id 2 :name "Christophe"}
+         {:id 3 :name "Frank"}
+         {:id 4 :name "Jack"})
 
     @(disj! users {:name "Jack"})
-    >>> ({:id 1 :name "Lau"} {:id 2 :name "Christophe"} {:id 3 :name "Frank"})
+    >>> ({:id 1 :name "Lau"}
+         {:id 2 :name "Christophe"}
+         {:id 3 :name "Frank"})
 
     @(update-in! users (where (= :id 1)) {:name "Test"})
-    >>> ({:id 1 :name "Tst"} {:id 2 :name "Christophe"} {:id 3 :name "Frank"})
+    >>> ({:id 1 :name "Tst"}
+         {:id 2 :name "Christophe"}
+         {:id 3 :name "Frank"})
 
 **Note:** All of these take either a single map or a collection of maps as their final argument.
 
@@ -157,8 +195,17 @@ Joins
     @(join users visitors :id)                       ; USING(id)
     >>> ({:id 1 :name "Lau" :guest "false"} {:id 3 :name "Frank" :guest "true"})
 
-    @(join users visitors (where (= :users.id visitors.id))  ; ON users.id = visitors.id
+    @(join users visitors (where (= :users.id :visitors.id)))  ; ON users.id = visitors.id
     >>> ({:id 1 :name "Lau" :guest "false"} {:id 3 :name "Frank" :guest "true"})
+
+    (-> (outer-join users visitors :right (where (= :users.id :visitors.id)))
+        compile)
+    >>> "SELECT users.* FROM users RIGHT OUTER JOIN
+           (SELECT avg(visitors.field) FROM visitors GROUP BY field)
+           AS visitors_aggregation
+         ON (users.id = visitors_aggregation.id)"
+
+**Note**: In the final example, visitors contains an aggregate field
 
 Compound ops
 ------------
@@ -176,40 +223,60 @@ Since this is a true Relational Algebra implementation, everything composes!
 
 **Note:** This executes SQL statements 3 times in this order: conj!, disj!, @
 
-Helpers
--------
+Predicate building
+------------------
 
-**(where) is now a macro which auto sugars operator names**
+ClojureQL provides a macro called **where** which allows you to write elegant predicates using
+common mathematical operators as well as and/or. If you prefer to write out the compilable
+datastructure yourself, import the functions from **predicate.clj** and use them without the where
+macro. *There is no shadowing of clojure.core operators*
 
     (where (= 5 4)) expands to (=* 5 4)
     (where (< 5 4)) expands to (<* 5 4)
     (where (> 5 4)) expands to (>* 5 4)
 
-etc
-
-The old fns both/either are gone, now just use and/or
+And/or are also implemented. Refer to colums as keywords.
 
     (where (or (= :title "Admin") (>= :id 50)))
 
-**Finally, you can use strings**
+Strings are auto-quoted
+
+    (where (= :title "Dev"))
+    > "(title = 'Dev')"
+
+Except when containing a parens
+
+    (where (>= "avg(x.sales y.sales)" 500))
+    > "(avg(x.sales y.sales) >= 500)"
+
+The syntax for aggregates is the same as when defining columns: :function/field:fields
+
+    (where (or (<= :avg/sales 500) (!= :max/expenses 250)))
+    > "((avg(sales) <= 500) OR (max(expenses) != 250))"
+
+    (where (>= :avg/x.sales:y.sales 500))
+    > "(avg(x.sales,y.sales) >= 500)"
+
+For more complicated aggregates, use strings. For this there is also 2 helper functions
+available:
 
     (restrict "(%1 < %2) AND (avg(%1) < %3)" :income :cost :expenses)
     > "WHERE (income < cost) AND (avg(income) < expenses)"
 
+    (restrict-not "(%1 < %2) AND (avg(%1) < %3)" :income :cost :expenses)
+    > "WHERE not((income < cost) AND (avg(income) < expenses))"
 
+License
+=======
 
-** STOP READING: Below are outdated notes **
+Eclipse Pulic License - v 1.0, see LICENSE.
 
-    (where (either (= {:id 2}) (> {:avg.id 4})))
-    > "WHERE (id = 2 OR avg(id) > 4)"
+Credit
+======
 
-    (-> (where "id > 2") (group-by :name))
-    > "WHERE id > 2 GROUP BY name"
+ClojureQL is primarily developed by [Lau Jensen](http://twitter.com/laujensen) of
+[Best In Class](http://www.bestinclass.dk).
 
-    (-> (where "id > 2") (order-by :name))
-    > "WHERE id > 2 ORDER BY name"
-
-    (-> (where "id > 2") (having "id=%1 OR id=%2" 3 5))
-    > "WHERE id > 2 HAVING id=3 OR id=5"
-
-Valid operators in predicates are: or  and  =  !=  <  <=  >  >=
+Large and **significant** contributions to both the design and codebase have been
+rendered by [Justin Balthrope](http://twitter.com/ninjudd) aka. Ninjudd author
+of the powerful build tool [Cake](http://github.com/ninjudd/cake).
