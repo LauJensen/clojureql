@@ -19,17 +19,17 @@
           :!=  (str "(" (join-str " != " (sanitize expr)) ")")
           (str expr))))
 
-(defn either
+(defn or*
   " CQL version of OR.
 
-    (either (= {:a 5)) (>= {:a 10})) means either a = 5 or a >= 10 "
+    (where (or (= :id 5) (:title 'Dev'))) => '((id = 5) OR (title = 'Dev')'"
   [& conds]
   (compile-expr (apply vector :or conds)))
 
-(defn both
+(defn and*
   " CQL version of AND.
 
-    (both (= {:a 5}) (>= {:b 10})) means a=5 AND b >= 10 "
+    (where (and (< :wage 500) (>= :wage 1500))) => '((wage < 500) AND (wage >= 1500))'"
   [& conds]
   (compile-expr (apply vector :and conds)))
 
@@ -65,8 +65,8 @@
                           >   clojureql.predicates/>*
                           <=  clojureql.predicates/<=*
                           >=  clojureql.predicates/>=*
-                          and clojureql.predicates/both
-                          or  clojureql.predicates/either} clause)
+                          and clojureql.predicates/and*
+                          or  clojureql.predicates/or*} clause)
       eval))
 
 (defn restrict

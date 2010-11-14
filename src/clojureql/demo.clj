@@ -1,5 +1,5 @@
 (ns clojureql.demo
-  (:use [clojureql core predicates] ; Internal should be replaced by some public container
+  (:use clojureql.core
         clojure.contrib.sql)
   (:refer-clojure
    :exclude [compile group-by take sort conj! disj! < <= > >= =]
@@ -11,7 +11,7 @@
       :user        "cql"
       :password    "cql"
       :auto-commit true
-      :fetch-size  500
+      :fetch-size  500                                         ; Do selects in chunks of 500
       :subname     "//localhost:3306/cql"})
 
 (defmacro tst [expr]
@@ -19,9 +19,8 @@
        (println "Return: " ~expr "\n")))
 
 (defn test-suite []
-  (letfn [(drop-if [t] (try
-                        (drop-table t)
-                        (catch Exception e nil)))]
+  (letfn [(drop-if [t] (try (drop-table t)
+                        (catch Exception _)))]
     (with-connection db
       (drop-if :users)
       (create-table :users
@@ -49,16 +48,16 @@
       (tst @(-> users
                 (conj! {:name "Jack"})                         ; Add a single row
                 (disj! (where (= :id 1)))                      ; Remove another
-                (update-in! (=* :id 2) {:name "John"})         ; Update a third
+                (update-in! (where (= :id 2)) {:name "John"})  ; Update a third
                 (sort :id :desc)                               ; Prepare to sort
                 (project #{:id :title})                        ; Returns colums id and title
                 (select (where (<= :id 10)))                   ; Where ID is <= 10
                 (join salary :id)                              ; Join with table salary
                 (limit 10)))                                   ; Limit return to 10 rows
-      (tst @(-> (disj! users (where (either (= :id 3) (= :id 4))))
+      (tst @(-> (disj! users (where (or (= :id 3) (= :id 4))))
                 (sort :id :desc)))
       (tst @(limit users 1))
       (tst @(-> (table db :salary) (project [:avg/wage])))
       #_(tst (select users (where "id=%1 OR id=%2" 1 10)))
-      (tst @(select users (where (either (= :id 1) (>= :id 10)))))))
+      (tst @(select users (where (or (= :id 1) (>= :id 10)))))))
   (close-global :mysql))

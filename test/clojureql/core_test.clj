@@ -1,5 +1,5 @@
 (ns clojureql.core-test
-  (:use [clojureql core predicates]
+  (:use [clojureql core]
         clojure.test)
   (:refer-clojure
    :exclude [compile take sort conj! disj!]
