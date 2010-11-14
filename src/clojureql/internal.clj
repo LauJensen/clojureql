@@ -305,11 +305,3 @@
         (.setObject stmt index value))
       (with-open [rset (.executeQuery stmt)]
         (func (result-seq rset)))))
-
-(defmacro with-results
-  "Executes a query, then evaluates body with results bound to a seq of the
-  results. sql-params is a vector containing a string providing
-  the (optionally parameterized) SQL query followed by values for any
-  parameters."
-  [results sql-params & body]
-  `(with-results* ~sql-params (fn [~results] ~@body)))

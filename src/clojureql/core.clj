@@ -10,12 +10,35 @@
   (:use
    [clojureql internal predicates]
    [clojure.string :only [join] :rename {join join-str}]
-   [clojure.contrib sql [core :only [-?>]]]))
+   [clojure.contrib sql [core :only [-?>]]]
+   [clojure.contrib.sql.internal :as sqlint]))
 
-                                        ; GLOBALS
+                                        ; GLOBALS/Helpers
 
 (def *debug* false) ; If true: Shows all SQL expressions before executing
 (declare table?)
+
+(defmacro with-results
+  "Executes the body, wherein the results of the query can be accessed
+   via the name supplies as results.
+
+  Example:
+   (with-results table res
+     (println res))            "
+  [tble results & body]
+  `(apply-on ~tble (fn [~results] ~@body)))
+
+(defmacro in-connection*
+  "For internal use only!
+
+   This lets users supply a nil argument as the connection when
+   constructing a table, and instead wrapping their calls in
+   with-connection"
+  [& body]
+  `(if ~'cnx
+     (with-cnx ~'cnx (do ~@body))
+     (do ~@body)))
+
                                         ; RELATIONAL ALGEBRA
 
 (defprotocol Relation
@@ -37,16 +60,24 @@
   (sort       [this col type]             "Sorts the query either :asc or :desc")
   (options    [this opts]                 "Appends opt(ion)s to the query")
 
+  (apply-on   [this f]                    "Applies f on a resultset")
+
   (compile    [this]                      "Returns an SQL statement"))
 
 (defrecord RTable [cnx tname tcols restriction renames joins options]
   clojure.lang.IDeref
   (deref [this]
-    (if cnx
-      (with-cnx cnx (with-results rs [(compile this)] (doall rs)))
-      (with-results rs [(compile this)] (doall rs))))
+     (in-connection*
+      (with-results* [(compile this)] (fn [rs] (doall rs)))))
 
   Relation
+  (apply-on [this f]
+     (in-connection*
+       (with-cnx cnx
+         (with-open [stmt (.prepareStatement (:connection sqlint/*db*) (compile this))]
+           (with-open [rset (.executeQuery stmt)]
+             (f (resultset-seq rset)))))))
+
   (compile [this]
     (let [sql-string
       (if (seq joins)
@@ -144,27 +175,22 @@
         table)))
 
   (conj! [this records]
-    (letfn [(exec [] (if (map? records)
-                       (insert-records tname records)
-                       (apply insert-records tname records)))]
-      (if cnx
-        (with-cnx cnx (exec))
-        (exec)))
-    this)
+     (in-connection*
+      (if (map? records)
+        (insert-records tname records)
+        (apply insert-records tname records)))
+     this)
 
   (disj! [this predicate]
-     (if cnx
-       (with-cnx cnx (delete-rows tname [(compile-expr predicate)]))
+     (in-connection*
        (delete-rows tname [(compile-expr predicate)]))
     this)
 
   (update-in! [this pred records]
-     (letfn [(exec [] (if (map? records)
-                        (update-or-insert-values tname [pred] records)
-                        (apply update-or-insert-values tname [pred] records)))]
-       (if cnx
-         (with-cnx cnx (exec))
-         (exec)))
+     (in-connection*
+      (if (map? records)
+        (update-or-insert-values tname [pred] records)
+        (apply update-or-insert-values tname [pred] records)))
      this)
 
   (options [this opts]
