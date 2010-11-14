@@ -13,10 +13,63 @@
    [clojure.contrib sql [core :only [-?>]]]
    [clojure.contrib.sql.internal :as sqlint]))
 
-                                        ; GLOBALS/Helpers
+                                        ; GLOBALS
 
 (def *debug* false) ; If true: Shows all SQL expressions before executing
 (declare table?)
+(def global-connections (atom {}))
+                                        ; CONNECTIVITY
+
+(defn open-global [id specs]
+  (let [con (sqlint/get-connection specs)]
+    (when-let [ac (-> specs :auto-commit)]
+      (.setAutoCommit con ac))
+    (swap! global-connections assoc id {:connection con :opts specs})))
+
+(defn close-global
+  "Supplied with a keyword identifying a global connection, that connection
+  is closed and the reference dropped."
+  [conn-name]
+  (if-let [conn (conn-name @global-connections)]
+    (do
+      (.close (:connection conn))
+      (swap! global-connections dissoc conn-name)
+      true)
+    (throw
+     (Exception. (format "No global connection by that name is open (%s)" conn-name)))))
+
+(defn with-cnx*
+  "Evaluates func in the context of a new connection to a database then
+  closes the connection."
+  [con-info func]
+  (io!
+   (if (keyword? con-info)
+     (if-let [con (@clojureql.core/global-connections con-info)]
+       (binding [sqlint/*db*
+                 (assoc sqlint/*db*
+                   :connection (:connection con)
+                   :level 0
+                   :rollback (atom false)
+                   :opts     (:opts con))]
+         (func))
+       (throw
+        (Exception. "No such global connection currently open!")))
+     (with-open [con (sqlint/get-connection con-info)]
+       (binding [sqlint/*db*
+                 (assoc sqlint/*db*
+                   :connection con
+                   :level 0
+                   :rollback (atom false)
+                   :opts     con-info)]
+         (.setAutoCommit con (or (-> con-info :auto-commit) true))
+         (func))))))
+
+(defmacro with-cnx
+  [db-spec & body]
+  `(with-cnx* ~db-spec (fn [] ~@body)))
+
+                                        ;HELPERS
+
 
 (defmacro with-results
   "Executes the body, wherein the results of the query can be accessed
@@ -39,6 +92,9 @@
      (with-cnx ~'cnx (do ~@body))
      (do ~@body)))
 
+(defmacro where [clause]
+  `(where* '~clause))
+
                                         ; RELATIONAL ALGEBRA
 
 (defprotocol Relation
@@ -60,7 +116,7 @@
   (sort       [this col type]             "Sorts the query either :asc or :desc")
   (options    [this opts]                 "Appends opt(ion)s to the query")
 
-  (apply-on   [this f]                    "Applies f on a resultset")
+  (apply-on   [this f]                    "Applies f on a resultset, use via with-results")
 
   (compile    [this]                      "Returns an SQL statement"))
 
@@ -211,7 +267,3 @@
 
 (defn table? [tinstance]
   (instance? clojureql.core.RTable tinstance))
-
-(defmacro where [clause]
-  `(where* '~clause))
-

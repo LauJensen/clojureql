@@ -1,5 +1,5 @@
 (ns clojureql.demo
-  (:use [clojureql internal core predicates] ; Internal should be replaced by some public container
+  (:use [clojureql core predicates] ; Internal should be replaced by some public container
         clojure.contrib.sql)
   (:refer-clojure
    :exclude [compile group-by take sort conj! disj! < <= > >= =]
@@ -22,7 +22,7 @@
   (letfn [(drop-if [t] (try
                         (drop-table t)
                         (catch Exception e nil)))]
-    (with-cnx db
+    (with-connection db
       (drop-if :users)
       (create-table :users
                     [:id    :integer "PRIMARY KEY" "AUTO_INCREMENT"]
