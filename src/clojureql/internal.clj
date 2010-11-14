@@ -22,6 +22,12 @@
   (or (and (string? c) (.contains c "(")) ; Best guess
       (not-any? nil? ((juxt namespace name) c))))
 
+(defn split-fields [t a]
+  (->> (.split a ":")
+       (map #(str t %))
+       (interpose ",")
+       (apply str)))
+
 (defn to-tablename
   [c]
   (cond
@@ -45,7 +51,7 @@
          (str "'" c "'")
          (if (aggregate? c)
            (let [[aggr col] (-> (nskeyword c) (.split "/"))]
-             (str aggr "(" p col ")"))
+             (str aggr "(" (split-fields p col) ")"))
            (str p (nskeyword c)))))))
 
 (defn to-fieldlist
@@ -57,11 +63,7 @@
   ([tname tcols]
      (let [tname (if-let [tname (to-tablename tname)]
                    (str (-> tname (.split " ") last) \.) "")]
-       (letfn [(split-fields [t a] (->> (.split a ":")
-                                        (map #(str t %))
-                                        (interpose ",")
-                                        (apply str)))
-               (split-aggregate [item]  (re-find #"(.*)\/(.*)" (nskeyword item)))
+       (letfn [(split-aggregate [item]  (re-find #"(.*)\/(.*)" (nskeyword item)))
                (item->string [i]
                  (cond
                   (string? i) i

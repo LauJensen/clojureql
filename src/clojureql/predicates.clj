@@ -8,7 +8,7 @@
 (defn compile-expr
   [expr]
   (letfn [(sanitize [e] (->> (rest e)
-                             (map #(cond (keyword? %)     (name %)
+                             (map #(cond (keyword? %)     (to-name %)
                                          (and (string? %) (.contains % "(")) %
                                          (string? %)      (str "'" % "'")
                                          :else %))))]
