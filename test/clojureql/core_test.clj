@@ -90,7 +90,7 @@
         (let [u1 (table {} {:users :u1} [:id :article :price])
               w1 (table {} {:salary :w1} [])]
           (-> (join u1 w1 (where (= :u1.id :w1.id)))
-              (select (where (= :s2.article "NULL")))
+              (select (where (= :s2.article :NULL)))
               compile))
         (str "SELECT u1.id,u1.article,u1.price FROM users u1 "
              "JOIN salary w1 ON (u1.id = w1.id) WHERE (s2.article = NULL)")))
