@@ -214,11 +214,11 @@
                t2name       (-> t2 :tname to-tablename)
                colalias     (find-first-alias (:tcols t2))
                t2alias      (str t2name "_aggregation")]
-           (-> (format "SELECT %s FROM %s %s %s JOIN (%s) AS %s ON %s %s"
+           (-> (format "SELECT %s FROM %s %s JOIN (%s) AS %s ON %s %s"
                        (derrived-fields tname tcols t2alias colalias)
                        (to-tablename tname)
                        (-> (:position joins) name .toUpperCase)
-                       (-> (:type joins) name .toUpperCase)
+;                       (-> (:type joins) name .toUpperCase)
                        (-> (.options t2 (str "GROUP BY " (-> t2 :tcols first name)))
                            compile)
                        t2alias

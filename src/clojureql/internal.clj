@@ -24,7 +24,7 @@
 
 (defn split-fields [t a]
   (->> (.split a ":")
-       (map #(str t %))
+       (map #(if (= % "*") "*" (str t %)))
        (interpose ",")
        (apply str)))
 
