@@ -87,6 +87,8 @@
                    i
                    :else (str tname (nskeyword i))))]
          (cond
+          (not (coll? tcols))
+          tcols
           (every? string? tcols)
           (join-str "," tcols)
           (= 1 (count tcols))
@@ -179,11 +181,13 @@
    [:t2 (= {:a 5})] => 'JOIN t2 ON (a = 5)'
 
    [:t2 :id]        => 'JOIN t2 USING(id)'                   "
-  [[tname pred]]
-  (str "JOIN "
-       (if (keyword? pred)
-         (format "%s USING(%s) " tname (name pred))
-         (format "%s ON %s" tname pred))))
+  [{[tname pred] :data type :type pos :position}]
+  (assemble-sql "%s %s JOIN %s %s %s"
+       (if (seq pos)  (-> pos name .toUpperCase) "")
+       (if (not= :join type) (-> type name .toUpperCase) "")
+       (if-let [t2name (:tname tname)] (to-tablename t2name) (name tname))
+       (if-not (keyword? pred) " ON " "")
+       (if (keyword? pred) (format " USING(%s) " (name pred)) pred)))
 
 (defn get-foreignfield
   "Extracts the first foreign field in a column spec

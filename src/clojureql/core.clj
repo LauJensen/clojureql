@@ -174,36 +174,39 @@
                     t2name    (-> t2 :tname to-tablename)
                     colalias  (find-first-alias (:tcols t2))
                     t2alias   (str t2name "_aggregation")]
-                (assemble-sql "SELECT %s FROM %s %s JOIN (%s) AS %s ON %s %s %s"
+                (assemble-sql "SELECT %s FROM %s %s %s JOIN (%s) AS %s ON %s %s %s"
                    (derived-fields tname tcols t2alias colalias)
                    (to-tablename tname)
                    (-> (:position joins) name .toUpperCase)
+                   (if (not= :join (:type joins))
+                     (-> joins :type name .toUpperCase)
+                     "")
                    (-> (.grouped t2 (-> t2 :tcols first)) to-sql)
                    t2alias
                    (.replaceAll pred t2name t2alias)
                    (if-let [[fields dir] order-by]
-                    (str "ORDER BY " (to-fieldlist tname [fields])
-                         (if (= :asc dir) " ASC" " DESC"))
-                    "")
+                     (str "ORDER BY " (to-fieldlist tname [fields])
+                          (if (= :asc dir) " ASC" " DESC"))
+                     "")
                    (if grouped-by (str "GROUP BY " (to-fieldlist tname grouped-by)) "")))
               :else
               (assemble-sql "SELECT %s FROM %s %s %s %s %s %s"
-                  (->> tcols (to-fieldlist tname))
-                  (if renames
-                    (with-rename tname (qualify tname tcols) renames)
-                    (to-tablename tname))
-                  (if joins (build-join (:data joins)) "")
-                  (if restriction (restrict (join-str " AND " restriction)) "")
-                  (if grouped-by (str "GROUP BY " (to-fieldlist tname grouped-by)) "")
-                  (if-let [[fields dir] order-by]
-                    (str "ORDER BY " (to-fieldlist tname [fields])
-                         (if (= :asc dir) " ASC" " DESC"))
-                    "")
-                  (if limit
-                    (str "LIMIT " (or offset 0) "," limit)
-                    (if offset
-                      (str "OFFSET " offset) ; Not allowed on MySQL
-                      ""))))]
+                 (->> tcols (to-fieldlist tname))
+                 (if renames
+                   (with-rename tname (qualify tname tcols) renames)
+                   (to-tablename tname))
+                 (if joins (build-join joins) "")
+                 (if restriction (restrict (join-str " AND " restriction)) "")
+                 (if grouped-by (str "GROUP BY " (to-fieldlist tname grouped-by)) "")
+                 (if-let [[fields dir] order-by]
+                   (str "ORDER BY " (to-fieldlist tname [fields])
+                        (if (= :asc dir) " ASC" " DESC"))
+                   "")
+                 (if limit
+                   (str "LIMIT " (or offset 0) "," limit)
+                   (if offset
+                     (str "OFFSET " offset) ; Not allowed on MySQL
+                     ""))))]
     (when *debug* (prn sql-string))
     sql-string))
 
@@ -229,7 +232,7 @@
 
   (apply-on   [this f]                    "Applies f on a resultset, call via with-results"))
 
-(defrecord RTable [cnx tname tcols restriction renames joins group-by limit offset order-by]
+(defrecord RTable [cnx tname tcols restriction renames joins grouped-by limit offset order-by]
   clojure.lang.IDeref
   (deref [this]
      (in-connection*
@@ -289,9 +292,10 @@
     (aggregate this aggregates []))
 
   (aggregate [this aggregates group-by]
-    (let [table (project this (into group-by aggregates))]
-      (if (seq group-by)
-        (assoc table :grouped-by group-by)
+     (let [grps (reduce conj group-by grouped-by)
+           table (project this (into grps aggregates))]
+      (if (seq grps)
+        (assoc table :grouped-by grps)
         table)))
 
   (conj! [this records]
