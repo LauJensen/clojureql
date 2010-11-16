@@ -65,7 +65,7 @@
              For more advanced examples please review README.md, demo.clj and core_test.clj."
     :url    "http://github.com/LauJensen/clojureql"}
   (:refer-clojure
-   :exclude [take drop sort conj! disj!])
+   :exclude [take drop sort conj! disj! group-by])
   (:use
    [clojureql internal predicates]
    [clojure.string :only [join] :rename {join join-str}]
@@ -166,43 +166,53 @@
 
 (defn to-sql [tble]
   (let [{:keys [cnx tname tcols restriction renames joins
-                group-by limit offset order-by]} tble
+                grouped-by limit offset order-by]} tble
         sql-string
-        (if (seq joins)
-          (if (table? (-> joins :data first))
+        (cond (and (seq joins) (table? (-> joins :data first)))
             ;; joining with a table containing aggregates
-            (let [[t2 pred] (:data joins)
-                  t2name    (-> t2 :tname to-tablename)
-                  colalias  (find-first-alias (:tcols t2))
-                  t2alias   (str t2name "_aggregation")]
-              (-> (format "SELECT %s FROM %s %s JOIN (%s) AS %s ON %s %s"
-                          (derived-fields tname tcols t2alias colalias)
-                          (to-tablename tname)
-                          (-> (:position joins) name .toUpperCase)
-                          (-> (:type joins) name .toUpperCase)
-                          t2alias
-                          (.replaceAll pred t2name t2alias)
-                          (if group-by (str "GROUP BY " (to-fieldlist tname group-by)) ""))
-                  .trim))
+              (let [[t2 pred] (:data joins)
+                    t2name    (-> t2 :tname to-tablename)
+                    colalias  (find-first-alias (:tcols t2))
+                    t2alias   (str t2name "_aggregation")]
+                (-> (format "SELECT %s FROM %s %s JOIN (%s) AS %s ON %s %s"
+                            (derived-fields tname tcols t2alias colalias)
+                            (to-tablename tname)
+                            (-> (:position joins) name .toUpperCase)
+                            (-> (.grouped t2 (-> t2 :tcols first)) to-sql)
+                            t2alias
+                            (.replaceAll pred t2name t2alias)
+                            (if grouped-by (str "GROUP BY " grouped-by) ""))
+                    .trim))
+              (seq joins)
             ;; joining with non-aggregate table
-            (-> (format "SELECT %s FROM %s %s %s %s"
-                        (->> tcols (to-fieldlist tname))
-                        (if renames
-                          (with-rename tname (qualify tname tcols) renames)
-                          (to-tablename tname))
-                        (if joins (build-join (:data joins)) "")
-                        (if restriction (restrict (join-str " AND " restriction)) "")
-                        (if group-by (str "GROUP BY " (to-fieldlist tname group-by)) ""))
-                .trim))
-          ;; no joins
-          (-> (format "SELECT %s FROM %s %s %s"
-                      (->> tcols (to-fieldlist tname))
-                      (if renames
-                        (with-rename tname (qualify tname tcols) renames)
-                        (to-tablename tname))
-                      (if restriction (restrict (join-str " AND " restriction)) "")
-                      (if group-by (str "GROUP BY " (to-fieldlist tname group-by)) ""))
-              .trim))]
+              (-> (format "SELECT %s FROM %s %s %s %s"
+                          (->> tcols (to-fieldlist tname))
+                          (if renames
+                            (with-rename tname (qualify tname tcols) renames)
+                            (to-tablename tname))
+                          (if joins (build-join (:data joins)) "")
+                          (if restriction (restrict (join-str " AND " restriction)) "")
+                          (if grouped-by (str "GROUP BY " grouped-by) ""))
+                  .trim)
+              (or offset limit)
+              (-> (format "SELECT %s FROM %s %s %s"
+                          (->> tcols (to-fieldlist tname))
+                          (if renames
+                            (with-rename tname (qualify tname tcols) renames)
+                            (to-tablename tname))
+                          (if restriction (restrict (join-str " AND " restriction)) "")
+                          (if grouped-by (str "GROUP BY " grouped-by) ""))
+                  .trim)
+              :else
+              ;; no joins, no limit/offset = no recursive compilation
+              (-> (format "SELECT %s FROM %s %s %s"
+                          (->> tcols (to-fieldlist tname))
+                          (if renames
+                            (with-rename tname (qualify tname tcols) renames)
+                            (to-tablename tname))
+                          (if restriction (restrict (join-str " AND " restriction)) "")
+                          (if grouped-by (str "GROUP BY " grouped-by) ""))
+                  .trim))]
     (when *debug* (prn sql-string))
     sql-string))
 
@@ -221,9 +231,10 @@
   (disj!      [this predicate]            "Deletes record(s) from the table")
   (update-in! [this pred records]         "Inserts or updates record(s) where pred is true")
 
-  (take*      [this n]                    "Queries the table with LIMIT n, call via take")
-  (drop*      [this n]                    "Queries the table with OFFSET n, call via drop")
-  (sort*      [this fields]               "Sorts the query using fields, call via sort")
+  (limit      [this n]                    "Queries the table with LIMIT n, call via take")
+  (offset     [this n]                    "Queries the table with OFFSET n, call via drop")
+  (sorted     [this fields]               "Sorts the query using fields, call via sort")
+  (grouped    [this field]                "Groups the expression by field")
 
   (apply-on   [this f]                    "Applies f on a resultset, call via with-results"))
 
@@ -236,10 +247,9 @@
   Relation
   (apply-on [this f]
      (in-connection*
-       (with-cnx cnx
-         (with-open [stmt (.prepareStatement (:connection sqlint/*db*) (to-sql this))]
-           (with-open [rset (.executeQuery stmt)]
-             (f (resultset-seq rset)))))))
+       (with-open [stmt (.prepareStatement (:connection sqlint/*db*) (to-sql this))]
+         (with-open [rset (.executeQuery stmt)]
+           (f (resultset-seq rset))))))
 
   (select [this predicate]
     (assoc this :restriction (conj (or restriction []) predicate)))
@@ -312,19 +322,22 @@
         (apply update-or-insert-values tname [pred] records)))
      this)
 
-  (take* [this n]
+  (grouped [this field]
+    (assoc this :grouped-by (to-name tname field)))
+
+  (limit [this n]
     (if limit
       (assoc this :limit (min limit n))
       (assoc this :limit n)))
 
-  (drop* [this n]
+  (offset [this n]
     (let [limit  (if limit  (- limit  n))
           offset (if offset (+ offset n) n)]
       (assoc this
         :limit  limit
         :offset offset)))
 
-  (sort* [this fields]
+  (sorted [this fields]
     (assoc this
       :order-by fields)))
 
@@ -348,19 +361,26 @@
   "A take which works on both tables and collections"
   [obj & args]
   (if (table? obj)
-    (apply take* obj args)
+    (apply limit obj args)
     (apply clojure.core/take obj args)))
 
 (defn sort
   "A sort which works on both tables and collections"
   [obj & args]
   (if (table? obj)
-    (apply sort* obj args)
+    (apply sort-by obj args)
     (apply clojure.core/sort obj args)))
 
 (defn drop
   "A drop which works on both tables and collections"
   [obj & args]
   (if (table? obj)
-    (apply drop* obj args)
+    (apply offset obj args)
     (apply clojure.core/drop obj args)))
+
+(defn group-by
+  "A group-by which works on both tables and collections"
+  [obj & args]
+  (if (table? obj)
+    (apply grouped obj args)
+    (apply clojure.core/group-by obj args)))

@@ -20,7 +20,7 @@
 
 (defn aggregate? [c]
   (or (and (string? c) (.contains c "(")) ; Best guess
-      (not-any? nil? ((juxt namespace name) c))))
+      (not-any? nil? ((juxt namespace name) (keyword c)))))
 
 (defn split-fields [t a]
   (->> (.split a ":")

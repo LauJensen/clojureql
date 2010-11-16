@@ -2,7 +2,7 @@
   (:use clojureql.core
         clojure.test)
   (:refer-clojure
-   :exclude [take drop sort conj! disj!]))
+   :exclude [take drop group-by sort conj! disj!]))
 
 (deftest sql-compilation
   (testing "Simple selects"
