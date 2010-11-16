@@ -2,7 +2,7 @@
   (:use clojureql.core
         clojure.contrib.sql)
   (:refer-clojure
-   :exclude [compile group-by take sort conj! disj! < <= > >= =]
+   :exclude [group-by take sort drop conj! disj!]
    :rename {take take-coll}))
 
 (def db

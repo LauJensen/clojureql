@@ -174,45 +174,36 @@
                     t2name    (-> t2 :tname to-tablename)
                     colalias  (find-first-alias (:tcols t2))
                     t2alias   (str t2name "_aggregation")]
-                (-> (format "SELECT %s FROM %s %s JOIN (%s) AS %s ON %s %s"
-                            (derived-fields tname tcols t2alias colalias)
-                            (to-tablename tname)
-                            (-> (:position joins) name .toUpperCase)
-                            (-> (.grouped t2 (-> t2 :tcols first)) to-sql)
-                            t2alias
-                            (.replaceAll pred t2name t2alias)
-                            (if grouped-by (str "GROUP BY " grouped-by) ""))
-                    .trim))
-              (seq joins)
-            ;; joining with non-aggregate table
-              (-> (format "SELECT %s FROM %s %s %s %s"
-                          (->> tcols (to-fieldlist tname))
-                          (if renames
-                            (with-rename tname (qualify tname tcols) renames)
-                            (to-tablename tname))
-                          (if joins (build-join (:data joins)) "")
-                          (if restriction (restrict (join-str " AND " restriction)) "")
-                          (if grouped-by (str "GROUP BY " grouped-by) ""))
-                  .trim)
-              (or offset limit)
-              (-> (format "SELECT %s FROM %s %s %s"
-                          (->> tcols (to-fieldlist tname))
-                          (if renames
-                            (with-rename tname (qualify tname tcols) renames)
-                            (to-tablename tname))
-                          (if restriction (restrict (join-str " AND " restriction)) "")
-                          (if grouped-by (str "GROUP BY " grouped-by) ""))
-                  .trim)
+                (assemble-sql "SELECT %s FROM %s %s JOIN (%s) AS %s ON %s %s %s"
+                   (derived-fields tname tcols t2alias colalias)
+                   (to-tablename tname)
+                   (-> (:position joins) name .toUpperCase)
+                   (-> (.grouped t2 (-> t2 :tcols first)) to-sql)
+                   t2alias
+                   (.replaceAll pred t2name t2alias)
+                   (if-let [[fields dir] order-by]
+                    (str "ORDER BY " (to-fieldlist tname [fields])
+                         (if (= :asc dir) " ASC" " DESC"))
+                    "")
+                   (if grouped-by (str "GROUP BY " (to-fieldlist tname grouped-by)) "")))
               :else
-              ;; no joins, no limit/offset = no recursive compilation
-              (-> (format "SELECT %s FROM %s %s %s"
-                          (->> tcols (to-fieldlist tname))
-                          (if renames
-                            (with-rename tname (qualify tname tcols) renames)
-                            (to-tablename tname))
-                          (if restriction (restrict (join-str " AND " restriction)) "")
-                          (if grouped-by (str "GROUP BY " grouped-by) ""))
-                  .trim))]
+              (assemble-sql "SELECT %s FROM %s %s %s %s %s %s"
+                  (->> tcols (to-fieldlist tname))
+                  (if renames
+                    (with-rename tname (qualify tname tcols) renames)
+                    (to-tablename tname))
+                  (if joins (build-join (:data joins)) "")
+                  (if restriction (restrict (join-str " AND " restriction)) "")
+                  (if grouped-by (str "GROUP BY " (to-fieldlist tname grouped-by)) "")
+                  (if-let [[fields dir] order-by]
+                    (str "ORDER BY " (to-fieldlist tname [fields])
+                         (if (= :asc dir) " ASC" " DESC"))
+                    "")
+                  (if limit
+                    (str "LIMIT " (or offset 0) "," limit)
+                    (if offset
+                      (str "OFFSET " offset) ; Not allowed on MySQL
+                      ""))))]
     (when *debug* (prn sql-string))
     sql-string))
 
@@ -233,7 +224,7 @@
 
   (limit      [this n]                    "Queries the table with LIMIT n, call via take")
   (offset     [this n]                    "Queries the table with OFFSET n, call via drop")
-  (sorted     [this fields]               "Sorts the query using fields, call via sort")
+  (sorted     [this fields dir]           "Sorts the query using fields, call via sort")
   (grouped    [this field]                "Groups the expression by field")
 
   (apply-on   [this f]                    "Applies f on a resultset, call via with-results"))
@@ -300,7 +291,7 @@
   (aggregate [this aggregates group-by]
     (let [table (project this (into group-by aggregates))]
       (if (seq group-by)
-        (assoc table :group-by group-by)
+        (assoc table :grouped-by group-by)
         table)))
 
   (conj! [this records]
@@ -337,9 +328,9 @@
         :limit  limit
         :offset offset)))
 
-  (sorted [this fields]
+  (sorted [this fields dir]
     (assoc this
-      :order-by fields)))
+      :order-by [fields dir])))
 
                                         ; INTERFACES
 
@@ -368,7 +359,7 @@
   "A sort which works on both tables and collections"
   [obj & args]
   (if (table? obj)
-    (apply sort-by obj args)
+    (apply sorted obj args)
     (apply clojure.core/sort obj args)))
 
 (defn drop

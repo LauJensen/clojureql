@@ -5,6 +5,12 @@
   (:use [clojure.string :only [join] :rename {join join-str}]
         [clojure.contrib.core :only [-?>]]))
 
+(defn assemble-sql [s & args]
+  "For internal use only. Works like format but cleans up afterwards"
+  (-> (apply format s args)
+      .trim
+      (.replaceAll "  " " ")))
+
 (defn nskeyword
   "Converts a namespace qualified keyword to a string"
   [k]
