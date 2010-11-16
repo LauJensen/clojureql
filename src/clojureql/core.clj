@@ -129,7 +129,7 @@
   [db-spec & body]
   `(with-cnx* ~db-spec (fn [] ~@body)))
 
-                                       ;HELPERS
+                                       ; INTERFACES
 
 
 (defmacro with-results
@@ -164,6 +164,48 @@
    (select tble (where ...))"
   `(where* '~clause))
 
+(defn to-sql [tble]
+  (let [{:keys [cnx tname tcols restriction renames joins
+                group-by limit offset order-by]} tble
+        sql-string
+        (if (seq joins)
+          (if (table? (-> joins :data first))
+            ;; joining with a table containing aggregates
+            (let [[t2 pred] (:data joins)
+                  t2name    (-> t2 :tname to-tablename)
+                  colalias  (find-first-alias (:tcols t2))
+                  t2alias   (str t2name "_aggregation")]
+              (-> (format "SELECT %s FROM %s %s JOIN (%s) AS %s ON %s %s"
+                          (derived-fields tname tcols t2alias colalias)
+                          (to-tablename tname)
+                          (-> (:position joins) name .toUpperCase)
+                          (-> (:type joins) name .toUpperCase)
+                          t2alias
+                          (.replaceAll pred t2name t2alias)
+                          (if group-by (str "GROUP BY " (to-fieldlist tname group-by)) ""))
+                  .trim))
+            ;; joining with non-aggregate table
+            (-> (format "SELECT %s FROM %s %s %s %s"
+                        (->> tcols (to-fieldlist tname))
+                        (if renames
+                          (with-rename tname (qualify tname tcols) renames)
+                          (to-tablename tname))
+                        (if joins (build-join (:data joins)) "")
+                        (if restriction (restrict (join-str " AND " restriction)) "")
+                        (if group-by (str "GROUP BY " (to-fieldlist tname group-by)) ""))
+                .trim))
+          ;; no joins
+          (-> (format "SELECT %s FROM %s %s %s"
+                      (->> tcols (to-fieldlist tname))
+                      (if renames
+                        (with-rename tname (qualify tname tcols) renames)
+                        (to-tablename tname))
+                      (if restriction (restrict (join-str " AND " restriction)) "")
+                      (if group-by (str "GROUP BY " (to-fieldlist tname group-by)) ""))
+              .trim))]
+    (when *debug* (prn sql-string))
+    sql-string))
+
                                         ; RELATIONAL ALGEBRA
 
 (defprotocol Relation
@@ -179,13 +221,11 @@
   (disj!      [this predicate]            "Deletes record(s) from the table")
   (update-in! [this pred records]         "Inserts or updates record(s) where pred is true")
 
-  (take       [this n]                    "Queries the table with LIMIT n")
-  (drop       [this n]                    "Queries the table with OFFSET n")
-  (sort       [this fields]               "Sorts the query using fields.")
+  (take*      [this n]                    "Queries the table with LIMIT n, call via take")
+  (drop*      [this n]                    "Queries the table with OFFSET n, call via drop")
+  (sort*      [this fields]               "Sorts the query using fields, call via sort")
 
-  (apply-on   [this f]                    "Applies f on a resultset, use via with-results")
-
-  (to-sql     [this]                      "Returns an SQL statement"))
+  (apply-on   [this f]                    "Applies f on a resultset, call via with-results"))
 
 (defrecord RTable [cnx tname tcols restriction renames joins group-by limit offset order-by]
   clojure.lang.IDeref
@@ -200,46 +240,6 @@
          (with-open [stmt (.prepareStatement (:connection sqlint/*db*) (to-sql this))]
            (with-open [rset (.executeQuery stmt)]
              (f (resultset-seq rset)))))))
-
-  (to-sql [this]
-    (let [sql-string
-          (if (seq joins)
-            (if (table? (-> joins :data first))
-              ;; joining with a table containing aggregates
-              (let [[t2 pred] (:data joins)
-                    t2name    (-> t2 :tname to-tablename)
-                    colalias  (find-first-alias (:tcols t2))
-                    t2alias   (str t2name "_aggregation")]
-                (-> (format "SELECT %s FROM %s %s JOIN (%s) AS %s ON %s %s"
-                            (derived-fields tname tcols t2alias colalias)
-                            (to-tablename tname)
-                            (-> (:position joins) name .toUpperCase)
-                            (-> (:type joins) name .toUpperCase)
-                            t2alias
-                            (.replaceAll pred t2name t2alias)
-                            (if group-by (str "GROUP BY " (to-fieldlist tname group-by)) ""))
-                    .trim))
-              ;; joining with non-aggregate table
-              (-> (format "SELECT %s FROM %s %s %s %s"
-                          (->> tcols (to-fieldlist tname))
-                          (if renames
-                            (with-rename tname (qualify tname tcols) renames)
-                            (to-tablename tname))
-                          (if joins (build-join (:data joins)) "")
-                          (if restriction (restrict (join-str " AND " restriction)) "")
-                          (if group-by (str "GROUP BY " (to-fieldlist tname group-by)) ""))
-                  .trim))
-            ;; no joins
-            (-> (format "SELECT %s FROM %s %s %s"
-                        (->> tcols (to-fieldlist tname))
-                        (if renames
-                          (with-rename tname (qualify tname tcols) renames)
-                          (to-tablename tname))
-                        (if restriction (restrict (join-str " AND " restriction)) "")
-                        (if group-by (str "GROUP BY " (to-fieldlist tname group-by)) ""))
-                .trim))]
-      (when *debug* (prn sql-string))
-      sql-string))
 
   (select [this predicate]
     (assoc this :restriction (conj (or restriction []) predicate)))
@@ -312,21 +312,23 @@
         (apply update-or-insert-values tname [pred] records)))
      this)
 
-  (take [this n]
+  (take* [this n]
     (if limit
       (assoc this :limit (min limit n))
       (assoc this :limit n)))
 
-  (drop [this n]
+  (drop* [this n]
     (let [limit  (if limit  (- limit  n))
           offset (if offset (+ offset n) n)]
       (assoc this
         :limit  limit
         :offset offset)))
 
-  (sort [this fields]
+  (sort* [this fields]
     (assoc this
       :order-by fields)))
+
+                                        ; INTERFACES
 
 (defn table
   "Constructs a relational object."
@@ -341,3 +343,24 @@
   "Returns true if tinstance is an instnce of RTable"
   [tinstance]
   (instance? clojureql.core.RTable tinstance))
+
+(defn take
+  "A take which works on both tables and collections"
+  [obj & args]
+  (if (table? obj)
+    (apply take* obj args)
+    (apply clojure.core/take obj args)))
+
+(defn sort
+  "A sort which works on both tables and collections"
+  [obj & args]
+  (if (table? obj)
+    (apply sort* obj args)
+    (apply clojure.core/sort obj args)))
+
+(defn drop
+  "A drop which works on both tables and collections"
+  [obj & args]
+  (if (table? obj)
+    (apply drop* obj args)
+    (apply clojure.core/drop obj args)))
