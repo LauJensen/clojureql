@@ -65,8 +65,7 @@
              For more advanced examples please review README.md, demo.clj and core_test.clj."
     :url    "http://github.com/LauJensen/clojureql"}
   (:refer-clojure
-   :exclude [compile take sort conj! disj! < <= > >= =]
-   :rename {take take-coll})
+   :exclude [take drop sort conj! disj!])
   (:use
    [clojureql internal predicates]
    [clojure.string :only [join] :rename {join join-str}]
@@ -180,71 +179,65 @@
   (disj!      [this predicate]            "Deletes record(s) from the table")
   (update-in! [this pred records]         "Inserts or updates record(s) where pred is true")
 
-  (limit      [this n]                    "Queries the table with LIMIT n")
-  (order-by   [this col]                  "Orders the Query by the column")
-
-  (sort       [this col type]             "Sorts the query either :asc or :desc")
-  (options    [this opts]                 "Appends opt(ion)s to the query")
+  (take       [this n]                    "Queries the table with LIMIT n")
+  (drop       [this n]                    "Queries the table with OFFSET n")
+  (sort       [this fields]               "Sorts the query using fields.")
 
   (apply-on   [this f]                    "Applies f on a resultset, use via with-results")
 
-  (compile    [this]                      "Returns an SQL statement"))
+  (to-sql     [this]                      "Returns an SQL statement"))
 
-(defrecord RTable [cnx tname tcols restriction renames joins options]
+(defrecord RTable [cnx tname tcols restriction renames joins group-by limit offset order-by]
   clojure.lang.IDeref
   (deref [this]
      (in-connection*
-      (with-results* [(compile this)] (fn [rs] (doall rs)))))
+      (with-results* [(to-sql this)] (fn [rs] (doall rs)))))
 
   Relation
   (apply-on [this f]
      (in-connection*
        (with-cnx cnx
-         (with-open [stmt (.prepareStatement (:connection sqlint/*db*) (compile this))]
+         (with-open [stmt (.prepareStatement (:connection sqlint/*db*) (to-sql this))]
            (with-open [rset (.executeQuery stmt)]
              (f (resultset-seq rset)))))))
 
-  (compile [this]
+  (to-sql [this]
     (let [sql-string
-      (if (seq joins)
-        (cond
-                                        ;joining with a table containing aggregates
-         (table? (-> joins :data first))
-         (let [[t2 pred]    (:data joins)
-               t2name       (-> t2 :tname to-tablename)
-               colalias     (find-first-alias (:tcols t2))
-               t2alias      (str t2name "_aggregation")]
-           (-> (format "SELECT %s FROM %s %s JOIN (%s) AS %s ON %s %s"
-                       (derrived-fields tname tcols t2alias colalias)
-                       (to-tablename tname)
-                       (-> (:position joins) name .toUpperCase)
-;                       (-> (:type joins) name .toUpperCase)
-                       (-> (.options t2 (str "GROUP BY " (-> t2 :tcols first name)))
-                           compile)
-                       t2alias
-                       (.replaceAll pred t2name t2alias)
-                       (or options ""))
-               .trim))
-         :else
-                                        ;joining with non-aggregate table
-         (-> (format "SELECT %s FROM %s %s %s %s"
-                     (->> tcols (to-fieldlist tname))
-                     (if renames
-                       (with-rename tname (qualify tname tcols) renames)
-                       (to-tablename tname))
-                     (if joins (build-join (:data joins)) "")
-                     (if restriction (restrict (join-str " AND " restriction)) "")
-                     (or options ""))
-             .trim))
-                                        ; Non Join compile
-         (-> (format "SELECT %s FROM %s %s %s"
-                     (->> tcols (to-fieldlist tname))
-                     (if renames
-                       (with-rename tname (qualify tname tcols) renames)
-                       (to-tablename tname))
-                     (if restriction (restrict (join-str " AND " restriction)) "")
-                     (or options ""))
-             .trim))]
+          (if (seq joins)
+            (if (table? (-> joins :data first))
+              ;; joining with a table containing aggregates
+              (let [[t2 pred] (:data joins)
+                    t2name    (-> t2 :tname to-tablename)
+                    colalias  (find-first-alias (:tcols t2))
+                    t2alias   (str t2name "_aggregation")]
+                (-> (format "SELECT %s FROM %s %s JOIN (%s) AS %s ON %s %s"
+                            (derived-fields tname tcols t2alias colalias)
+                            (to-tablename tname)
+                            (-> (:position joins) name .toUpperCase)
+                            (-> (:type joins) name .toUpperCase)
+                            t2alias
+                            (.replaceAll pred t2name t2alias)
+                            (if group-by (str "GROUP BY " (to-fieldlist tname group-by)) ""))
+                    .trim))
+              ;; joining with non-aggregate table
+              (-> (format "SELECT %s FROM %s %s %s %s"
+                          (->> tcols (to-fieldlist tname))
+                          (if renames
+                            (with-rename tname (qualify tname tcols) renames)
+                            (to-tablename tname))
+                          (if joins (build-join (:data joins)) "")
+                          (if restriction (restrict (join-str " AND " restriction)) "")
+                          (if group-by (str "GROUP BY " (to-fieldlist tname group-by)) ""))
+                  .trim))
+            ;; no joins
+            (-> (format "SELECT %s FROM %s %s %s"
+                        (->> tcols (to-fieldlist tname))
+                        (if renames
+                          (with-rename tname (qualify tname tcols) renames)
+                          (to-tablename tname))
+                        (if restriction (restrict (join-str " AND " restriction)) "")
+                        (if group-by (str "GROUP BY " (to-fieldlist tname group-by)) ""))
+                .trim))]
       (when *debug* (prn sql-string))
       sql-string))
 
@@ -297,7 +290,7 @@
   (aggregate [this aggregates group-by]
     (let [table (project this (into group-by aggregates))]
       (if (seq group-by)
-        (.options table (str "GROUP BY " (to-fieldlist tname group-by)))
+        (assoc table :group-by group-by)
         table)))
 
   (conj! [this records]
@@ -319,13 +312,21 @@
         (apply update-or-insert-values tname [pred] records)))
      this)
 
-  (options [this opts]
-    (assoc this :options (str options \space opts)))
+  (take [this n]
+    (if limit
+      (assoc this :limit (min limit n))
+      (assoc this :limit n)))
 
-  (limit    [this n]       (.options this (str "LIMIT " n)))
-  (order-by [this col]     (.options this (str "ORDER BY " (qualify tname col))))
-  (sort     [this col dir] (.options this (str "ORDER BY " (qualify tname col) \space
-                                              (if (:asc dir) "ASC" "DESC")))))
+  (drop [this n]
+    (let [limit  (if limit  (- limit  n))
+          offset (if offset (+ offset n) n)]
+      (assoc this
+        :limit  limit
+        :offset offset)))
+
+  (sort [this fields]
+    (assoc this
+      :order-by fields)))
 
 (defn table
   "Constructs a relational object."
@@ -334,7 +335,7 @@
   ([connection-info table-name colums]
      (table connection-info table-name colums nil))
   ([connection-info table-name colums restrictions]
-     (RTable. connection-info table-name colums restrictions nil nil nil)))
+     (RTable. connection-info table-name colums restrictions nil nil nil nil nil nil)))
 
 (defn table?
   "Returns true if tinstance is an instnce of RTable"

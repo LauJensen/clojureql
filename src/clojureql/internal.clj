@@ -132,7 +132,7 @@
   [tble]
   (some #(or (vector? %) (aggregate? %)) (:tcols tble)))
 
-(defn derrived-fields
+(defn derived-fields
   "Computes the resulting fields from its input
 
    :one [:a :b :c] :two :cnt => 'one.a,one.b,one.c,two.cnt
