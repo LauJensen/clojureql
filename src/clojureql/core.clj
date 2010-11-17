@@ -249,7 +249,7 @@
     (assoc this :restriction (conj (or restriction []) predicate)))
 
   (project [this fields]
-    (assoc this :tcols (apply conj (or tcols []) fields)))
+    (assoc this :tcols fields))
 
   (join [this table2 join-on]
     (if (has-aggregate? table2)
@@ -340,12 +340,10 @@
 
 (defn table
   "Constructs a relational object."
+  ([table-name]
+     (table nil table-name))
   ([connection-info table-name]
-     (table connection-info table-name nil nil))
-  ([connection-info table-name colums]
-     (table connection-info table-name colums nil))
-  ([connection-info table-name colums restrictions]
-     (RTable. connection-info table-name colums restrictions nil nil nil nil nil nil)))
+     (RTable. connection-info table-name [:*] nil nil nil nil nil nil nil)))
 
 (defn table?
   "Returns true if tinstance is an instnce of RTable"
