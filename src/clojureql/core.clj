@@ -43,22 +43,25 @@
 
              How do I query all fields of a table named 'users'?
 
-                 @(table :mysql :users [:*])
+                 @(table :mysql :users)
 
              How do I query 2 specific columns?
 
-                 @(table :mysql :users [:name :title])
+                 @(-> (table :mysql :users)
+                      (project [:name :title]))
 
              How do I compose actions on queries?
 
-                 @(-> (table :mysql :users [:name :title])
+                 @(-> (table :mysql :users)
                       (select (where (= :name \"Lau\")))
+                      (project [:name :title]))
                       (sort :name :asc))
 
              How do I inspect the compiled SQL statement before execution?
 
-                 (-> (table :mysql :users [:name :title])
+                 (-> (table :mysql :users)
                      (select (where (= :name \"Lau\")))
+                     (project [:name :title]))
                      (sort :asc)
                      to-sql)
 
