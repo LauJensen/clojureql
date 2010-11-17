@@ -53,14 +53,14 @@
 
                  @(-> (table :mysql :users [:name :title])
                       (select (where (= :name \"Lau\")))
-                      (sort :asc))
+                      (sort :name :asc))
 
              How do I inspect the compiled SQL statement before execution?
 
                  (-> (table :mysql :users [:name :title])
                      (select (where (= :name \"Lau\")))
                      (sort :asc)
-                     assemble) ; TODO: Final name?
+                     to-sql)
 
              For more advanced examples please review README.md, demo.clj and core_test.clj."
     :url    "http://github.com/LauJensen/clojureql"}

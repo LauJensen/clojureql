@@ -183,7 +183,7 @@
    [:t2 :id]        => 'JOIN t2 USING(id)'                   "
   [{[tname pred] :data type :type pos :position}]
   (assemble-sql "%s %s JOIN %s %s %s"
-       (if (seq pos)  (-> pos name .toUpperCase) "")
+       (if (keyword? pos)  (-> pos name .toUpperCase) "")
        (if (not= :join type) (-> type name .toUpperCase) "")
        (if-let [t2name (:tname tname)] (to-tablename t2name) (name tname))
        (if-not (keyword? pred) " ON " "")
