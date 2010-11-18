@@ -1,0 +1,51 @@
+<html>
+<head>
+
+<style type="text/css">
+a { text-decoration:none }
+a{color: grey;}
+a:visited{color: grey;}
+</style>
+
+</head>
+
+<body>
+<code>
+<h3>
+<a href="irc://irc.freenode.net/#clojureql">#cake.clj</a>
+<a href="javascript:prev()">&lt;</a> <span id="day"></span> <a href="javascript:next()">&gt;</a>
+</h3>
+</code>
+</body>
+
+<script language="JavaScript">
+current  = new Date();
+base_url = "http://raynes.me/logs/irc.freenode.net/clojureql";
+one_day  = 1000*60*60*24;
+
+function prev() {
+  current.setTime(current.getTime() - one_day);
+  updateFrame();
+}
+
+function next() {
+  current.setTime(current.getTime() + one_day);
+  updateFrame();
+}
+
+function pad(num) {
+  return (num < 10) ? '0' + num : num;
+}
+
+function updateFrame() {
+  now = (new Date()).getTime();
+  if (current.getTime() > now) {
+    current.setTime(now);
+  }
+  day = current.getFullYear() + "-" + pad(current.getMonth() + 1) + "-" + pad(current.getDate());
+  document.getElementById('day').innerText = day;
+  parent.logs.location = base_url + "/" + day + ".txt";
+}
+
+updateFrame();
+</script>
