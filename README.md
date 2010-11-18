@@ -21,11 +21,15 @@ Add the following to your **project.clj** or pom.xml:
 
 Cake/Lein artifact:
 
-    TBA
+    [clojureql "1.0.0-beta1-SNAPSHOT"]
 
 Maven:
 
-    TBA
+    <dependency>
+      <groupId>clojureql</groupId>
+      <artifactId>clojureql</artifactId>
+      <version>1.0.0-beta1-SNAPSHOT</version>
+    </dependency>
 
 Then execute
 
