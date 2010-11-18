@@ -186,24 +186,22 @@
                      "")
                    (-> (.grouped t2 (-> t2 :tcols first)) to-sql)
                    t2alias
-                   (.replaceAll pred t2name t2alias)
-                   (if-let [[fields dir] order-by]
-                     (str "ORDER BY " (to-fieldlist tname [fields])
-                          (if (= :asc dir) " ASC" " DESC"))
-                     "")
+                   (.replaceAll (name pred) t2name t2alias)
+                   (if (seq order-by)
+                   (str "ORDER BY " (to-orderlist tname order-by))
+                   "")
                    (if grouped-by (str "GROUP BY " (to-fieldlist tname grouped-by)) "")))
               :else
               (assemble-sql "SELECT %s FROM %s %s %s %s %s %s"
-                 (->> tcols (to-fieldlist tname))
+                 (if tcols (->> tcols (to-fieldlist tname)) "*")
                  (if renames
                    (with-rename tname (qualify tname tcols) renames)
                    (to-tablename tname))
                  (if joins (build-join joins) "")
                  (if restriction (restrict (join-str " AND " restriction)) "")
                  (if grouped-by (str "GROUP BY " (to-fieldlist tname grouped-by)) "")
-                 (if-let [[fields dir] order-by]
-                   (str "ORDER BY " (to-fieldlist tname [fields])
-                        (if (= :asc dir) " ASC" " DESC"))
+                 (if (seq order-by)
+                   (str "ORDER BY " (to-orderlist tname order-by))
                    "")
                  (if limit
                    (str "LIMIT " (or offset 0) "," limit)
@@ -230,7 +228,7 @@
 
   (limit      [this n]                    "Queries the table with LIMIT n, call via take")
   (offset     [this n]                    "Queries the table with OFFSET n, call via drop")
-  (sorted     [this fields dir]           "Sorts the query using fields, call via sort")
+  (sorted     [this fields]               "Sorts the query using fields, call via sort")
   (grouped    [this field]                "Groups the expression by field")
 
   (apply-on   [this f]                    "Applies f on a resultset, call via with-results"))
@@ -335,9 +333,9 @@
         :limit  limit
         :offset offset)))
 
-  (sorted [this fields dir]
+  (sorted [this fields]
     (assoc this
-      :order-by [fields dir])))
+      :order-by fields)))
 
                                         ; INTERFACES
 

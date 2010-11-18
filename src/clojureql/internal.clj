@@ -7,9 +7,10 @@
 
 (defn assemble-sql [s & args]
   "For internal use only. Works like format but cleans up afterwards"
-  (-> (apply format s args)
-      .trim
-      (.replaceAll "  " " ")))
+  (loop [s (-> (apply format s args) .trim)]
+    (if-not (.contains s "  ")
+      s
+      (recur (.replace s "  " " ")))))
 
 (defn nskeyword
   "Converts a namespace qualified keyword to a string"
@@ -31,6 +32,24 @@
 (defn split-fields [t a]
   (->> (.split a ":")
        (map #(if (= % "*") "*" (str t %)))
+       (interpose ",")
+       (apply str)))
+
+(defn to-orderlist
+  "Converts a list like [:id#asc :name#desc] to \"id asc, name desc\"
+
+   Also takes a single keyword argument"
+  [tname fields]
+  (->> (if (coll? fields) fields [fields])
+       (map #(if (.contains (name %) "#")
+               (->> (.split (name %) "#")
+                    ((juxt first last))
+                    (map (fn [f] (if (or (= f "asc") (= f "desc"))
+                                   f
+                                   (str (name tname) \. f ))))
+                    (interpose " ")
+                    (apply str))
+               (str (name %) " asc")))
        (interpose ",")
        (apply str)))
 
