@@ -21,7 +21,7 @@
           :gt= (str "(" (join-str " >= " (sanitize expr)) ")")
           :lt= (str "(" (join-str " <= " (sanitize expr)) ")")
           :!=  (str "(" (join-str " != " (sanitize expr)) ")")
-          :lk  (str "(" (join-str " != " (sanitize expr)) ")")
+          :lk  (str "(" (join-str " LIKE " (sanitize expr)) ")")
           (str expr))))
 
 (defn or*
