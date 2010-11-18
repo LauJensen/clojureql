@@ -104,7 +104,10 @@
                      (str fn "(" (split-fields tname aggr) ")"))
                    (string? i)
                    i
-                   :else (str tname (nskeyword i))))]
+                   :else
+                   (if (.contains (nskeyword i) ".")
+                     (nskeyword i)
+                     (str tname (nskeyword i)))))]
          (cond
           (not (coll? tcols))
           tcols
@@ -183,11 +186,12 @@
 
    :one [:one.a :one.b] {:one :two} => 'one AS one(a,b)' "
   [tname tcols renames]
-  (let [oname (to-tablename tname)]
+  (let [oname (to-tablename tname)
+        unqualify (fn [s] (let [s (name s)] (subs s (inc (.indexOf s ".")))))]
     (if (map? renames)
       (format "%s AS %s(%s)" oname oname
               (reduce #(let [[orig new] %2]
-                         (.replaceAll %1 (name orig) (name new)))
+                         (.replaceAll %1 (unqualify orig) (unqualify new)))
                       (join-str "," (->> tcols (map name)
                                          (filter #(.contains % oname))
                                          (map #(subs % (inc (.indexOf % "."))))))

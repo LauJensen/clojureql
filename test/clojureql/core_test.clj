@@ -93,10 +93,10 @@
           w1 (table {} {:salary :w1})]
       (are [x y] (= x y)
            (to-sql (join u1 w1 (where (= :u1.id :w1.id))))
-           "SELECT u1.id,u1.article,u1.price FROM users u1 JOIN salary w1 ON (u1.id = w1.id)"
+           "SELECT u1.id,u1.article,u1.price,w1.* FROM users u1 JOIN salary w1 ON (u1.id = w1.id)"
            (-> (join u1 w1 (where (= :u1.id :w1.id)))
                (select (where (= :s2.article :NULL)))
                to-sql)
-           (str "SELECT u1.id,u1.article,u1.price FROM users u1 "
+           (str "SELECT u1.id,u1.article,u1.price,w1.* FROM users u1 "
                 "JOIN salary w1 ON (u1.id = w1.id) WHERE (s2.article = NULL)"))))
 )
