@@ -68,7 +68,7 @@
              For more advanced examples please review README.md, demo.clj and core_test.clj."
     :url    "http://github.com/LauJensen/clojureql"}
   (:refer-clojure
-   :exclude [take drop sort conj! disj! group-by])
+   :exclude [take drop sort conj! disj!])
   (:use
    [clojureql internal predicates]
    [clojure.string :only [join] :rename {join join-str}]
@@ -371,10 +371,3 @@
   (if (table? obj)
     (apply offset obj args)
     (apply clojure.core/drop obj args)))
-
-(defn group-by
-  "A group-by which works on both tables and collections"
-  [obj & args]
-  (if (table? obj)
-    (apply grouped obj args)
-    (apply clojure.core/group-by obj args)))

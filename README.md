@@ -81,35 +81,30 @@ Initialization
 Queries
 -----
 
-    (def users (table db :users [:id :name]))  ; Points to 2 colums in table users
+    (def users (table db :users)  ; Defaults to all colums in table users
 
     @users
     >>> ({:id 1 :name "Lau"}
          {:id 2 :name "Christophe"}
          {:id 3 :name "Frank"})
 
-    @(-> users
-         (select (where (< :id 3)))) ; Only selects IDs below 3
+    @(select users (where (< :id 3)))) ; Only selects IDs below 3
     >>> ({:name "Lau Jensen", :id 1}
          {:name "Christophe", :id 2})
 
-    @(-> users
-         (select (where (< :id 3)))
-         (project #{:title}))  ; <-- Includes a new column
-    >>> ({:name "Lau Jensen", :id 1, :title "Dev"}
-         {:name "Christophe", :id 2, :title "Design Guru"})
+    @(-> (select users (where (< :id 3)))
+         (project #{:title}))  ; <-- Only return the column :title
+    >>> ({:title "Dev"}
+         {:title "Design Guru"})
 
-    @(-> users
-         (select (where (!= :id 3))))  <-- Matches where ID is NOT 3
+    @(-> (select users (where (!= :id 3))))  <-- Matches where ID is NOT 3
     >>> ({:name "Lau Jensen", :id 1}
          {:name "Christophe", :id 2})
 
-    @(-> users
-         (select (where (and (= :id 1) (= :title "'Dev'")))))
+    @(select users (where (and (= :id 1) (= :title "Dev")))) ;Strings are auto-quoted
     >>> ({:name "Lau Jensen", :id 1})
 
-    @(-> users
-         (select (where (or (= :id 1) (= :title "'Design Guru'")))))
+    @(select users (where (or (= :id 1) (= :title "Design Guru"))))
     >>> ({:name "Lau Jensen", :id 1}
          {:name "Christophe", :id 2})
 
@@ -126,43 +121,44 @@ Aliasing
 
 *Tables:*
 
-    (-> (table db {:salary :s1} [:*])
+    (-> (table db {:salary :s1})
         (select (where (= :s1.id 5))))
-    >>> "SELECT s1.* FROM salary s1  WHERE (s1.id = 5)"
+    >>> "SELECT s1.* FROM salary s1 WHERE (s1.id = 5)"
 
 *Columns:*
 
-    (-> (table db :salary [[:id :as :userid]])
+    (-> (table db :salary)
+        (project [[:id :as :userid]])     ; Nester vector means aliasing
         (select (where (= :userid 5))))
     >>> "SELECT salary.id AS userid FROM salary  WHERE (userid = 5)"
 
 Aggregates
 ----------
 
-    @(table db :salary [:avg/wage])
+    @(-> (table db :salary)
+         (aggregate [:avg/wage]))
     >>> ({:avg(wage) 250.0000M})
 
-    @(table db :salary [[:avg/wage :as average]])
+    @(-> (table db :salary)
+         (aggregate [[:avg/wage :as average]]))
     >>> ({:average 250.0000M})
 
-    @(-> (table db :salary) (project [:avg/wage]))
-    >>> ({:avg(wage) 250.0000M})
-
-    (-> (table db :salary) (project [:avg/wage:expenses]) compile)
+    (-> (table db :salary)
+        (aggregate [:avg/wage:expenses])
+        to-sql)
     >>> "SELECT avg(salary.wage, salary.expenses) FROM salary;
 
-**Note:** The examples above demonstrate a simple uniform interface across ClojureQL. For more advanced
-aggregations, use the **aggregate** function.
+     (-> (table {} :users)
+         (select (where (= :admin true)))
+         (aggregate [:count/*])
+         to-sql)
+     >>> "SELECT count(users.*) FROM users WHERE (admin = true)"
 
      (-> (table {} :users)
          (select (where (= :admin true)))
-         (aggregate [:count/*]))
-     >>> "SELECT count(users.*) FROM users  WHERE (admin = true)"
-
-     (-> (table {} :users)
-         (select (where (= :admin true)))
-         (aggregate [:count/* :country]))
-     >>> "SELECT users.country,count(users.*) FROM users  WHERE (admin = true)  GROUP BY country"
+         (aggregate [:count/*] [:country])
+         to-sql)
+     >>> "SELECT users.country,count(users.*) FROM users  WHERE (admin = true) GROUP BY country"
 
 Manipulation
 ------------
@@ -190,7 +186,8 @@ Manipulation
 Joins
 ------
 
-    (def visitors (table db :visitors [:id :guest]))
+    (def visitors (-> (table db :visitors)
+                      (project [:id :guest])))
 
     @(join users visitors :id)                       ; USING(id)
     >>> ({:id 1 :name "Lau" :guest "false"} {:id 3 :name "Frank" :guest "true"})
@@ -199,7 +196,7 @@ Joins
     >>> ({:id 1 :name "Lau" :guest "false"} {:id 3 :name "Frank" :guest "true"})
 
     (-> (outer-join users visitors :right (where (= :users.id :visitors.id)))
-        compile)
+        to-sql)
     >>> "SELECT users.* FROM users RIGHT OUTER JOIN
            (SELECT avg(visitors.field) FROM visitors GROUP BY field)
            AS visitors_aggregation
@@ -212,13 +209,13 @@ Compound ops
 
 Since this is a true Relational Algebra implementation, everything composes!
 
-    @(-> (conj! users {:name "Jack"})      ; Add a row
-         (disj! (where (= {:name "Lau"}))) ; Remove another
-         (sort :id :desc)                  ; Prepare to sort in descending order
-         (project #{:id :title})           ; Include these columns in the query
-         (select (where (!= :id 5)))       ; But filter out ID = 5
-         (join :salary :id)                ; Join with table salary USING column id
-         (limit 10))                       ; Dont extract more than 10 hits
+    @(-> (conj! users {:name "Jack"})       ; Add a row
+         (disj! (where (= {:name "Lau"})))  ; Remove another
+         (sort [:id#desc])                  ; Prepare to sort in descending order
+         (project [:id :title])             ; Select only these columns in the query
+         (select (where (!= :id 5)))        ; But filter out ID = 5
+         (join :salary :id)                 ; Join with table salary USING column id
+         (take 10))                         ; Dont extract more than 10 hits
     >>> ({:id 3 :name "Frank"} {:id 2 :name "Christophe"})
 
 **Note:** This executes SQL statements 3 times in this order: conj!, disj!, @
