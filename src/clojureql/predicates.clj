@@ -21,6 +21,7 @@
           :gt= (str "(" (join-str " >= " (sanitize expr)) ")")
           :lt= (str "(" (join-str " <= " (sanitize expr)) ")")
           :!=  (str "(" (join-str " != " (sanitize expr)) ")")
+          :lk  (str "(" (join-str " != " (sanitize expr)) ")")
           (str expr))))
 
 (defn or*
@@ -62,6 +63,10 @@
   [& args]
   (compile-expr (apply vector :gt= args)))
 
+(defn like*
+  [& args]
+  (compile-expr (apply vector :lk args)))
+
 (defn where* [clause]
   (-> (postwalk-replace '{=   clojureql.predicates/=*
                           !=  clojureql.predicates/!=*
@@ -70,7 +75,8 @@
                           <=  clojureql.predicates/<=*
                           >=  clojureql.predicates/>=*
                           and clojureql.predicates/and*
-                          or  clojureql.predicates/or*} clause)
+                          or  clojureql.predicates/or*
+                          like  clojureql.predicates/like*} clause)
       eval))
 
 (defn restrict
