@@ -11,6 +11,7 @@
                              (map #(cond (keyword? %)     (to-name %)
                                          (and (string? %) (.contains % "(")) %
                                          (string? %)      (str "'" % "'")
+                                         (nil? %)         "NULL"
                                          :else %))))]
     (case (first expr)
           :or  (str "(" (join-str " OR "  (map compile-expr (rest expr))) ")")
