@@ -5,7 +5,8 @@
    :exclude [take drop sort conj! disj!]))
 
 (deftest sql-compilation
-  (testing "Simple selects"
+
+  (testing "simple selects"
     (are [x y] (= x y)
          (-> (table {} :users) to-sql)
          "SELECT users.* FROM users"
@@ -15,7 +16,8 @@
          "SELECT avg(users.wage) FROM users"
          (-> (table {} :users) (aggregate [[:avg/wage :as :avg]]) to-sql)
          "SELECT avg(users.wage) AS avg FROM users"))
-  (testing "Where predicates"
+
+  (testing "where predicates"
     (are [x y] (= x y)
          (-> (table {} :users)
              (select (where (= :id 5)))
@@ -44,13 +46,15 @@
              (project [:id])
              to-sql)
          "SELECT users.id FROM users WHERE ((id != 5) AND ((id > 10) OR (id < 20)))"))
-  (testing "Projections"
+
+  (testing "projections"
     (are [x y] (= x y)
          (-> (table {} :users)
              (project [:id :name :title])
              to-sql)
          "SELECT users.id,users.name,users.title FROM users"))
-  (testing "Joins"
+
+  (testing "joins"
     (are [x y] (= x y)
          (-> (table {} :users)
              (join (table {} :salary) :id)
@@ -62,7 +66,8 @@
              (project [:users.id :salary.wage])
              to-sql)
          "SELECT users.id,salary.wage FROM users JOIN salary ON (user.id = salary.id)"))
-  (testing "Renaming in joins"
+
+  (testing "renaming in joins"
     (are [x y] (= x y)
          (-> (table {} :users)
              (join (table {} :salary) (where (= :user.id :salary.id)))
@@ -71,24 +76,37 @@
              to-sql)
          "SELECT users.id,salary.wage FROM users AS users(idx) JOIN salary ON (user.id = salary.id)"))
                                         ; TODO: Shouldn't this be ON (users.idx = salary.id) ?
-  (testing "Aggregate functions"
+  (testing "aggregate functions"
     (are [x y] (= x y)
-         (-> (table {} :users)
+         (-> (table :users)
              (select (where (= :admin true)))
              (aggregate [:count/* :avg/wage])
              to-sql)
          "SELECT count(*),avg(users.wage) FROM users WHERE (admin = true)"
-         (-> (table {} :users)
+         (-> (table :users)
              (select (where (= :admin true)))
              (aggregate [:count/*, "corr(x,y)"] [:country :city])
              to-sql)
          "SELECT users.country,users.city,count(*),corr(x,y) FROM users WHERE (admin = true) GROUP BY users.country,users.city"
-         (-> (table {} :users)
+         (-> (table :users)
              (select (where (= :admin true)))
              (aggregate [:count/*, :corr/x:y] [:country :city])
              to-sql)
          "SELECT users.country,users.city,count(*),corr(users.x,users.y) FROM users WHERE (admin = true) GROUP BY users.country,users.city"))
-  (testing "Table aliases"
+
+  (testing "join with aggregate"
+    (let [photo-counts-by-user (-> (table :photos)
+                                   (aggregate [[:count/* :as :cnt]] [:user_id]))]
+      (are [x y] (= x y)
+           (-> (table :users)
+               (join photo-counts-by-user
+                     (where (= :users.id :photos.user_id)))
+               to-sql)
+           (str "SELECT users.*,photos_aggregation.cnt FROM users JOIN "
+                "(SELECT photos.user_id,count(*) AS cnt FROM photos GROUP BY photos.user_id) "
+                "AS photos_aggregation ON (users.id = photos_aggregation.user_id)"))))
+
+  (testing "table aliases"
     (let [u1 (-> (table {} {:users :u1}) (project [:id :article :price]))
           w1 (table {} {:salary :w1})]
       (are [x y] (= x y)
