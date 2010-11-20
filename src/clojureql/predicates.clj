@@ -42,8 +42,15 @@
 (defmethod compile-expr :!= [expr]
   (str "(" (join-str " != " (sanitize-expr expr)) ")"))
 
+(defmethod compile-expr :lk [expr]
+  (str "(" (join-str " LIKE " (sanitize-expr expr)) ")"))
+
 (defmethod compile-expr :default [expr]
   (str expr))
+
+(defn like
+  [& conds]
+  (compile-expr (apply vector :lk conds)))
 
 (defn or*
   " CQL version of OR.
