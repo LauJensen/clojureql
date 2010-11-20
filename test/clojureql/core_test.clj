@@ -27,7 +27,7 @@
          (-> (table {} :users)
              (select (where (= :id nil)))
              to-sql)
-         "SELECT users.* FROM users WHERE (id = NULL)"
+         "SELECT users.* FROM users WHERE (id IS NULL)"
          (-> (table {} :users)
              (select (where (or (= :id 5) (>= :id 10))))
              (project [:id])

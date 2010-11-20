@@ -3,26 +3,47 @@
         clojure.walk
         [clojure.string :only [join] :rename {join join-str}]))
 
-                                        ; PREDICATE COMPILER
+(defn sanitize-expr [e]
+  (->> (rest e)
+       (map #(cond (keyword? %)     (to-name %)
+                   (and (string? %) (.contains % "(")) %
+                   (string? %)      (str "'" % "'")
+                   (nil? %)         "NULL"
+                   :else %))))
 
-(defn compile-expr
-  [expr]
-  (letfn [(sanitize [e] (->> (rest e)
-                             (map #(cond (keyword? %)     (to-name %)
-                                         (and (string? %) (.contains % "(")) %
-                                         (string? %)      (str "'" % "'")
-                                         (nil? %)         "NULL"
-                                         :else %))))]
-    (case (first expr)
-          :or  (str "(" (join-str " OR "  (map compile-expr (rest expr))) ")")
-          :and (str "(" (join-str " AND " (map compile-expr (rest expr))) ")")
-          :eq  (str "(" (join-str " = " (sanitize expr)) ")")
-          :gt  (str "(" (join-str " > " (sanitize expr)) ")")
-          :lt  (str "(" (join-str " < " (sanitize expr)) ")")
-          :gt= (str "(" (join-str " >= " (sanitize expr)) ")")
-          :lt= (str "(" (join-str " <= " (sanitize expr)) ")")
-          :!=  (str "(" (join-str " != " (sanitize expr)) ")")
-          (str expr))))
+(defmulti compile-expr (fn [expr] (first expr)))
+
+(defmethod compile-expr :or [expr]
+  (str "(" (join-str " OR "  (map compile-expr (rest expr))) ")"))
+
+(defmethod compile-expr :and [expr]
+  (str "(" (join-str " AND " (map compile-expr (rest expr))) ")"))
+
+(defmethod compile-expr :eq [expr]
+  (let [[op p1 p2] expr]
+    (cond
+     (and (nil? p1) (nil? p2)) "(NULL IS NULL)" ; or just return blank, true or 1 ???
+     (nil? p1) (compile-expr [op p2 p1])
+     (nil? p2) (str "(" (join-str " IS " (sanitize-expr expr)) ")")
+     :else (str "(" (join-str " = " (sanitize-expr expr)) ")"))))
+
+(defmethod compile-expr :gt [expr]
+  (str "(" (join-str " > " (sanitize-expr expr)) ")"))
+
+(defmethod compile-expr :lt [expr]
+  (str "(" (join-str " < " (sanitize-expr expr)) ")"))
+
+(defmethod compile-expr :gt= [expr]
+  (str "(" (join-str " >= " (sanitize-expr expr)) ")"))
+
+(defmethod compile-expr :lt= [expr]
+  (str "(" (join-str " <= " (sanitize-expr expr)) ")"))
+
+(defmethod compile-expr :!= [expr]
+  (str "(" (join-str " != " (sanitize-expr expr)) ")"))
+
+(defmethod compile-expr :default [expr]
+  (str expr))
 
 (defn or*
   " CQL version of OR.
