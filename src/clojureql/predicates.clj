@@ -22,7 +22,7 @@
 (defmethod compile-expr :eq [expr]
   (let [[op p1 p2] expr]
     (cond
-     (and (nil? p1) (nil? p2)) "(NULL IS NULL)" ; or just return blank, true or 1 ???
+     (every? nil? (rest expr)) "TRUE"
      (nil? p1) (compile-expr [op p2 p1])
      (nil? p2) (str "(" (join-str " IS " (sanitize-expr expr)) ")")
      :else (str "(" (join-str " = " (sanitize-expr expr)) ")"))))
