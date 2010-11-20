@@ -200,7 +200,9 @@
                    (with-rename tname (qualify tname tcols) renames)
                    (to-tablename tname))
                  (if joins (build-join joins) "")
-                 (if restriction (restrict (join-str " AND " restriction)) "")
+                 (if restriction
+                   (str "WHERE " (restrict (join-str " AND " restriction)))
+                   "")
                  (if grouped-by (str "GROUP BY " (to-fieldlist tname grouped-by)) "")
                  (if (seq order-by)
                    (str "ORDER BY " (to-orderlist tname order-by))

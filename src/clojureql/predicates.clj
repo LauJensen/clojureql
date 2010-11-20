@@ -103,17 +103,17 @@
   "Returns a query string. Can take a raw string with params as %1 %2 %n
    or an AST which compiles using compile-expr.
 
-   (where 'id=%1 OR id < %2' 15 10) => 'WHERE id=15 OR id < 10'
+   (restrict 'id=%1 OR id < %2' 15 10) => 'id=15 OR id < 10'
 
-   (where (either (= {:id 5}) (>= {:id 10})))
-      'WHERE (id=5 OR id>=10)' "
-  ([ast]         (str "WHERE "  (compile-expr ast)))
-  ([pred & args] (str "WHERE "  (apply sql-clause pred args))))
+   (restrict (either (= {:id 5}) (>= {:id 10})))
+      '(id=5 OR id>=10)' "
+  ([ast]         (compile-expr ast))
+  ([pred & args] (apply sql-clause pred args)))
 
 (defn restrict-not
-  "The inverse of the where fn"
-  ([ast]         (str "WHERE not(" (compile-expr ast) ")"))
-  ([pred & args] (str "WHERE not(" (apply sql-clause pred args) ")")))
+  "The inverse of the restrict fn"
+  ([ast]         (str "not(" (compile-expr ast) ")"))
+  ([pred & args] (str "not(" (apply sql-clause pred args) ")")))
 
 (defn having
   "Returns a query string.
