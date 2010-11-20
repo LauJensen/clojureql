@@ -11,7 +11,7 @@
     [:eq nil :id]
     "(id IS NULL)"
     [:eq nil nil]
-    "(NULL IS NULL)"))
+    "TRUE"))
 
 (deftest test-sanitize-expr
   (are [expression result]
