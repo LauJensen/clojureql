@@ -240,9 +240,11 @@
     (sql-clause '%1 > %2 < %1' 'one' 'two') => 'one > two < one' "
   (letfn [(rep [s i] (.replaceAll s (str "%" (inc i))
                                   (let [item (nth args i)]
-                                    (if (keyword? item)
-                                      (name item)
-                                      (str item)))))]
+                                    (cond
+                                     (keyword? item) (name item)
+                                     (string? item) (str "'" item "'")
+                                     :else
+                                     (str item)))))]
     (if (empty? args)
       pred
       (loop [i 0 retr pred]
