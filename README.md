@@ -114,8 +114,8 @@ Queries
 
 For lazy traversal of the results, use **with-results**
 
-    (with-results users rs
-       (doseq [r rs]
+    (with-results [results users]
+       (doseq [r results]
          (println r)))
 
 **Note:** No alteration of the query will trigger execution. Only dereferencing (@) will!

@@ -142,7 +142,7 @@
   Example:
    (with-results table res
      (println res))            "
-  [tble results & body]
+  [[results tble] & body]
   `(apply-on ~tble (fn [~results] ~@body)))
 
 (defmacro in-connection*
