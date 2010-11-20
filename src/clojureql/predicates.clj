@@ -84,16 +84,20 @@
   [& args]
   (compile-expr (apply vector :gt= args)))
 
-(defn where* [clause]
-  (-> (postwalk-replace '{=   clojureql.predicates/=*
-                          !=  clojureql.predicates/!=*
-                          <   clojureql.predicates/<*
-                          >   clojureql.predicates/>*
-                          <=  clojureql.predicates/<=*
-                          >=  clojureql.predicates/>=*
-                          and clojureql.predicates/and*
-                          or  clojureql.predicates/or*} clause)
-      eval))
+(defn where*
+  ([clause] (where* {} clause))
+  ([locals clause]
+     (-> (postwalk-replace (merge locals
+                                  '{=   clojureql.predicates/=*
+                                    !=  clojureql.predicates/!=*
+                                    <   clojureql.predicates/<*
+                                    >   clojureql.predicates/>*
+                                    <=  clojureql.predicates/<=*
+                                    >=  clojureql.predicates/>=*
+                                    and clojureql.predicates/and*
+                                    or  clojureql.predicates/or*})
+                           clause)
+         eval)))
 
 (defn restrict
   "Returns a query string. Can take a raw string with params as %1 %2 %n

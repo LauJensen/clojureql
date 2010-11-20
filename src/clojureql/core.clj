@@ -165,7 +165,9 @@
    select, ie.
 
    (select tble (where ...))"
-  `(where* '~clause))
+  `(if-let [locals# ~(into {} (for [[local] &env] [(list 'quote local) local]))]
+     (where* locals# '~clause)
+     (where* '~clause)))
 
 (defn to-sql [tble]
   (let [{:keys [cnx tname tcols restriction renames joins
