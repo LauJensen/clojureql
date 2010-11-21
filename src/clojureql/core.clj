@@ -173,9 +173,10 @@
   (let [{:keys [cnx tname tcols restriction renames joins
                 grouped-by limit offset order-by]} tble
         sql-string
-        (cond (and (seq joins) (table? (-> joins :data first)))
+        (cond (and (seq joins) (some table? (map (comp first :data) joins)))
             ;; joining with a table containing aggregates
-              (let [[t2 pred] (:data joins)
+              (let [joins     (first (filter #(table? (first (:data %))) joins))
+                    [t2 pred] (:data joins)
                     t2name    (-> t2 :tname to-tablename)
                     colalias  (find-first-alias (:tcols t2))
                     t2alias   (str t2name "_aggregation")]
@@ -199,7 +200,10 @@
                  (if renames
                    (with-rename tname (qualify tname tcols) renames)
                    (to-tablename tname))
-                 (if joins (build-join joins) "")
+                 (if joins
+                   (->> (map build-join joins)
+                        (join-str " "))
+                   "")
                  (if restriction
                    (str "WHERE " (restrict (join-str " AND " restriction)))
                    "")
@@ -259,19 +263,19 @@
   (join [this table2 join-on]
     (if (has-aggregate? table2)
       (assoc this
-        :joins (assoc (or joins {})
-                 :data     [table2 join-on]
+        :joins (conj (or joins [])
+                 {:data     [table2 join-on]
                  :type     :join
-                 :position ""))
+                 :position ""}))
       (assoc this
         :tcols (if-let [t2cols (seq (:tcols table2))]
                  (apply conj (or tcols [])
                         (qualify (to-tablename (:tname table2)) t2cols))
                  tcols)
-        :joins (assoc (or joins {})
-                 :data     [(to-tablename (:tname table2)) join-on]
+        :joins (conj (or joins [])
+                 {:data     [(to-tablename (:tname table2)) join-on]
                  :type     :join
-                 :position ""))))
+                 :position ""}))))
 
   (outer-join [this table2 type join-on]
     (if (has-aggregate? table2)

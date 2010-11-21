@@ -121,4 +121,10 @@
                to-sql)
            (str "SELECT u1.id,u1.article,u1.price,w1.* FROM users u1 "
                 "JOIN salary w1 ON (u1.id = w1.id) WHERE (s2.article = NULL)"))))
+  (testing "joining on multiple tables"
+    (are [x y] (= x (to-sql y))
+         (-> (table {} :users)
+                    (join (table {} :wages) :wid)
+                    (join (table {} :commits) :cid))
+         "SELECT users.*,wages.*,commits.* FROM users JOIN wages USING(wid) JOIN commits USING(cid)"))
 )
