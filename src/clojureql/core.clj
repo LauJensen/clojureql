@@ -280,19 +280,19 @@
   (outer-join [this table2 type join-on]
     (if (has-aggregate? table2)
       (assoc this
-        :joins (assoc (or joins {})
-                 :data     [table2 join-on]
+        :joins (conj (or joins [])
+                 {:data     [table2 join-on]
                  :type     :outer
-                 :position type))
+                 :position type}))
       (assoc this
         :tcols (if-let [t2cols (seq (:tcols table2))]
                  (apply conj (or tcols [])
                         (qualify (to-tablename (:tname table2)) t2cols))
                  tcols)
-        :joins (assoc (or joins {})
-                 :data     [(to-tablename (:tname table2)) join-on]
-                 :type     :outer
-                 :position type))))
+        :joins (conj (or joins [])
+                 {:data     [(to-tablename (:tname table2)) join-on]
+                  :type     :outer
+                  :position type}))))
 
   (rename [this newnames]
     (assoc this :renames (merge (or renames {}) newnames)))

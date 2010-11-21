@@ -174,10 +174,14 @@
          (str "," (name table-alias) \. (nskeyword col-alias) ))))
 
 (defn find-first-alias
-  "Scans a column spec to find the first alias"
+  "Scans a column spec to find the first alias, if none is found the
+   first column is used instead"
   [tcols]
-  (-?> (filter #(and (vector? %) (= 3 (count %))) tcols)
-       first last name))
+  (let [alias (-?> (filter #(and (vector? %) (= 3 (count %))) tcols)
+                   first last name)]
+    (if (seq alias)
+      alias
+      (-> tcols first nskeyword))))
 
 (defn with-rename
   "Renames fields that have had their parent aliased.
