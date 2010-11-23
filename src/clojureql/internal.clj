@@ -5,6 +5,14 @@
   (:use [clojure.string :only [join] :rename {join join-str}]
         [clojure.contrib.core :only [-?>]]))
 
+(defn clean-sql [coll]
+  "For internal use only. Concats a collection of strings interposing spaces
+   between the items. Removes any garbage whitespace."
+  (loop [s (-> (join-str " " coll) .trim)]
+    (if-not (.contains s "  ")
+      s
+      (recur (.replace s "  " " ")))))
+
 (defn assemble-sql [s & args]
   "For internal use only. Works like format but cleans up afterwards"
   (loop [s (-> (apply format s args) .trim)]
@@ -201,20 +209,6 @@
                                          (map #(subs % (inc (.indexOf % "."))))))
                       renames))
       (str oname "(" (to-fieldlist tcols) ")"))))
-
-(defn build-join
-  "Generates a JOIN statement from the joins field of a table
-
-   [:t2 (= {:a 5})] => 'JOIN t2 ON (a = 5)'
-
-   [:t2 :id]        => 'JOIN t2 USING(id)'                   "
-  [{[tname pred] :data type :type pos :position}]
-  (assemble-sql "%s %s JOIN %s %s %s"
-       (if (keyword? pos)  (-> pos name .toUpperCase) "")
-       (if (not= :join type) (-> type name .toUpperCase) "")
-       (if-let [t2name (:tname tname)] (to-tablename t2name) (name tname))
-       (if-not (keyword? pred) " ON " "")
-       (if (keyword? pred) (format " USING(%s) " (name pred)) pred)))
 
 (defn get-foreignfield
   "Extracts the first foreign field in a column spec

@@ -168,55 +168,65 @@
   `(where* ~(into {} (for [[local] &env] [(list 'quote local) local]))
            '~clause))
 
+(defn extract-aliases
+  [joins]
+  (->> (for [[tbl-or-kwd pred] (map :data joins)
+             :when (and (table? tbl-or-kwd)
+                        (has-aggregate? tbl-or-kwd)
+                        (not (.contains (find-first-alias (:tcols tbl-or-kwd)) "/")))
+             :let [{:keys [tname tcols]} tbl-or-kwd
+                   alias (find-first-alias tcols)]]
+         (str (name tname) "_aggregation." alias))
+       (join-str ",")))
+
+(declare table?)
+(declare to-sql)
+
+(defn build-join
+  "Generates a JOIN statement from the joins field of a table"
+  [{[tname pred] :data type :type pos :position} alias]
+  (let [pred (if (and (seq alias) (string? pred))
+               (.replaceAll pred
+                            (if (keyword? tname)
+                              (to-tablename tname)
+                              (to-tablename (:tname tname)))
+                            (-> (.split alias "\\.") first))
+               pred)]
+    (assemble-sql "%s %s JOIN %s %s %s"
+       (if (keyword? pos)  (-> pos name .toUpperCase) "")
+       (if (not= :join type) (-> type name .toUpperCase) "")
+       (if (table? tname)
+         (assemble-sql "(%s) AS %s_aggregation"
+                       (to-sql tname)
+                       (to-tablename (:tname tname)))
+         (to-tablename tname))
+       (if-not (keyword? pred) " ON " "")
+       (if (keyword? pred)  (format " USING(%s) " (name pred)) pred))))
+
 (defn to-sql [tble]
   (let [{:keys [cnx tname tcols restriction renames joins
                 grouped-by limit offset order-by]} tble
-        sql-string
-        (cond (and (seq joins) (some table? (map (comp first :data) joins)))
-            ;; joining with a table containing aggregates
-              (let [joins     (first (filter #(table? (first (:data %))) joins))
-                    [t2 pred] (:data joins)
-                    t2name    (-> t2 :tname to-tablename)
-                    colalias  (find-first-alias (:tcols t2))
-                    t2alias   (str t2name "_aggregation")]
-                (assemble-sql "SELECT %s FROM %s %s %s JOIN (%s) AS %s ON %s %s %s"
-                   (derived-fields tname tcols t2alias colalias)
-                   (to-tablename tname)
-                   (-> (:position joins) name .toUpperCase)
-                   (if (not= :join (:type joins))
-                     (-> joins :type name .toUpperCase)
-                     "")
-                   (-> (.grouped t2 (-> t2 :tcols first)) to-sql)
-                   t2alias
-                   (.replaceAll (name pred) t2name t2alias)
-                   (if (seq order-by)
-                   (str "ORDER BY " (to-orderlist tname order-by))
-                   "")
-                   (if grouped-by (str "GROUP BY " (to-fieldlist tname grouped-by)) "")))
-              :else
-              (assemble-sql "SELECT %s FROM %s %s %s %s %s %s"
-                 (if tcols (->> tcols (to-fieldlist tname)) "*")
-                 (if renames
-                   (with-rename tname (qualify tname tcols) renames)
-                   (to-tablename tname))
-                 (if joins
-                   (->> (map build-join joins)
-                        (join-str " "))
-                   "")
-                 (if restriction
-                   (str "WHERE " (restrict (join-str " AND " restriction)))
-                   "")
-                 (if grouped-by (str "GROUP BY " (to-fieldlist tname grouped-by)) "")
-                 (if (seq order-by)
-                   (str "ORDER BY " (to-orderlist tname order-by))
-                   "")
-                 (if limit
-                   (str "LIMIT " (or offset 0) "," limit)
-                   (if offset
-                     (str "OFFSET " offset) ; Not allowed on MySQL
-                     ""))))]
-    (when *debug* (prn sql-string))
-    sql-string))
+        aliases (when joins (extract-aliases joins))
+        fields  (str (to-fieldlist tname tcols)
+                     (when (seq aliases)
+                       (str "," aliases)))
+        tables  (if joins
+                  (str (if renames
+                         (with-rename tname (qualify tname tcols) renames)
+                         (to-tablename tname)) \space
+                      (join-str " " (for [join-data joins] (build-join join-data aliases))))
+                  (if renames
+                    (with-rename tname (qualify tname tcols) renames)
+                    (to-tablename tname)))
+        preds  (if (and aliases restriction)
+                 (reduce (fn [acc alias]
+                           (.replaceAll acc (-> (.split alias "\\.") first) alias))
+                         (join-str " AND " restriction) aliases)
+                 (when restriction
+                   (join-str " AND " restriction)))]
+    (clean-sql ["SELECT" fields "FROM" tables (if preds "WHERE") preds
+                (when (seq order-by) (str "ORDER BY " (to-orderlist tname order-by)))
+                (when grouped-by     (str "GROUP BY " (to-fieldlist tname grouped-by)))])))
 
                                         ; RELATIONAL ALGEBRA
 
@@ -260,7 +270,7 @@
     (assoc this :tcols fields))
 
   (join [this table2 join-on]
-    (if (has-aggregate? table2)
+    (if (has-aggregate? table2) ; Or has limit!
       (assoc this
         :joins (conj (or joins [])
                  {:data     [table2 join-on]
@@ -277,7 +287,7 @@
                  :position ""}))))
 
   (outer-join [this table2 type join-on]
-    (if (has-aggregate? table2)
+    (if (has-aggregate? table2) ; Or has limit!
       (assoc this
         :joins (conj (or joins [])
                  {:data     [table2 join-on]
