@@ -103,9 +103,9 @@
            (join u1 w1 (where (= :u1.id :w1.id)))
            "SELECT u1.id,u1.article,u1.price,w1.* FROM users u1 JOIN salary w1 ON (u1.id = w1.id)"
            (-> (join u1 w1 (where (= :u1.id :w1.id)))
-               (select (where (= :s2.article :NULL))))
+               (select (where (= :s2.article nil))))
            (str "SELECT u1.id,u1.article,u1.price,w1.* FROM users u1 "
-                "JOIN salary w1 ON (u1.id = w1.id) WHERE (s2.article = NULL)"))))
+                "JOIN salary w1 ON (u1.id = w1.id) WHERE (s2.article IS NULL)"))))
   (testing "joining on multiple tables"
     (are [x y] (= (to-sql x) y)
          (-> (table :users)
