@@ -92,9 +92,9 @@
            (-> (table :users)
                (join photo-counts-by-user
                      (where (= :users.id :photos.user_id))))
-           (str "SELECT users.*,photos_aggregation.cnt FROM users JOIN "
+           (str "SELECT users.*,photos_subselect.cnt FROM users JOIN "
                 "(SELECT photos.user_id,count(*) AS cnt FROM photos GROUP BY photos.user_id) "
-                "AS photos_aggregation ON (users.id = photos_aggregation.user_id)"))))
+                "AS photos_subselect ON (users.id = photos_subselect.user_id)"))))
 
   (testing "table aliases"
     (let [u1 (-> (table {:users :u1}) (project [:id :article :price]))

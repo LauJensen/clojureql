@@ -72,7 +72,7 @@
   (:use
    [clojureql internal predicates]
    [clojure.string :only [join] :rename {join join-str}]
-   [clojure.contrib sql [core :only [-?>]]]
+   [clojure.contrib sql [core :only [-?> -?>>]]]
    [clojure.contrib.sql.internal :as sqlint]))
 
                                         ; GLOBALS
@@ -168,35 +168,44 @@
   `(where* ~(into {} (for [[local] &env] [(list 'quote local) local]))
            '~clause))
 
+(defn requires-subselect?
+  [table]
+  (if (keyword? table)
+    false
+    (or (has-aggregate? table)
+        (number? (:limit table))
+        (seq (:restriction table)))))
+
 (defn extract-aliases
   [joins]
-  (->> (for [[tbl-or-kwd pred] (map :data joins)
-             :when (and (table? tbl-or-kwd)
-                        (has-aggregate? tbl-or-kwd)
-                        (not (.contains (find-first-alias (:tcols tbl-or-kwd)) "/")))
+  (for [[tbl-or-kwd pred] (map :data joins)
+             :when (requires-subselect? tbl-or-kwd)
              :let [{:keys [tname tcols]} tbl-or-kwd
                    alias (find-first-alias tcols)]]
-         (str (name tname) "_aggregation." alias))
-       (join-str ",")))
+         [(to-tablename tname) (str (name tname) "_subselect." alias)]))
 
 (declare table?)
 (declare to-sql)
 
 (defn build-join
   "Generates a JOIN statement from the joins field of a table"
-  [{[tname pred] :data type :type pos :position} alias]
-  (let [pred (if (and (seq alias) (string? pred))
-               (.replaceAll pred
-                            (if (keyword? tname)
-                              (to-tablename tname)
-                              (to-tablename (:tname tname)))
-                            (-> (.split alias "\\.") first))
+  [{[tname pred] :data type :type pos :position} aliases]
+  (let [pred (if (and (seq aliases) (string? pred))
+               (reduce (fn [acc a]
+                         (let [t1name (if (or (keyword? tname) (string? tname))
+                                        (to-tablename tname)
+                                        (to-tablename (:tname tname)))
+                               alias  (-> (.split a "\\.") first)]
+                           (if (.contains alias t1name)
+                             (.replaceAll acc t1name alias)
+                             acc)))
+                       pred (map last aliases))
                pred)]
     (assemble-sql "%s %s JOIN %s %s %s"
        (if (keyword? pos)  (-> pos name .toUpperCase) "")
        (if (not= :join type) (-> type name .toUpperCase) "")
-       (if (table? tname)
-         (assemble-sql "(%s) AS %s_aggregation"
+       (if (requires-subselect? tname)
+         (assemble-sql "(%s) AS %s_subselect"
                        (to-sql tname)
                        (to-tablename (:tname tname)))
          (to-tablename tname))
@@ -207,9 +216,9 @@
   (let [{:keys [cnx tname tcols restriction renames joins
                 grouped-by limit offset order-by]} tble
         aliases (when joins (extract-aliases joins))
-        fields  (str (to-fieldlist tname tcols)
+        fields  (str (if tcols (to-fieldlist tname tcols) "*")
                      (when (seq aliases)
-                       (str "," aliases)))
+                       (str "," (join-str "," (map last aliases)))))
         tables  (if joins
                   (str (if renames
                          (with-rename tname (qualify tname tcols) renames)
@@ -219,14 +228,16 @@
                     (with-rename tname (qualify tname tcols) renames)
                     (to-tablename tname)))
         preds  (if (and aliases restriction)
-                 (reduce (fn [acc alias]
-                           (.replaceAll acc (-> (.split alias "\\.") first) alias))
+                 (reduce (fn [acc [orig-name alias]]
+                           (.replaceAll acc orig-name (-> (.split alias "\\.") first)))
                          (join-str " AND " restriction) aliases)
                  (when restriction
                    (join-str " AND " restriction)))]
-    (clean-sql ["SELECT" fields "FROM" tables (if preds "WHERE") preds
+    (clean-sql ["SELECT" fields (when tables "FROM") tables (when preds "WHERE") preds
                 (when (seq order-by) (str "ORDER BY " (to-orderlist tname order-by)))
-                (when grouped-by     (str "GROUP BY " (to-fieldlist tname grouped-by)))])))
+                (when grouped-by     (str "GROUP BY " (to-fieldlist tname grouped-by)))
+                (when limit          (str "LIMIT " limit))
+                (when offset         (str "OFFSET " offset))])))
 
                                         ; RELATIONAL ALGEBRA
 
@@ -270,7 +281,7 @@
     (assoc this :tcols fields))
 
   (join [this table2 join-on]
-    (if (has-aggregate? table2) ; Or has limit!
+    (if (requires-subselect? table2) ; Or has limit!
       (assoc this
         :joins (conj (or joins [])
                  {:data     [table2 join-on]
@@ -287,7 +298,7 @@
                  :position ""}))))
 
   (outer-join [this table2 type join-on]
-    (if (has-aggregate? table2) ; Or has limit!
+    (if (requires-subselect? table2) ; Or has limit!
       (assoc this
         :joins (conj (or joins [])
                  {:data     [table2 join-on]
