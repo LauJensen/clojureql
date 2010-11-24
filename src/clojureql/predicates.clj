@@ -3,93 +3,87 @@
         clojure.walk
         [clojure.string :only [join] :rename {join join-str}]))
 
-(defn sanitize-expr [e]
-  (->> (rest e)
-       (map #(cond (keyword? %)     (to-name %)
-                   (and (string? %) (.contains % "(")) %
-                   (string? %)      (str "'" % "'")
-                   (nil? %)         "NULL"
-                   :else %))))
+(defn sanitize [expression]
+  (reduce #(conj %1
+                 (cond (keyword? %2)     (to-name %2)
+                       (and (string? %2) (.contains %2 "(")) %2
+                       (string? %2)      (str "'" %2 "'")
+                       (nil? %2)         "NULL"
+                       :else %2)) [] expression))
 
-(defmulti compile-expr (fn [expr] (first expr)))
+(defn parameterize [op expression]
+  (str "(" (join-str op (repeat (count expression) " ? ")) ")"))
 
-(defmethod compile-expr :or [expr]
-  (str "(" (join-str " OR "  (map compile-expr (rest expr))) ")"))
+(defprotocol Predicate
+  (sql-or     [this exprs]     "Compiles to (expr OR expr)")
+  (sql-and    [this exprs]     "Compiles to (expr AND expr)")
+  (spec-op    [this expr]      "Compiles a special, ie. non infix operation")
+  (infix      [this op exprs]  "Compiles an infix operation"))
 
-(defmethod compile-expr :and [expr]
-  (str "(" (join-str " AND " (map compile-expr (rest expr))) ")"))
+(defrecord APredicate [stmt env]
+  Object
+  (toString [this] (apply str stmt))
+  Predicate
+  (sql-or    [this exprs]
+    (assoc this
+      :stmt (conj stmt (str "(" (join-str " OR " (map str exprs)) ")"))
+      :env  (into env (mapcat :env exprs))))
+  (sql-and   [this exprs]
+    (assoc this
+      :stmt (conj stmt (str "(" (join-str " AND " (map str exprs)) ")"))
+      :env  (into env (mapcat :env exprs))))
+  (spec-op [this expr]
+    (let [[op p1 p2] expr]
+      (cond
+       (every? nil? (rest expr))
+       (assoc this
+         :stmt (conj stmt "TRUE")
+         :env  env)
+       (nil? p1)
+       (.spec-op this [op p2 p1])
+       (nil? p2)
+       (assoc this
+         :stmt (conj stmt (parameterize "IS" (rest expr)))
+         :env  (into env (sanitize (rest expr))))
+       :else
+       (infix this "=" (rest expr)))))
+  (infix [this op expr]
+    (assoc this
+      :stmt (conj stmt (parameterize op expr))
+      :env  (into env (sanitize expr)))))
 
-(defmethod compile-expr :eq [expr]
-  (let [[op p1 p2] expr]
-    (cond
-     (every? nil? (rest expr)) "TRUE"
-     (nil? p1) (compile-expr [op p2 p1])
-     (nil? p2) (str "(" (join-str " IS " (sanitize-expr expr)) ")")
-     :else (str "(" (join-str " = " (sanitize-expr expr)) ")"))))
+(defn predicate
+  ([]         (predicate [] []))
+  ([stmt]     (predicate stmt []))
+  ([stmt env] (APredicate. stmt env)))
 
-(defmethod compile-expr :gt [expr]
-  (str "(" (join-str " > " (sanitize-expr expr)) ")"))
+(defn replace-in
+  "Helper function to update the env field of a predicate"
+  [pred orig new]
+  (predicate (str pred)
+             (reduce #(if-let [p %2]
+                        (if (string? p)
+                          (conj %1 (.replaceAll p orig new))
+                          (conj %1 p))) [] (:env pred))))
 
-(defmethod compile-expr :lt [expr]
-  (str "(" (join-str " < " (sanitize-expr expr)) ")"))
+(defn or*  [& args] (sql-or (predicate) args))
+(defn and* [& args] (sql-and (predicate) args))
 
-(defmethod compile-expr :gt= [expr]
-  (str "(" (join-str " >= " (sanitize-expr expr)) ")"))
+(defmacro defoperator [name op doc]
+  `(defn ~name ~doc [& args#]
+     (infix (predicate) (name ~op) args#)))
 
-(defmethod compile-expr :lt= [expr]
-  (str "(" (join-str " <= " (sanitize-expr expr)) ")"))
+(defn =* [& args]
+  (if (some #(nil? %) args)
+    (spec-op (predicate) (into ["IS"] args))
+    (infix (predicate) "=" args)))
 
-(defmethod compile-expr :!= [expr]
-  (str "(" (join-str " != " (sanitize-expr expr)) ")"))
-
-(defmethod compile-expr :lk [expr]
-  (str "(" (join-str " LIKE " (sanitize-expr expr)) ")"))
-
-(defmethod compile-expr :default [expr]
-  (str expr))
-
-(defn like
-  [& conds]
-  (compile-expr (apply vector :lk conds)))
-
-(defn or*
-  " CQL version of OR.
-
-    (where (or (= :id 5) (:title 'Dev'))) => '((id = 5) OR (title = 'Dev')'"
-  [& conds]
-  (compile-expr (apply vector :or conds)))
-
-(defn and*
-  " CQL version of AND.
-
-    (where (and (< :wage 500) (>= :wage 1500))) => '((wage < 500) AND (wage >= 1500))'"
-  [& conds]
-  (compile-expr (apply vector :and conds)))
-
-(defn =*
-  [& args]
-  (compile-expr (apply vector :eq args)))
-
-(defn !=*
-  " Same as not= "
-  [& args]
-  (compile-expr (apply vector :!= args)))
-
-(defn >*
-  [& args]
-  (compile-expr (apply vector :gt args)))
-
-(defn <*
-  [& args]
-  (compile-expr (apply vector :lt args)))
-
-(defn <=*
-  [& args]
-  (compile-expr (apply vector :lt= args)))
-
-(defn >=*
-  [& args]
-  (compile-expr (apply vector :gt= args)))
+(defoperator like :like  "LIKE operator:  (like :x \"%y%\"")
+(defoperator !=*  :!=    "!= operator:    (!= :x 5)")
+(defoperator >*   :>     "> operator:     (> :x 5)")
+(defoperator <*   :<     "< operator:     (< :x 5)")
+(defoperator <=*  :<=    "<= operator:    (<= :x 5)")
+(defoperator >=*  :>=    ">= operator:    (>= :x 5)")
 
 (defn where*
   ([clause] (where* {} clause))
@@ -107,30 +101,15 @@
          eval)))
 
 (defn restrict
-  "Returns a query string. Can take a raw string with params as %1 %2 %n
-   or an AST which compiles using compile-expr.
+  "Returns a query string.
 
-   (restrict 'id=%1 OR id < %2' 15 10) => 'id=15 OR id < 10'
+   Takes a raw string with params as %1 %2 %n.
 
-   (restrict (either (= {:id 5}) (>= {:id 10})))
-      '(id=5 OR id>=10)' "
-  ([ast]         (compile-expr ast))
-  ([pred & args] (apply sql-clause pred args)))
+   (restrict 'id=%1 OR id < %2' 15 10) => 'id=15 OR id < 10'"
+  [pred & args]
+  (apply sql-clause pred args))
 
 (defn restrict-not
   "The inverse of the restrict fn"
-  ([ast]         (str "not(" (compile-expr ast) ")"))
+  ([ast]         (into [(str "not(" ast ")")] (:env ast)))
   ([pred & args] (str "not(" (apply sql-clause pred args) ")")))
-
-(defn having
-  "Returns a query string.
-
-   (-> (where 'id=%1' 5) (having '%1 < id < %2' 1 2)) =>
-    'WHERE id=5 HAVING 1 < id < 2'
-
-   (-> (where (= {:id 5})) (having (either (> {:id 5}) (<= {:id 2})))) =>
-    'WHERE id=5 HAVING (id > 5 OR id <= 2)'"
-  ([stmt ast]
-     (str stmt " HAVING " (compile-expr ast)))
-  ([stmt pred & args]
-     (str stmt " HAVING " (apply sql-clause pred args))))

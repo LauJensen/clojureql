@@ -2,25 +2,12 @@
   (:use clojureql.predicates clojure.test))
 
 (deftest test-compile-expr
-  (are [expression result]
-    (is (= result (compile-expr expression)))
-    [:eq :id 5]
-    "(id = 5)"
-    [:eq :id nil]
-    "(id IS NULL)"
-    [:eq nil :id]
-    "(id IS NULL)"
-    [:eq nil nil]
-    "TRUE"))
-
-(deftest test-sanitize-expr
-  (are [expression result]
-    (is (= result (sanitize-expr expression)))
-    [:eq :id 5]
-    '("id" 5)
-    [:eq :id nil]
-    '("id" "NULL")
-    [:eq nil :id]
-    '("NULL" "id")
-    [:eq nil nil]
-    '("NULL" "NULL")))
+  (are [expression result] (= result ((juxt str :env) expression))
+       (=* :id 5)
+       ["( ? = ? )" ["id" 5]]
+       (=* :id nil)
+       ["( ? IS ? )" ["id" "NULL"]]
+       (=* nil :id)
+       ["( ? IS ? )" ["id" "NULL"]]
+       (=* nil nil)
+       ["TRUE" []]))

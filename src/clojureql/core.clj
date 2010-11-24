@@ -173,7 +173,7 @@
   (if (keyword? table)
     false
     (or (has-aggregate? table)
-        (number? (:limit table))
+        (number? (:limit table)) ; TODO: Check offset as well?
         (seq (:restriction table)))))
 
 (defn extract-aliases
@@ -197,47 +197,73 @@
                                         (to-tablename (:tname tname)))
                                alias  (-> (.split a "\\.") first)]
                            (if (.contains alias t1name)
-                             (.replaceAll acc t1name alias)
+                             (replace-in acc t1name alias)
                              acc)))
                        pred (map last aliases))
-               pred)]
-    (assemble-sql "%s %s JOIN %s %s %s"
+               pred)
+        [subselect env] (when (requires-subselect? tname)
+                            (to-sql tname))]
+    [(assemble-sql "%s %s JOIN %s %s %s"
        (if (keyword? pos)  (-> pos name .toUpperCase) "")
        (if (not= :join type) (-> type name .toUpperCase) "")
        (if (requires-subselect? tname)
-         (assemble-sql "(%s) AS %s_subselect"
-                       (to-sql tname)
+         (assemble-sql "(%s) AS %s_subselect" subselect
                        (to-tablename (:tname tname)))
          (to-tablename tname))
        (if-not (keyword? pred) " ON " "")
-       (if (keyword? pred)  (format " USING(%s) " (name pred)) pred))))
+       (if (keyword? pred) (format " USING(%s) " (name pred)) (str pred)))
+     (if subselect
+       (assoc pred :env (into (:env pred) env))
+       pred)]))
+
+(defn apply-aliases
+  [env aliases]
+  (reduce #(conj %1
+                 (reduce (fn [acc [old new]]
+                           (if (string? acc)
+                             (.replaceAll acc old (-> (.split new "\\.") first))
+                             acc))
+                         %2 aliases)) [] env))
 
 (defn to-sql [tble]
   (let [{:keys [cnx tname tcols restriction renames joins
                 grouped-by limit offset order-by]} tble
-        aliases (when joins (extract-aliases joins))
-        fields  (str (if tcols (to-fieldlist tname tcols) "*")
-                     (when (seq aliases)
-                       (str "," (join-str "," (map last aliases)))))
-        tables  (if joins
-                  (str (if renames
-                         (with-rename tname (qualify tname tcols) renames)
-                         (to-tablename tname)) \space
-                      (join-str " " (for [join-data joins] (build-join join-data aliases))))
-                  (if renames
-                    (with-rename tname (qualify tname tcols) renames)
-                    (to-tablename tname)))
-        preds  (if (and aliases restriction)
-                 (reduce (fn [acc [orig-name alias]]
-                           (.replaceAll acc orig-name (-> (.split alias "\\.") first)))
-                         (join-str " AND " restriction) aliases)
-                 (when restriction
-                   (join-str " AND " restriction)))]
-    (clean-sql ["SELECT" fields (when tables "FROM") tables (when preds "WHERE") preds
-                (when (seq order-by) (str "ORDER BY " (to-orderlist tname order-by)))
-                (when grouped-by     (str "GROUP BY " (to-fieldlist tname grouped-by)))
-                (when limit          (str "LIMIT " limit))
-                (when offset         (str "OFFSET " offset))])))
+        aliases   (when joins (extract-aliases joins))
+        fields    (str (if tcols (to-fieldlist tname tcols) "*")
+                       (when (seq aliases)
+                         (str "," (join-str "," (map last aliases)))))
+        jdata     (when joins
+                    (for [join-data joins] (build-join join-data aliases)))
+        tables    (if joins
+                    (str (if renames
+                           (with-rename tname (qualify tname tcols) renames)
+                           (to-tablename tname)) \space
+                           (join-str " " (map first jdata)))
+                    (if renames
+                      (with-rename tname (qualify tname tcols) renames)
+                      (to-tablename tname)))
+        preds     (if (and aliases restriction)
+                    (reduce (fn [acc [orig-name alias]]
+                              (replace-in acc orig-name (-> (.split alias "\\.") first)))
+                            restriction aliases)
+                    (when restriction
+                      restriction))
+        statement [(clean-sql ["SELECT" fields
+                       (when tables "FROM") tables
+                       (when preds "WHERE") (str preds)
+                       (when (seq order-by) (str "ORDER BY " (to-orderlist tname order-by)))
+                       (when grouped-by     (str "GROUP BY " (to-fieldlist tname grouped-by)))
+                       (when limit          (str "LIMIT " limit))
+                       (when offset         (str "OFFSET " offset))])]
+        env       (-> [(map (comp :env last) jdata) (when preds [(:env preds)])]
+                      flatten vec)
+        sql-vec   (into statement (apply-aliases env aliases))]
+    sql-vec))
+
+(defn interpolate-sql [[stmt & args]]
+  "For compilation test purposes only"
+  (reduce #(.replaceFirst %1 "\\?" (str %2)) stmt args))
+
 
                                         ; RELATIONAL ALGEBRA
 
@@ -275,7 +301,7 @@
            (f (resultset-seq rset))))))
 
   (select [this predicate]
-    (assoc this :restriction (conj (or restriction []) predicate)))
+    (assoc this :restriction predicate)) ;(conj (or restriction []) predicate)))
 
   (project [this fields]
     (assoc this :tcols fields))
@@ -336,7 +362,7 @@
 
   (disj! [this predicate]
      (in-connection*
-       (delete-rows tname [(compile-expr predicate)]))
+       (delete-rows tname [(str predicate)]))
     this)
 
   (update-in! [this pred records]
