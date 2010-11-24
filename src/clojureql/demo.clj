@@ -33,8 +33,10 @@
                     [:wage  :integer])))
   (open-global :mysql db)                                      ; Open a persistent connection
   (binding [*debug* true]                                      ; Causes all SQL statements to be printed
-    (let [users  (table :mysql :users  [:id :name :title])
-          salary (table :mysql :salary [:id :wage])
+    (let [users  (-> (table :mysql :users)
+                     (project [:id :name :title]))
+          salary (-> (table :mysql :salary)
+                     (project [:id :wage]))
           roster [{:name "Lau Jensen" :title "Dev"}
                   {:name "Christophe" :title "Design Guru"}
                   {:name "sthuebner"  :title "Mr. Macros"}
@@ -49,13 +51,13 @@
                 (conj! {:name "Jack"})                         ; Add a single row
                 (disj! (where (= :id 1)))                      ; Remove another
                 (update-in! (where (= :id 2)) {:name "John"})  ; Update a third
-                (sort :id :desc)                               ; Prepare to sort
+                (sort [:id#desc])                              ; Prepare to sort
                 (project #{:id :title})                        ; Returns colums id and title
                 (select (where (<= :id 10)))                   ; Where ID is <= 10
                 (join salary :id)                              ; Join with table salary
                 (limit 10)))                                   ; Limit return to 10 rows
       (tst @(-> (disj! users (where (or (= :id 3) (= :id 4))))
-                (sort :id :desc)))
+                (sort [:id])))                                 ; ASC is implicit
       (tst @(limit users 1))
       (tst @(-> (table db :salary) (project [:avg/wage])))
       #_(tst (select users (where "id=%1 OR id=%2" 1 10)))
