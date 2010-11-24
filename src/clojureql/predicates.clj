@@ -5,14 +5,21 @@
 
 (defn sanitize [expression]
   (reduce #(conj %1
-                 (cond (keyword? %2)     (to-name %2)
-                       (and (string? %2) (.contains %2 "(")) %2
-                       (string? %2)      (str "'" %2 "'")
+                 (cond (string? %2)      %2
                        (nil? %2)         "NULL"
-                       :else %2)) [] expression))
+                       :else %2)) []
+      (remove keyword? expression)))
 
 (defn parameterize [op expression]
-  (str "(" (join-str op (repeat (count expression) " ? ")) ")"))
+  (str "("
+       (->> expression
+            (map #(if (keyword? %)
+                    (str (to-tablename %))
+                    "?"))
+            (join-str (str \space op \space)))
+       ;(join-str op (repeat (count (remove keyword? expression)) " ? "))
+
+       ")"))
 
 (defprotocol Predicate
   (sql-or     [this exprs]     "Compiles to (expr OR expr)")
