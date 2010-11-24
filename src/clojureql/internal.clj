@@ -279,14 +279,13 @@
   (when-not (vector? sql-params)
     (throw (Exception. "sql-params must be a vector")))
   (with-open [stmt (.prepareStatement (:connection sqlint/*db*) sql)]
-    (when-let [fetch-size (-> sqlint/*db* :opts :fetch-size)]
-      (.setFetchSize stmt fetch-size)
-      (csql/transaction
-       (doseq [[index value] (map vector (iterate inc 1) params)]
-         (.setObject stmt index value))
-       (with-open [rset (.executeQuery stmt)]
-         (func (result-seq rset)))))
-    (doseq [[index value] (map vector (iterate inc 1) params)]
-        (.setObject stmt index value))
+    (doseq [[idx v] (map vector (iterate inc 1) params)]
+         (.setObject stmt idx v))
+    (if-let [fetch-size (-> sqlint/*db* :opts :fetch-size)]
+      (do
+        (.setFetchSize stmt fetch-size)
+        (csql/transaction
+         (with-open [rset (.executeQuery stmt)]
+           (func (result-seq rset)))))
       (with-open [rset (.executeQuery stmt)]
-        (func (result-seq rset)))))
+        (func (result-seq rset))))))

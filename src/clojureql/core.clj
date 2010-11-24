@@ -187,6 +187,12 @@
 (declare table?)
 (declare to-sql)
 
+(defn apply-aliases
+  [stmt aliases]
+  [(reduce (fn [acc [old new]]
+            (.replaceAll acc old (-> (.split new "\\.") first)))
+          stmt aliases)])
+
 (defn build-join
   "Generates a JOIN statement from the joins field of a table"
   [{[tname pred] :data type :type pos :position} aliases]
@@ -202,7 +208,7 @@
                        pred (map last aliases))
                pred)
         [subselect env] (when (requires-subselect? tname)
-                            (to-sql tname))]
+                          (to-sql tname))]
     [(assemble-sql "%s %s JOIN %s %s %s"
        (if (keyword? pos)  (-> pos name .toUpperCase) "")
        (if (not= :join type) (-> type name .toUpperCase) "")
@@ -211,19 +217,12 @@
                        (to-tablename (:tname tname)))
          (to-tablename tname))
        (if-not (keyword? pred) " ON " "")
-       (if (keyword? pred) (format " USING(%s) " (name pred)) (str pred)))
-     (if subselect
+       (if (keyword? pred)
+         (format " USING(%s) " (name pred))
+         (-> (str pred) (apply-aliases aliases) first)))
+     (if (and subselect (map? pred))
        (assoc pred :env (into (:env pred) env))
        pred)]))
-
-(defn apply-aliases
-  [env aliases]
-  (reduce #(conj %1
-                 (reduce (fn [acc [old new]]
-                           (if (string? acc)
-                             (.replaceAll acc old (-> (.split new "\\.") first))
-                             acc))
-                         %2 aliases)) [] env))
 
 (defn to-sql [tble]
   (let [{:keys [cnx tname tcols restriction renames joins
@@ -248,16 +247,19 @@
                             restriction aliases)
                     (when restriction
                       restriction))
-        statement [(clean-sql ["SELECT" fields
+        statement (clean-sql ["SELECT" fields
                        (when tables "FROM") tables
                        (when preds "WHERE") (str preds)
                        (when (seq order-by) (str "ORDER BY " (to-orderlist tname order-by)))
                        (when grouped-by     (str "GROUP BY " (to-fieldlist tname grouped-by)))
                        (when limit          (str "LIMIT " limit))
-                       (when offset         (str "OFFSET " offset))])]
-        env       (-> [(map (comp :env last) jdata) (when preds [(:env preds)])]
-                      flatten vec)
-        sql-vec   (into statement (apply-aliases env aliases))]
+                       (when offset         (str "OFFSET " offset))])
+        env       (->> [(map (comp :env last) jdata) (when preds [(:env preds)])]
+                       flatten vec
+                       (remove nil?)
+                       vec)
+        sql-vec   (into [statement] env)]
+    (when *debug* (prn sql-vec))
     sql-vec))
 
 (defn interpolate-sql [[stmt & args]]
@@ -291,14 +293,18 @@
   clojure.lang.IDeref
   (deref [this]
      (in-connection*
-      (with-results* [(to-sql this)] (fn [rs] (doall rs)))))
+      (with-results* (to-sql this)
+        (fn [rs] (doall rs)))))
 
   Relation
   (apply-on [this f]
+    (let [[sql-string & env] (to-sql this)]
      (in-connection*
-       (with-open [stmt (.prepareStatement (:connection sqlint/*db*) (to-sql this))]
+       (with-open [stmt (.prepareStatement (:connection sqlint/*db*) sql-string)]
          (with-open [rset (.executeQuery stmt)]
-           (f (resultset-seq rset))))))
+           (doseq [[idx v] (map vector (iterate inc 1) env)]
+             (.setObject stmt idx v))
+           (f (resultset-seq rset)))))))
 
   (select [this predicate]
     (assoc this :restriction predicate)) ;(conj (or restriction []) predicate)))
@@ -307,7 +313,7 @@
     (assoc this :tcols fields))
 
   (join [this table2 join-on]
-    (if (requires-subselect? table2) ; Or has limit!
+    (if (requires-subselect? table2)
       (assoc this
         :joins (conj (or joins [])
                  {:data     [table2 join-on]
@@ -324,7 +330,7 @@
                  :position ""}))))
 
   (outer-join [this table2 type join-on]
-    (if (requires-subselect? table2) ; Or has limit!
+    (if (requires-subselect? table2)
       (assoc this
         :joins (conj (or joins [])
                  {:data     [table2 join-on]
@@ -362,15 +368,16 @@
 
   (disj! [this predicate]
      (in-connection*
-       (delete-rows tname [(str predicate)]))
+       (delete-rows tname (into [(str predicate)] (:env predicate))))
     this)
 
   (update-in! [this pred records]
-     (in-connection*
-      (if (map? records)
-        (update-or-insert-values tname [pred] records)
-        (apply update-or-insert-values tname [pred] records)))
-     this)
+    (let [predicate (into [(str pred)] (:env pred))]
+      (in-connection*
+       (if (map? records)
+         (update-or-insert-values tname predicate records)
+         (apply update-or-insert-values tname predicate records)))
+      this))
 
   (grouped [this field]
     (assoc this :grouped-by (to-name tname field)))
