@@ -85,7 +85,7 @@ Initialization
 Queries
 -----
 
-    (def users (table db :users)  ; Defaults to all colums in table users
+    (def users (table db :users))  ; Defaults to all colums in table users
 
     @users
     >>> ({:id 1 :name "Lau"}
@@ -97,7 +97,7 @@ Queries
          {:name "Christophe", :id 2})
 
     @(-> (select users (where (< :id 3)))
-         (project #{:title}))  ; <-- Only return the column :title
+         (project [:title]))  ; <-- Only return the column :title
     >>> ({:title "Dev"}
          {:title "Design Guru"})
 
