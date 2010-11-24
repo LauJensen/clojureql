@@ -85,7 +85,7 @@ Initialization
 Queries
 -----
 
-    (def users (table db :users)  ; Defaults to all colums in table users
+    (def users (table db :users))  ; Defaults to all colums in table users
 
     @users
     >>> ({:id 1 :name "Lau"}
