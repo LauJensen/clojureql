@@ -159,12 +159,12 @@
 (defmacro where [clause]
   "Constructs a where-clause for queries.
 
-   (where (or (< :a 2) (>= :b 4))) => \"((a < 2) OR (b >= 4))\"
+   (where (or (< :a 2) (>= :b 4))) => \"((a < ?) OR (b >= ?))\"
 
-   Strings are auto quoted. Typically you will use this in conjunction with
-   select, ie.
+   If you call str on the result, you'll get the above. If you call
+   (:env) you will see the captured environment
 
-   (select tble (where ...))"
+   Use as: (select tble (where ...))"
   `(where* ~(into {} (for [[local] &env] [(list 'quote local) local]))
            '~clause))
 
@@ -177,6 +177,9 @@
         (seq (:restriction table)))))
 
 (defn extract-aliases
+  " Internal: Looks through the tables in 'joins' and finds tables
+              which requires subselects. It returns a vector of the
+              original name and the new name for each table "
   [joins]
   (for [[tbl-or-kwd pred] (map :data joins)
              :when (requires-subselect? tbl-or-kwd)

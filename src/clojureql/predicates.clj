@@ -17,8 +17,6 @@
                     (str (to-tablename %))
                     "?"))
             (join-str (str \space op \space)))
-       ;(join-str op (repeat (count (remove keyword? expression)) " ? "))
-
        ")"))
 
 (defprotocol Predicate
