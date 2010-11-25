@@ -309,7 +309,7 @@
            (f (resultset-seq rset)))))))
 
   (select [this predicate]
-    (assoc this :restriction predicate)) ;(conj (or restriction []) predicate)))
+    (assoc this :restriction predicate)) 
 
   (project [this fields]
     (assoc this :tcols fields))
