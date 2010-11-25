@@ -1,8 +1,13 @@
 (ns clojureql.core-test
-  (:use clojureql.core
-        clojure.test)
+  (:use [clojure.contrib.sql :only (update-or-insert-values)]
+        clojure.test
+        clojureql.core)
   (:refer-clojure
    :exclude [take drop sort conj! disj!]))
+
+;;; TODO: Why do I get an "Unable to resolve symbol: comment in this
+;;; context" exception when I put this into the above :use form ???
+(use 'clojure.contrib.mock)
 
 (deftest sql-compilation
 
@@ -111,7 +116,14 @@
   (testing "joining on multiple tables"
     (are [x y] (= (-> x to-sql interpolate-sql) y)
          (-> (table :users)
-                    (join (table :wages) :wid)
-                    (join (table :commits) :cid))
+             (join (table :wages) :wid)
+             (join (table :commits) :cid))
          "SELECT users.*,wages.*,commits.* FROM users JOIN wages USING(wid) JOIN commits USING(cid)"))
+
+  (testing "update-in!"
+    (expect [update-or-insert-values (has-args [:users ["(id = ?)" 1] {:name "Bob"}])]
+      (update-in! (table :users) (where (= :id 1)) {:name "Bob"}))
+    (expect [update-or-insert-values (has-args [:users ["(salary IS ?)" nil] {:salary 1000}])]
+      (update-in! (table :users) (where (= :salary nil)) {:salary 1000})))
+
 )

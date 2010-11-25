@@ -4,11 +4,7 @@
         [clojure.string :only [join] :rename {join join-str}]))
 
 (defn sanitize [expression]
-  (reduce #(conj %1
-                 (cond (string? %2)      %2
-                       (nil? %2)         "NULL"
-                       :else %2)) []
-      (remove keyword? expression)))
+  (reduce #(conj %1 %2) [] (remove keyword? expression)))
 
 (defn parameterize [op expression]
   (str "("

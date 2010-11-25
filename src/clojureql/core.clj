@@ -259,7 +259,6 @@
                        (when offset         (str "OFFSET " offset))])
         env       (->> [(map (comp :env last) jdata) (when preds [(:env preds)])]
                        flatten vec
-                       (remove nil?)
                        vec)
         sql-vec   (into [statement] env)]
     (when *debug* (prn sql-vec))
@@ -267,7 +266,7 @@
 
 (defn interpolate-sql [[stmt & args]]
   "For compilation test purposes only"
-  (reduce #(.replaceFirst %1 "\\?" (str %2)) stmt args))
+  (reduce #(.replaceFirst %1 "\\?" (if (nil? %2) "NULL" (str %2))) stmt args))
 
 
                                         ; RELATIONAL ALGEBRA

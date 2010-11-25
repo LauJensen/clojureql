@@ -6,8 +6,8 @@
        (=* :id 5)
        ["(id = ?)" [5]]
        (=* :id nil)
-       ["(id IS ?)" ["NULL"]]
+       ["(id IS ?)" [nil]]
        (=* nil :id)
-       ["(id IS ?)" ["NULL"]]
+       ["(id IS ?)" [nil]]
        (=* nil nil)
        ["TRUE" []]))
