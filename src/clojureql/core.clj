@@ -257,7 +257,7 @@
                        (when grouped-by     (str "GROUP BY " (to-fieldlist tname grouped-by)))
                        (when limit          (str "LIMIT " limit))
                        (when offset         (str "OFFSET " offset))])
-        env       (->> [(map (comp :env last) jdata) (when preds [(:env preds)])]
+        env       (->> [(map (comp :env last) jdata) (if preds [(:env preds)] [])]
                        flatten vec
                        vec)
         sql-vec   (into [statement] env)]
