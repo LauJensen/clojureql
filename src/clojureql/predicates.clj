@@ -6,7 +6,7 @@
 (defn sanitize [expression]
   (reduce #(conj %1
                  (cond (string? %2)      %2
-                       (nil? %2)         "NULL"
+                       (nil? %2)         :NULL
                        :else %2)) []
       (remove keyword? expression)))
 

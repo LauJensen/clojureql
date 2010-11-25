@@ -280,7 +280,9 @@
     (throw (Exception. "sql-params must be a vector")))
   (with-open [stmt (.prepareStatement (:connection sqlint/*db*) sql)]
     (doseq [[idx v] (map vector (iterate inc 1) params)]
-         (.setObject stmt idx v))
+      (if (= :NULL v)
+        (.setNull stmt idx java.sql.Types/NULL)
+        (.setObject stmt idx v)))
     (if-let [fetch-size (-> sqlint/*db* :opts :fetch-size)]
       (do
         (.setFetchSize stmt fetch-size)
@@ -289,3 +291,63 @@
            (func (result-seq rset)))))
       (with-open [rset (.executeQuery stmt)]
         (func (result-seq rset))))))
+
+(defn exec-prepared
+  "Executes an (optionally parameterized) SQL prepared statement on the
+  open database connection. Each param-group is a seq of values for all of
+  the parameters."
+  [sql & param-groups]
+  (with-open [stmt (.prepareStatement (:connection sqlint/*db*) sql)]
+    (doseq [param-group param-groups]
+      (doseq [[idx v] (map vector (iterate inc 1) param-group)]
+        (if (= :NULL v)
+          (.setNull stmt idx java.sql.Types/NULL)
+          (.setObject stmt idx v)))
+      (.addBatch stmt))
+    (csql/transaction
+     (seq (.executeBatch stmt)))))
+
+(defn conj-rows
+  "Inserts rows into a table with values for specified columns only.
+  column-names is a vector of strings or keywords identifying columns. Each
+  value-group is a vector containing a values for each column in
+  order. When inserting complete rows (all columns), consider using
+  insert-rows instead."
+  [table column-names & value-groups]
+  (let [column-strs (map to-tablename column-names)
+        n (count (first value-groups))
+        template (apply str (interpose "," (replicate n "?")))
+        columns (if (seq column-names)
+                  (format "(%s)" (apply str (interpose "," column-strs)))
+                  "")]
+    (apply exec-prepared
+           (format "INSERT INTO %s %s VALUES (%s)"
+                   (str table) columns template)
+           value-groups)))
+
+(defn update-vals
+  "Updates values on selected rows in a table. where-params is a vector
+  containing a string providing the (optionally parameterized) selection
+  criteria followed by values for any parameters. record is a map from
+  strings or keywords (identifying columns) to updated values."
+  [table where-params record]
+  (let [[where & params] where-params
+        column-strs (map to-tablename (keys record))
+        columns (apply str (concat (interpose "=?, " column-strs) "=?"))]
+    (exec-prepared
+     (format "UPDATE %s SET %s WHERE %s"
+             (to-tablename table) columns where)
+     (concat (vals record) params))))
+
+(defn update-or-insert-vals
+  "Updates values on selected rows in a table, or inserts a new row when no
+  existing row matches the selection criteria. where-params is a vector
+  containing a string providing the (optionally parameterized) selection
+  criteria followed by values for any parameters. record is a map from
+  strings or keywords (identifying columns) to updated values."
+  [table where-params record]
+  (csql/transaction
+   (let [result (update-vals table where-params record)]
+     (if (zero? (first result))
+       (conj-rows table (keys record) (vals record))
+       result))))

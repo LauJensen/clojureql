@@ -376,10 +376,11 @@
 
   (update-in! [this pred records]
     (let [predicate (into [(str pred)] (:env pred))]
+      (when *debug* (prn predicate))
       (in-connection*
        (if (map? records)
-         (update-or-insert-values tname predicate records)
-         (apply update-or-insert-values tname predicate records)))
+         (update-or-insert-vals tname predicate records)
+         (apply update-or-insert-vals tname predicate records)))
       this))
 
   (grouped [this field]
