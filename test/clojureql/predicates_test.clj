@@ -10,4 +10,6 @@
        (=* nil :id)
        ["(id IS ?)" [nil]]
        (=* nil nil)
-       ["TRUE" []]))
+       ["TRUE" []]
+       (=* :lower/name "bob")
+       ["(lower(name) = ?)" ["bob"]]))

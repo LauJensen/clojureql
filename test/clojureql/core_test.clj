@@ -48,7 +48,10 @@
              (select (where (and (!= :id 5) (or (> :id 10)
                                                 (< :id 20)))))
              (project [:id]))
-         "SELECT users.id FROM users WHERE ((id != 5) AND ((id > 10) OR (id < 20)))"))
+         "SELECT users.id FROM users WHERE ((id != 5) AND ((id > 10) OR (id < 20)))"
+         (-> (table :users)
+             (select (where (= :lower/name "bob"))))
+         "SELECT users.* FROM users WHERE (lower(name) = bob)"))
 
   (testing "projections"
     (are [x y] (= (-> x to-sql interpolate-sql) y)
@@ -126,4 +129,4 @@
     (expect [update-or-insert-values (has-args [:users ["(salary IS ?)" nil] {:salary 1000}])]
       (update-in! (table :users) (where (= :salary nil)) {:salary 1000})))
 
-)
+  )

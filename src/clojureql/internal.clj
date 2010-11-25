@@ -61,11 +61,13 @@
        (interpose ",")
        (apply str)))
 
+(declare to-name)
+
 (defn to-tablename
   [c]
   (cond
    (nil? c)         nil
-   (keyword? c)     (name c)
+   (keyword? c)     (to-name c)
    (string? c)      c
    :else            ; Map denotes rename
    (let [[orig new] (map name (first c))]
