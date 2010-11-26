@@ -38,14 +38,14 @@
       (cond
        (every? nil? (rest expr))
        (assoc this
-         :stmt (conj stmt "TRUE")
+         :stmt (conj stmt "(NULL IS NULL)")
          :env  env)
        (nil? p1)
        (.spec-op this [op p2 p1])
        (nil? p2)
        (assoc this
-         :stmt (conj stmt (parameterize "IS" (rest expr)))
-         :env  (into env (sanitize (rest expr))))
+         :stmt (conj stmt (str "(" (name p1) " IS NULL)"))
+         :env [])
        :else
        (infix this "=" (rest expr)))))
   (infix [this op expr]

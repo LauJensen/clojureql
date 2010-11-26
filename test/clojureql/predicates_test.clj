@@ -6,10 +6,10 @@
        (=* :id 5)
        ["(id = ?)" [5]]
        (=* :id nil)
-       ["(id IS ?)" [nil]]
+       ["(id IS NULL)" []]
        (=* nil :id)
-       ["(id IS ?)" [nil]]
+       ["(id IS NULL)" []]
        (=* nil nil)
-       ["TRUE" []]
+       ["(NULL IS NULL)" []]
        (=* :lower/name "bob")
        ["(lower(name) = ?)" ["bob"]]))

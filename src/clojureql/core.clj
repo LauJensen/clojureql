@@ -257,8 +257,9 @@
                        (when grouped-by     (str "GROUP BY " (to-fieldlist tname grouped-by)))
                        (when limit          (str "LIMIT " limit))
                        (when offset         (str "OFFSET " offset))])
-        env       (->> [(map (comp :env last) jdata) (if preds [(:env preds)] [])]
+        env       (->> [(map (comp :env last) jdata) (if preds [(:env preds)])]
                        flatten vec
+                       (remove nil?)
                        vec)
         sql-vec   (into [statement] env)]
     (when *debug* (prn sql-vec))
@@ -375,10 +376,11 @@
 
   (update-in! [this pred records]
     (let [predicate (into [(str pred)] (:env pred))]
+      (when *debug* (prn predicate))
       (in-connection*
        (if (map? records)
-         (update-or-insert-values tname predicate records)
-         (apply update-or-insert-values tname predicate records)))
+         (update-or-insert-vals tname predicate records)
+         (apply update-or-insert-vals tname predicate records)))
       this))
 
   (grouped [this field]
