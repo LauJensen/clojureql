@@ -144,7 +144,7 @@ Aggregates
     >>> ({:avg(wage) 250.0000M})
 
     @(-> (table db :salary)
-         (aggregate [[:avg/wage :as average]]))
+         (aggregate [[:avg/wage :as :average]]))
     >>> ({:average 250.0000M})
 
     (-> (table db :salary)
