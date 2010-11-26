@@ -1,5 +1,5 @@
 (ns clojureql.core-test
-  (:use [clojure.contrib.sql :only (update-or-insert-values)]
+  (:use [clojureql.internal :only (update-or-insert-vals)]
         clojure.test
         clojureql.core)
   (:refer-clojure
@@ -123,10 +123,10 @@
              (join (table :commits) :cid))
          "SELECT users.*,wages.*,commits.* FROM users JOIN wages USING(wid) JOIN commits USING(cid)"))
 
-  ;; (testing "update-in!"
-  ;;   (expect [update-or-insert-values (has-args [:users ["(id = ?)" 1] {:name "Bob"}])]
-  ;;     (update-in! (table :users) (where (= :id 1)) {:name "Bob"}))
-  ;;   (expect [update-or-insert-values (has-args [:users ["(salary IS ?)" nil] {:salary 1000}])]
-  ;;     (update-in! (table :users) (where (= :salary nil)) {:salary 1000})))
+  (testing "update-in!"
+    (expect [update-or-insert-vals (has-args [:users ["(id = ?)" 1] {:name "Bob"}])]
+      (update-in! (table :users) (where (= :id 1)) {:name "Bob"}))
+    (expect [update-or-insert-vals (has-args [:users ["(salary IS NULL)"] {:salary 1000}])]
+      (update-in! (table :users) (where (= :salary nil)) {:salary 1000})))
 
   )
