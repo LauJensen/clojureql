@@ -1,6 +1,5 @@
 (ns clojureql.predicates
   (:use clojureql.internal
-        clojure.walk
         [clojure.string :only [join] :rename {join join-str}]))
 
 (defn sanitize [expression]
@@ -85,21 +84,6 @@
 (defoperator <*   :<     "< operator:     (< :x 5)")
 (defoperator <=*  :<=    "<= operator:    (<= :x 5)")
 (defoperator >=*  :>=    ">= operator:    (>= :x 5)")
-
-(defn where*
-  ([clause] (where* {} clause))
-  ([locals clause]
-     (-> (postwalk-replace (merge locals
-                                  '{=   clojureql.predicates/=*
-                                    !=  clojureql.predicates/!=*
-                                    <   clojureql.predicates/<*
-                                    >   clojureql.predicates/>*
-                                    <=  clojureql.predicates/<=*
-                                    >=  clojureql.predicates/>=*
-                                    and clojureql.predicates/and*
-                                    or  clojureql.predicates/or*})
-                           clause)
-         eval)))
 
 (defn restrict
   "Returns a query string.
