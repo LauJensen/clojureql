@@ -1,4 +1,5 @@
 (ns clojureql.test.integration
+  (:import java.sql.Timestamp)
   (:use clojure.test clojureql.core clojureql.test)
   (:refer-clojure
    :exclude [group-by take sort drop conj! disj!]
@@ -74,3 +75,6 @@
 
 (database-test test-update-in!-with-nil
   (is @(update-in! (table :users) (where (= :id nil)) {:name "John"})))
+
+(database-test test-update-in!-with-time
+  (is @(update-in! (table :users) (where (= :id 1)) {:birthday (Timestamp/valueOf "1980-01-01 00:00:00.00")})))

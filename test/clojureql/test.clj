@@ -41,7 +41,8 @@
    :users
    [:id    :integer "PRIMARY KEY" "AUTO_INCREMENT"]
    [:name  "varchar(255)"]
-   [:title "varchar(255)"])
+   [:title "varchar(255)"]
+   [:birthday "TIMESTAMP"])
   (create-table
    :salary
    [:id    :integer "PRIMARY KEY" "AUTO_INCREMENT"]
@@ -52,7 +53,8 @@
    :users
    [:id "SERIAL"]
    [:name "varchar(255)"]
-   [:title "varchar(255)"])
+   [:title "varchar(255)"]
+   [:birthday "TIMESTAMP"])
   (create-table
    :salary
    [:id "SERIAL"]
@@ -63,7 +65,8 @@
    :users
    [:id    :integer "PRIMARY KEY" "AUTOINCREMENT"]
    [:name  "varchar(255)"]
-   [:title "varchar(255)"])
+   [:title "varchar(255)"]
+   [:birthday "TIMESTAMP"])
   (create-table
    :salary
    [:id    :integer "PRIMARY KEY" "AUTOINCREMENT"]
