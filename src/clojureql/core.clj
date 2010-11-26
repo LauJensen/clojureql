@@ -73,7 +73,8 @@
    [clojureql internal predicates]
    [clojure.string :only [join] :rename {join join-str}]
    [clojure.contrib sql [core :only [-?> -?>>]]]
-   [clojure.contrib.sql.internal :as sqlint]))
+   [clojure.contrib.sql.internal :as sqlint]
+   [clojure.walk :only (postwalk-replace)]))
 
                                         ; GLOBALS
 
@@ -165,8 +166,16 @@
    (:env) you will see the captured environment
 
    Use as: (select tble (where ...))"
-  `(where* ~(into {} (for [[local] &env] [(list 'quote local) local]))
-           '~clause))
+  `~(postwalk-replace
+     '{=   clojureql.predicates/=*
+       !=  clojureql.predicates/!=*
+       <   clojureql.predicates/<*
+       >   clojureql.predicates/>*
+       <=  clojureql.predicates/<=*
+       >=  clojureql.predicates/>=*
+       and clojureql.predicates/and*
+       or  clojureql.predicates/or*}
+     clause))
 
 (defn requires-subselect?
   [table]

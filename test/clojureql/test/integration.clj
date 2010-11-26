@@ -76,5 +76,6 @@
 (database-test test-update-in!-with-nil
   (is @(update-in! (table :users) (where (= :id nil)) {:name "John"})))
 
-(database-test test-update-in!-with-time
-  (is @(update-in! (table :users) (where (= :id 1)) {:birthday (Timestamp/valueOf "1980-01-01 00:00:00.00")})))
+(database-test test-update-in!-with-timestamp
+  (let [user (first @(update-in! (table :users) (where (= :id 1)) {:birthday (Timestamp/valueOf "1980-01-01 00:00:00.00")}))]
+    (is @(update-in! (table :users) (where (= :id (:id user))) {:birthday (Timestamp/valueOf "1980-01-02 00:00:00.00")}))))
