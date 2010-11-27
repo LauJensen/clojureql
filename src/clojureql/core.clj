@@ -267,7 +267,7 @@
                        (when limit          (str "LIMIT " limit))
                        (when offset         (str "OFFSET " offset))])
         env       (->> [(map (comp :env last) jdata) (if preds [(:env preds)])]
-                       flatten vec
+                       flatten
                        (remove nil?)
                        vec)
         sql-vec   (into [statement] env)]
