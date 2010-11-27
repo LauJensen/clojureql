@@ -7,7 +7,7 @@
    :user        "cql"
    :password    "cql"
    :auto-commit true
-   :fetch-size  500 
+   :fetch-size  500
    :subname     "//localhost:3306/cql"})
 
 (def postgresql
@@ -16,12 +16,12 @@
    :user        "cql"
    :password    "cql"
    :auto-commit true
-   :fetch-size  500 
+   :fetch-size  500
    :subname     "//localhost:5432/cql"})
 
 (def sqlite3
-  {:classname "org.sqlite.JDBC",
-   :subprotocol "sqlite",
+  {:classname "org.sqlite.JDBC"
+   :subprotocol "sqlite"
    :subname "/tmp/cql.sqlite3"
    :create true})
 
@@ -39,38 +39,38 @@
 (defmethod create-schema com.mysql.jdbc.JDBC4Connection []
   (create-table
    :users
-   [:id    :integer "PRIMARY KEY" "AUTO_INCREMENT"]
-   [:name  "varchar(255)"]
-   [:title "varchar(255)"]
-   [:birthday "TIMESTAMP"])
+   [:id        :integer "PRIMARY KEY" "AUTO_INCREMENT"]
+   [:name      "varchar(255)"]
+   [:title     "varchar(255)"]
+   [:birthday  "TIMESTAMP"])
   (create-table
    :salary
-   [:id    :integer "PRIMARY KEY" "AUTO_INCREMENT"]
-   [:wage  :integer]))
+   [:id        :integer "PRIMARY KEY" "AUTO_INCREMENT"]
+   [:wage      :integer]))
 
 (defmethod create-schema org.postgresql.jdbc4.Jdbc4Connection []
   (create-table
    :users
-   [:id "SERIAL"]
-   [:name "varchar(255)"]
-   [:title "varchar(255)"]
-   [:birthday "TIMESTAMP"])
+   [:id        "SERIAL"]
+   [:name      "varchar(255)"]
+   [:title     "varchar(255)"]
+   [:birthday  "TIMESTAMP"])
   (create-table
    :salary
-   [:id "SERIAL"]
-   [:wage :integer]))
+   [:id        "SERIAL"]
+   [:wage      :integer]))
 
 (defmethod create-schema org.sqlite.Conn []
   (create-table
    :users
-   [:id    :integer "PRIMARY KEY" "AUTOINCREMENT"]
-   [:name  "varchar(255)"]
-   [:title "varchar(255)"]
-   [:birthday "TIMESTAMP"])
+   [:id        :integer "PRIMARY KEY" "AUTOINCREMENT"]
+   [:name      "varchar(255)"]
+   [:title     "varchar(255)"]
+   [:birthday  "TIMESTAMP"])
   (create-table
    :salary
-   [:id    :integer "PRIMARY KEY" "AUTOINCREMENT"]
-   [:wage  :integer]))
+   [:id        :integer "PRIMARY KEY" "AUTOINCREMENT"]
+   [:wage      :integer]))
 
 (defmacro database-test [name & body]
   (let [name# name body# body]
