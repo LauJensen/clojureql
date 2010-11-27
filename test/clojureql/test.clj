@@ -34,6 +34,15 @@
   (drop-if :salary)
   (drop-if :users))
 
+(defn mysql? []
+  (isa? (class (connection)) com.mysql.jdbc.JDBC4Connection))
+
+(defn postgresql? []
+  (isa? (class (connection)) org.postgresql.jdbc4.Jdbc4Connection))
+
+(defn sqlite3? []
+  (isa? (class (connection)) org.sqlite.Conn))
+
 (defmulti create-schema #(class (connection)))
 
 (defmethod create-schema com.mysql.jdbc.JDBC4Connection []
