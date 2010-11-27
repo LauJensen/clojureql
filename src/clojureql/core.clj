@@ -319,7 +319,7 @@
            (f (resultset-seq rset)))))))
 
   (select [this predicate]
-    (assoc this :restriction predicate)) 
+    (assoc this :restriction predicate)) ;TODO: Make this additive
 
   (project [this fields]
     (assoc this :tcols fields))
