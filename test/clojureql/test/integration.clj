@@ -63,13 +63,13 @@
 (database-test test-select-with-nil
   (is (empty? @(select (table :users) (where (= nil nil))))))
 
-(database-test test-select-null
-  (conj! users [{:name "Alice" :title "Developer"} {:name "Bob"}])
-  (is (= "Bob" (:name (first @(select users (where (= :title nil))))))))
+(database-test test-select-is-null
+  (let [[alice bob] @(conj! users [{:name "Alice" :title "Developer"} {:name "Bob"}])]
+    (is (= bob (first @(select users (where (= :title nil))))))))
 
-(database-test test-select-not-null
-  (conj! users [{:name "Alice" :title "Developer"} {:name "Bob"}])
-  (is (= "Alice" (:name (first @(select users (where (!= :title nil))))))))
+(database-test test-select-is-not-null
+  (let [[alice bob] @(conj! users [{:name "Alice" :title "Developer"} {:name "Bob"}])]
+    (is (= alice (first @(select users (where (!= :title nil))))))))
 
 (database-test test-select-or
   (insert-data)
