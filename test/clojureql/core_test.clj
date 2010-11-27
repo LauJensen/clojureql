@@ -32,6 +32,9 @@
              (select (where (= :id nil))))
          "SELECT users.* FROM users WHERE (id IS NULL)"
          (-> (table :users)
+             (select (where (!= :id nil))))
+         "SELECT users.* FROM users WHERE (id IS NOT NULL)"
+         (-> (table :users)
              (select (where (or (= :id 5) (>= :id 10))))
              (project [:id]))
          "SELECT users.id FROM users WHERE ((id = 5) OR (id >= 10))"

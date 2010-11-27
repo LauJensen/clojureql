@@ -11,5 +11,7 @@
        ["(id IS NULL)" []]
        (=* nil nil)
        ["(NULL IS NULL)" []]
+       (!=* :id nil)
+       ["(id IS NOT NULL)" []]
        (=* :lower/name "bob")
        ["(lower(name) = ?)" ["bob"]]))

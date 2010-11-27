@@ -37,13 +37,13 @@
       (cond
        (every? nil? (rest expr))
        (assoc this
-         :stmt (conj stmt "(NULL IS NULL)")
+         :stmt (conj stmt "(NULL " op " NULL)")
          :env  env)
        (nil? p1)
        (.spec-op this [op p2 p1])
        (nil? p2)
        (assoc this
-         :stmt (conj stmt (str "(" (name p1) " IS NULL)"))
+         :stmt (conj stmt (str "(" (name p1) " " op " NULL)"))
          :env [])
        :else
        (infix this "=" (rest expr)))))
@@ -78,8 +78,12 @@
     (spec-op (predicate) (into ["IS"] args))
     (infix (predicate) "=" args)))
 
+(defn !=* [& args]
+  (if (some #(nil? %) args)
+    (spec-op (predicate) (into ["IS NOT"] args))
+    (infix (predicate) "!=" args)))
+
 (defoperator like :like  "LIKE operator:  (like :x \"%y%\"")
-(defoperator !=*  :!=    "!= operator:    (!= :x 5)")
 (defoperator >*   :>     "> operator:     (> :x 5)")
 (defoperator <*   :<     "< operator:     (< :x 5)")
 (defoperator <=*  :<=    "<= operator:    (<= :x 5)")

@@ -57,14 +57,19 @@
   (insert-data)
   (is @(-> (table :salary) (project [:avg/wage]))))
 
-(database-test test-select-with-nil
-  (is (empty? @(select (table :users) (where (= :id nil))))))
-
 (database-test test-select-with-nil-and-value
   (is (empty? @(select (table :users) (where (and (= :name "a") (= :id nil)))))))
 
 (database-test test-select-with-nil
   (is (empty? @(select (table :users) (where (= nil nil))))))
+
+(database-test test-select-null
+  (conj! users [{:name "Alice" :title "Developer"} {:name "Bob"}])
+  (is (= "Bob" (:name (first @(select users (where (= :title nil))))))))
+
+(database-test test-select-not-null
+  (conj! users [{:name "Alice" :title "Developer"} {:name "Bob"}])
+  (is (= "Alice" (:name (first @(select users (where (!= :title nil))))))))
 
 (database-test test-select-or
   (insert-data)
