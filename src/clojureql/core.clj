@@ -236,9 +236,16 @@
        (assoc pred :env (into (:env pred) env))
        pred)]))
 
+(defn- combination-op [combination]
+  (->> [(:type combination) (:mode combination)]
+       (remove nil?)
+       (map name)
+       (join-str " ")
+       upper-case))
+
 (defn to-sql [tble]
   (let [{:keys [cnx tname tcols restriction renames joins
-                grouped-by limit offset order-by]} tble                
+                grouped-by limit offset order-by]} tble
         aliases   (when joins (extract-aliases joins))
         combination (if (:combination tble) (to-sql (:relation (:combination tble))))
         fields    (str (if tcols (to-fieldlist tname tcols) "*")
@@ -267,7 +274,7 @@
                        (when grouped-by     (str "GROUP BY " (to-fieldlist tname grouped-by)))
                        (when limit          (str "LIMIT " limit))
                        (when offset         (str "OFFSET " offset))
-                       (when combination    (str (upper-case (name (:type (:combination tble)))) " " (first combination)))])
+                       (when combination    (str (combination-op (:combination tble)) " " (first combination)))])
         env       (concat
                    (->> [(map (comp :env last) jdata) (if preds [(:env preds)])]
                         flatten
@@ -298,10 +305,6 @@
   (disj!      [this predicate]            "Deletes record(s) from the table")
   (update-in! [this pred records]         "Inserts or updates record(s) where pred is true")
 
-  (intersection [this relation]           "The set intersection of the relations.")
-  (difference   [this relation]           "The set difference of the relations.")
-  (union        [this relation]           "The set union of the relations.")
-  
   (limit      [this n]                    "Queries the table with LIMIT n, call via take")
   (offset     [this n]                    "Queries the table with OFFSET n, call via drop")
   (sorted     [this fields]               "Sorts the query using fields, call via sort")
@@ -348,15 +351,6 @@
                  {:data     [(to-tablename (:tname table2)) join-on]
                  :type     :join
                  :position ""}))))
-
-  (difference [this relation]
-    (assoc this :combination {:relation relation :type :except}))  
-
-  (intersection [this relation]
-    (assoc this :combination {:relation relation :type :intersect}))  
-
-  (union [this relation]
-    (assoc this :combination {:relation relation :type :union}))
 
   (outer-join [this table2 type join-on]
     (if (requires-subselect? table2)
@@ -462,3 +456,29 @@
   (if (table? obj)
     (apply offset obj args)
     (apply clojure.core/drop obj args)))
+
+(defn- combine [type relations & [mode]]
+  (let [relations (reverse relations)]
+    (reduce #(assoc %2 :combination {:relation %1 :type type :mode mode})
+            (first relations) (rest relations))))
+
+(defn difference
+  "Return a new relation that is the difference of the given
+  relations. All relations must have the same number of columns in the
+  same order and have similar data types. To allow duplicate values
+  use :all as mode."
+  [relations & [mode]] (combine :except relations mode))
+
+(defn intersection
+  "Return a new relation that is the intersection of the given
+  relations. All relations must have the same number of columns in the
+  same order and have similar data types. To allow duplicate values
+  use :all as mode."
+  [relations & [mode]] (combine :intersect relations mode))
+
+(defn union
+  "Return a new relation that is the union of the given relations. All
+  relations must have the same number of columns in the same order and
+  have similar data types. To allow duplicate values use :all as
+  mode."
+  [relations & [mode]] (combine :union relations mode))

@@ -133,21 +133,46 @@
       (update-in! (table :users) (where (= :salary nil)) {:salary 1000})))
 
   (testing "difference"
-    (are [x y] (= (-> x to-sql interpolate-sql) y)         
-         (difference (select (table :users) (where (> :id 50)))
-                     (select (table :users) (where (< :id 100))))
-         "SELECT users.* FROM users WHERE (id > 50) EXCEPT SELECT users.* FROM users WHERE (id < 100)"))
+    (are [x y] (= (-> x to-sql interpolate-sql) y)
+         (difference [(select (table :users) (where (>= :id 0)))])
+         "SELECT users.* FROM users WHERE (id >= 0)"
+         (difference [(select (table :users) (where (>= :id 0)))
+                      (select (table :users) (where (= :id 1)))
+                      (select (table :users) (where (<= :id 2)))])
+         "SELECT users.* FROM users WHERE (id >= 0) EXCEPT SELECT users.* FROM users WHERE (id = 1) EXCEPT SELECT users.* FROM users WHERE (id <= 2)"
+         (difference [(select (table :users) (where (>= :id 0)))
+                      (select (table :users) (where (= :id 1)))
+                      (select (table :users) (where (<= :id 2)))] :all)
+         "SELECT users.* FROM users WHERE (id >= 0) EXCEPT ALL SELECT users.* FROM users WHERE (id = 1) EXCEPT ALL SELECT users.* FROM users WHERE (id <= 2)"))
 
   (testing "intersection"
-    (are [x y] (= (-> x to-sql interpolate-sql) y)         
-         (intersection (select (table :users) (where (> :id 50)))
-                       (select (table :users) (where (< :id 100))))
-         "SELECT users.* FROM users WHERE (id > 50) INTERSECT SELECT users.* FROM users WHERE (id < 100)"))
+    (are [x y] (= (-> x to-sql interpolate-sql) y)
+         (intersection [(select (table :users) (where (>= :id 0)))])
+         "SELECT users.* FROM users WHERE (id >= 0)"
+         (intersection [(select (table :users) (where (>= :id 0)))
+                        (select (table :users) (where (= :id 1)))
+                        (select (table :users) (where (<= :id 2)))])
+         "SELECT users.* FROM users WHERE (id >= 0) INTERSECT SELECT users.* FROM users WHERE (id = 1) INTERSECT SELECT users.* FROM users WHERE (id <= 2)"
+         (intersection [(select (table :users) (where (>= :id 0)))
+                        (select (table :users) (where (= :id 1)))
+                        (select (table :users) (where (<= :id 2)))] :all)
+         "SELECT users.* FROM users WHERE (id >= 0) INTERSECT ALL SELECT users.* FROM users WHERE (id = 1) INTERSECT ALL SELECT users.* FROM users WHERE (id <= 2)"))
 
   (testing "union"
-    (are [x y] (= (-> x to-sql interpolate-sql) y)         
-         (union (select (table :users) (where (> :id 50)))
-                (select (table :users) (where (< :id 100))))
-         "SELECT users.* FROM users WHERE (id > 50) UNION SELECT users.* FROM users WHERE (id < 100)"))
-  
+    (are [x y] (= (-> x to-sql interpolate-sql) y)
+         (union [(select (table :users) (where (>= :id 0)))])
+         "SELECT users.* FROM users WHERE (id >= 0)"
+         (union [(select (table :users) (where (>= :id 0)))
+                 (select (table :users) (where (= :id 1)))
+                 (select (table :users) (where (<= :id 2)))])
+         "SELECT users.* FROM users WHERE (id >= 0) UNION SELECT users.* FROM users WHERE (id = 1) UNION SELECT users.* FROM users WHERE (id <= 2)"
+         (union [(select (table :users) (where (>= :id 0)))
+                 (select (table :users) (where (= :id 1)))
+                 (select (table :users) (where (<= :id 2)))] :all)
+         "SELECT users.* FROM users WHERE (id >= 0) UNION ALL SELECT users.* FROM users WHERE (id = 1) UNION ALL SELECT users.* FROM users WHERE (id <= 2)"
+         (union [(select (table :users) (where (>= :id 0)))
+                 (select (table :users) (where (= :id 1)))
+                 (select (table :users) (where (<= :id 2)))] :distinct)
+         "SELECT users.* FROM users WHERE (id >= 0) UNION DISTINCT SELECT users.* FROM users WHERE (id = 1) UNION DISTINCT SELECT users.* FROM users WHERE (id <= 2)"))
+
   )

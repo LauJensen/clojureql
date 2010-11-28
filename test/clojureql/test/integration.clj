@@ -88,18 +88,18 @@
 (database-test test-difference
   (when (or (postgresql?) (sqlite3?))
     (let [[alice bob] @(conj! users [{:name "Alice" :title "Developer"} {:name "Bob"}])]
-      (is (empty? @(difference (select (table :users) (where (= :id (:id alice))))
-                               (select (table :users) (where (= :id (:id alice))))))))))
+      (is (empty? @(difference [(select (table :users) (where (= :id (:id alice))))
+                                (select (table :users) (where (= :id (:id alice))))]))))))
 
 (database-test test-intersection
   (when (or (postgresql?) (sqlite3?))
     (let [[alice bob] @(conj! users [{:name "Alice" :title "Developer"} {:name "Bob"}])]
       (is (= (map :id [alice])
-             (map :id @(intersection (select (table :users) (where (= :id (:id alice))))
-                                     (table :users))))))))
+             (map :id @(intersection [(select (table :users) (where (= :id (:id alice))))
+                                      (table :users)])))))))
 
 (database-test test-union
   (let [[alice bob] @(conj! users [{:name "Alice" :title "Developer"} {:name "Bob"}])]
     (is (= (map :id [alice bob])
-           (map :id @(union (select (table :users) (where (= :id (:id alice))))
-                            (select (table :users) (where (= :id (:id bob))))))))))
+           (map :id @(union [(select (table :users) (where (= :id (:id alice))))
+                             (select (table :users) (where (= :id (:id bob))))]))))))
