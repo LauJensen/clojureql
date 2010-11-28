@@ -84,3 +84,22 @@
 (database-test test-update-in!-with-timestamp
   (let [user (first @(update-in! (table :users) (where (= :id 1)) {:birthday (Timestamp/valueOf "1980-01-01 00:00:00.00")}))]
     (is @(update-in! (table :users) (where (= :id (:id user))) {:birthday (Timestamp/valueOf "1980-01-02 00:00:00.00")}))))
+
+(database-test test-difference
+  (when (and (postgresql?) (sqlite3?))
+    (let [[alice bob] @(conj! users [{:name "Alice" :title "Developer"} {:name "Bob"}])]
+      (is (empty? @(difference (select (table :users) (where (= :id (:id alice))))
+                               (select (table :users) (where (= :id (:id alice))))))))))
+
+(database-test test-intersection
+  (when (and (postgresql?) (sqlite3?))
+    (let [[alice bob] @(conj! users [{:name "Alice" :title "Developer"} {:name "Bob"}])]
+      (is (= (map :id [alice])
+             (map :id @(intersection (select (table :users) (where (= :id (:id alice))))
+                                     (table :users))))))))
+
+(database-test test-union
+  (let [[alice bob] @(conj! users [{:name "Alice" :title "Developer"} {:name "Bob"}])]
+    (is (= (map :id [alice bob])
+           (map :id @(union (select (table :users) (where (= :id (:id alice))))
+                            (select (table :users) (where (= :id (:id bob))))))))))

@@ -71,7 +71,7 @@
    :exclude [take drop sort conj! disj!])
   (:use
    [clojureql internal predicates]
-   [clojure.string :only [join] :rename {join join-str}]
+   [clojure.string :only [join upper-case] :rename {join join-str}]
    [clojure.contrib sql [core :only [-?> -?>>]]]
    [clojure.contrib.sql.internal :as sqlint]
    [clojure.walk :only (postwalk-replace)]))
@@ -238,8 +238,9 @@
 
 (defn to-sql [tble]
   (let [{:keys [cnx tname tcols restriction renames joins
-                grouped-by limit offset order-by]} tble
+                grouped-by limit offset order-by]} tble                
         aliases   (when joins (extract-aliases joins))
+        combination (if (:combination tble) (to-sql (:relation (:combination tble))))
         fields    (str (if tcols (to-fieldlist tname tcols) "*")
                        (when (seq aliases)
                          (str "," (join-str "," (map last aliases)))))
@@ -265,11 +266,14 @@
                        (when (seq order-by) (str "ORDER BY " (to-orderlist tname order-by)))
                        (when grouped-by     (str "GROUP BY " (to-fieldlist tname grouped-by)))
                        (when limit          (str "LIMIT " limit))
-                       (when offset         (str "OFFSET " offset))])
-        env       (->> [(map (comp :env last) jdata) (if preds [(:env preds)])]
-                       flatten
-                       (remove nil?)
-                       vec)
+                       (when offset         (str "OFFSET " offset))
+                       (when combination    (str (upper-case (name (:type (:combination tble)))) " " (first combination)))])
+        env       (concat
+                   (->> [(map (comp :env last) jdata) (if preds [(:env preds)])]
+                        flatten
+                        (remove nil?)
+                        vec)
+                   (rest combination))
         sql-vec   (into [statement] env)]
     (when *debug* (prn sql-vec))
     sql-vec))
@@ -294,6 +298,10 @@
   (disj!      [this predicate]            "Deletes record(s) from the table")
   (update-in! [this pred records]         "Inserts or updates record(s) where pred is true")
 
+  (intersection [this relation]           "The set intersection of the relations.")
+  (difference   [this relation]           "The set difference of the relations.")
+  (union        [this relation]           "The set union of the relations.")
+  
   (limit      [this n]                    "Queries the table with LIMIT n, call via take")
   (offset     [this n]                    "Queries the table with OFFSET n, call via drop")
   (sorted     [this fields]               "Sorts the query using fields, call via sort")
@@ -340,6 +348,15 @@
                  {:data     [(to-tablename (:tname table2)) join-on]
                  :type     :join
                  :position ""}))))
+
+  (difference [this relation]
+    (assoc this :combination {:relation relation :type :except}))  
+
+  (intersection [this relation]
+    (assoc this :combination {:relation relation :type :intersect}))  
+
+  (union [this relation]
+    (assoc this :combination {:relation relation :type :union}))
 
   (outer-join [this table2 type join-on]
     (if (requires-subselect? table2)

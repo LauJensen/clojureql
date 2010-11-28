@@ -27,6 +27,15 @@
 
 (def databases [mysql postgresql sqlite3])
 
+(defn mysql? []
+  (isa? (class (connection)) com.mysql.jdbc.JDBC4Connection))
+
+(defn postgresql? []
+  (isa? (class (connection)) org.postgresql.jdbc4.Jdbc4Connection))
+
+(defn sqlite3? []
+  (isa? (class (connection)) org.sqlite.Conn))
+
 (defn drop-if [table]
   (try (drop-table table) (catch Exception _)))
 
