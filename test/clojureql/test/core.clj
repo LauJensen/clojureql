@@ -134,45 +134,57 @@
 
   (testing "difference"
     (are [x y] (= (-> x to-sql interpolate-sql) y)
-         (difference [(select (table :users) (where (>= :id 0)))])
-         "SELECT users.* FROM users WHERE (id >= 0)"
-         (difference [(select (table :users) (where (>= :id 0)))
-                      (select (table :users) (where (= :id 1)))
-                      (select (table :users) (where (<= :id 2)))])
+         (difference (select (table :users) (where (>= :id 0)))
+                (select (table :users) (where (= :id 1))))
+         "SELECT users.* FROM users WHERE (id >= 0) EXCEPT SELECT users.* FROM users WHERE (id = 1)"
+         (-> (select (table :users) (where (>= :id 0)))
+             (difference (select (table :users) (where (= :id 1))))
+             (difference (select (table :users) (where (<= :id 2)))))
          "SELECT users.* FROM users WHERE (id >= 0) EXCEPT SELECT users.* FROM users WHERE (id = 1) EXCEPT SELECT users.* FROM users WHERE (id <= 2)"
-         (difference [(select (table :users) (where (>= :id 0)))
-                      (select (table :users) (where (= :id 1)))
-                      (select (table :users) (where (<= :id 2)))] :all)
-         "SELECT users.* FROM users WHERE (id >= 0) EXCEPT ALL SELECT users.* FROM users WHERE (id = 1) EXCEPT ALL SELECT users.* FROM users WHERE (id <= 2)"))
+         (-> (select (table :users) (where (>= :id 0)))
+             (difference (select (table :users) (where (= :id 1))) :all)
+             (difference (select (table :users) (where (<= :id 2))) :distinct))
+         "SELECT users.* FROM users WHERE (id >= 0) EXCEPT ALL SELECT users.* FROM users WHERE (id = 1) EXCEPT DISTINCT SELECT users.* FROM users WHERE (id <= 2)"))
 
   (testing "intersection"
     (are [x y] (= (-> x to-sql interpolate-sql) y)
-         (intersection [(select (table :users) (where (>= :id 0)))])
-         "SELECT users.* FROM users WHERE (id >= 0)"
-         (intersection [(select (table :users) (where (>= :id 0)))
-                        (select (table :users) (where (= :id 1)))
-                        (select (table :users) (where (<= :id 2)))])
+         (intersection (select (table :users) (where (>= :id 0)))
+                (select (table :users) (where (= :id 1))))
+         "SELECT users.* FROM users WHERE (id >= 0) INTERSECT SELECT users.* FROM users WHERE (id = 1)"
+         (-> (select (table :users) (where (>= :id 0)))
+             (intersection (select (table :users) (where (= :id 1))))
+             (intersection (select (table :users) (where (<= :id 2)))))
          "SELECT users.* FROM users WHERE (id >= 0) INTERSECT SELECT users.* FROM users WHERE (id = 1) INTERSECT SELECT users.* FROM users WHERE (id <= 2)"
-         (intersection [(select (table :users) (where (>= :id 0)))
-                        (select (table :users) (where (= :id 1)))
-                        (select (table :users) (where (<= :id 2)))] :all)
-         "SELECT users.* FROM users WHERE (id >= 0) INTERSECT ALL SELECT users.* FROM users WHERE (id = 1) INTERSECT ALL SELECT users.* FROM users WHERE (id <= 2)"))
+         (-> (select (table :users) (where (>= :id 0)))
+             (intersection (select (table :users) (where (= :id 1))) :all)
+             (intersection (select (table :users) (where (<= :id 2))) :distinct))
+         "SELECT users.* FROM users WHERE (id >= 0) INTERSECT ALL SELECT users.* FROM users WHERE (id = 1) INTERSECT DISTINCT SELECT users.* FROM users WHERE (id <= 2)"))
 
   (testing "union"
     (are [x y] (= (-> x to-sql interpolate-sql) y)
-         (union [(select (table :users) (where (>= :id 0)))])
-         "SELECT users.* FROM users WHERE (id >= 0)"
-         (union [(select (table :users) (where (>= :id 0)))
-                 (select (table :users) (where (= :id 1)))
-                 (select (table :users) (where (<= :id 2)))])
+         (union (select (table :users) (where (>= :id 0)))
+                (select (table :users) (where (= :id 1))))
+         "SELECT users.* FROM users WHERE (id >= 0) UNION SELECT users.* FROM users WHERE (id = 1)"
+         (-> (select (table :users) (where (>= :id 0)))
+             (union (select (table :users) (where (= :id 1))))
+             (union (select (table :users) (where (<= :id 2)))))
          "SELECT users.* FROM users WHERE (id >= 0) UNION SELECT users.* FROM users WHERE (id = 1) UNION SELECT users.* FROM users WHERE (id <= 2)"
-         (union [(select (table :users) (where (>= :id 0)))
-                 (select (table :users) (where (= :id 1)))
-                 (select (table :users) (where (<= :id 2)))] :all)
-         "SELECT users.* FROM users WHERE (id >= 0) UNION ALL SELECT users.* FROM users WHERE (id = 1) UNION ALL SELECT users.* FROM users WHERE (id <= 2)"
-         (union [(select (table :users) (where (>= :id 0)))
-                 (select (table :users) (where (= :id 1)))
-                 (select (table :users) (where (<= :id 2)))] :distinct)
-         "SELECT users.* FROM users WHERE (id >= 0) UNION DISTINCT SELECT users.* FROM users WHERE (id = 1) UNION DISTINCT SELECT users.* FROM users WHERE (id <= 2)"))
+         (-> (select (table :users) (where (>= :id 0)))
+             (union (select (table :users) (where (= :id 1))) :all)
+             (union (select (table :users) (where (<= :id 2))) :distinct))
+         "SELECT users.* FROM users WHERE (id >= 0) UNION ALL SELECT users.* FROM users WHERE (id = 1) UNION DISTINCT SELECT users.* FROM users WHERE (id <= 2)"))
+
+  (testing "difference, intersection and union"
+    (are [x y] (= (-> x to-sql interpolate-sql) y)
+         (let [t1 (table :t1) t2 (table :t2)]
+           (-> (select t1 (where (= :id 1)))
+               (union t2)
+               (limit 5)))
+         "SELECT t1.* FROM t1 WHERE (id = 1) LIMIT 5 UNION SELECT t2.* FROM t2"
+         (-> (select (table :users) (where (>= :id 0)))
+             (difference (select (table :users) (where (= :id 1))) :all)
+             (intersection (select (table :users) (where (= :id 2))))
+             (union (select (table :users) (where (<= :id 3))) :distinct))
+         "SELECT users.* FROM users WHERE (id >= 0) EXCEPT ALL SELECT users.* FROM users WHERE (id = 1) INTERSECT SELECT users.* FROM users WHERE (id = 2) UNION DISTINCT SELECT users.* FROM users WHERE (id <= 3)"))
 
   )

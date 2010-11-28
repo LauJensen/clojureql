@@ -243,6 +243,19 @@
        (join-str " ")
        upper-case))
 
+(defn append-combination [type relation-1 relation-2 & [mode]]
+  (assoc relation-1
+    :combination
+    (if-let [combination (:combination relation-1)]
+      {:relation (append-combination type (:relation combination) relation-2 mode)
+       :type (:type combination)
+       :mode (:mode combination)}
+      {:relation relation-2 :type type :mode mode}) ))
+
+(defn- append-combinations [type relation relations & [mode]]
+  (reduce #(append-combination type %1 %2 mode)
+          relation (if (vector? relations) relations [relations])))
+
 (defn to-sql [tble]
   (let [{:keys [cnx tname tcols restriction renames joins
                 grouped-by limit offset order-by]} tble
@@ -289,7 +302,6 @@
   "For compilation test purposes only"
   (reduce #(.replaceFirst %1 "\\?" (if (nil? %2) "NULL" (str %2))) stmt args))
 
-
                                         ; RELATIONAL ALGEBRA
 
 (defprotocol Relation
@@ -304,6 +316,15 @@
   (conj!      [this records]              "Inserts record(s) into the table")
   (disj!      [this predicate]            "Deletes record(s) from the table")
   (update-in! [this pred records]         "Inserts or updates record(s) where pred is true")
+
+  (difference [this relations]
+              [this relations mode]       "Return a relation that is the difference of the input relations. To allow duplicate values use :all as mode.")
+
+  (intersection [this relations]
+                [this relations mode]     "Return a relation that is the intersection of the input relations. To allow duplicate values use :all as mode.")
+
+  (union      [this relations]
+              [this relations mode]       "Return a relation that is the difference of the input relations. To allow duplicate values use :all as mode.")
 
   (limit      [this n]                    "Queries the table with LIMIT n, call via take")
   (offset     [this n]                    "Queries the table with OFFSET n, call via drop")
@@ -368,6 +389,24 @@
                  {:data     [(to-tablename (:tname table2)) join-on]
                   :type     :outer
                   :position type}))))
+
+  (difference [this relations]
+    (difference this relations nil))
+
+  (difference [this relations mode]
+    (append-combinations :except this relations mode))
+
+  (intersection [this relations]
+    (intersection this relations nil))
+
+  (intersection [this relations mode]
+    (append-combinations :intersect this relations mode))
+
+  (union [this relations]
+    (union this relations nil))
+
+  (union [this relations mode]
+    (append-combinations :union this relations mode))
 
   (rename [this newnames]
     (assoc this :renames (merge (or renames {}) newnames)))
@@ -456,29 +495,3 @@
   (if (table? obj)
     (apply offset obj args)
     (apply clojure.core/drop obj args)))
-
-(defn- combine [type relations & [mode]]
-  (let [relations (reverse relations)]
-    (reduce #(assoc %2 :combination {:relation %1 :type type :mode mode})
-            (first relations) (rest relations))))
-
-(defn difference
-  "Return a new relation that is the difference of the given
-  relations. All relations must have the same number of columns in the
-  same order and have similar data types. To allow duplicate values
-  use :all as mode."
-  [relations & [mode]] (combine :except relations mode))
-
-(defn intersection
-  "Return a new relation that is the intersection of the given
-  relations. All relations must have the same number of columns in the
-  same order and have similar data types. To allow duplicate values
-  use :all as mode."
-  [relations & [mode]] (combine :intersect relations mode))
-
-(defn union
-  "Return a new relation that is the union of the given relations. All
-  relations must have the same number of columns in the same order and
-  have similar data types. To allow duplicate values use :all as
-  mode."
-  [relations & [mode]] (combine :union relations mode))
