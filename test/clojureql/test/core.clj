@@ -1,4 +1,4 @@
-(ns clojureql.core-test
+(ns clojureql.test.core
   (:use [clojureql.internal :only (update-or-insert-vals)]
         clojure.test
         clojureql.core)

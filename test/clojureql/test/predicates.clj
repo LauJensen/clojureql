@@ -1,4 +1,4 @@
-(ns clojureql.predicates-test
+(ns clojureql.test.predicates
   (:use clojureql.predicates clojure.test))
 
 (deftest test-compile-expr
