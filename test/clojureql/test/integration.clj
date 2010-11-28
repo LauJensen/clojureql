@@ -86,13 +86,13 @@
     (is @(update-in! (table :users) (where (= :id (:id user))) {:birthday (Timestamp/valueOf "1980-01-02 00:00:00.00")}))))
 
 (database-test test-difference
-  (when (and (postgresql?) (sqlite3?))
+  (when (or (postgresql?) (sqlite3?))
     (let [[alice bob] @(conj! users [{:name "Alice" :title "Developer"} {:name "Bob"}])]
       (is (empty? @(difference (select (table :users) (where (= :id (:id alice))))
                                (select (table :users) (where (= :id (:id alice))))))))))
 
 (database-test test-intersection
-  (when (and (postgresql?) (sqlite3?))
+  (when (or (postgresql?) (sqlite3?))
     (let [[alice bob] @(conj! users [{:name "Alice" :title "Developer"} {:name "Bob"}])]
       (is (= (map :id [alice])
              (map :id @(intersection (select (table :users) (where (= :id (:id alice))))
