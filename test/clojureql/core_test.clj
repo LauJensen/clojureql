@@ -132,22 +132,4 @@
     (expect [update-or-insert-vals (has-args [:users ["(salary IS NULL)"] {:salary 1000}])]
       (update-in! (table :users) (where (= :salary nil)) {:salary 1000})))
 
-  (testing "difference"
-    (are [x y] (= (-> x to-sql interpolate-sql) y)         
-         (difference (select (table :users) (where (> :id 50)))
-                     (select (table :users) (where (< :id 100))))
-         "SELECT users.* FROM users WHERE (id > 50) EXCEPT SELECT users.* FROM users WHERE (id < 100)"))
-
-  (testing "intersection"
-    (are [x y] (= (-> x to-sql interpolate-sql) y)         
-         (intersection (select (table :users) (where (> :id 50)))
-                       (select (table :users) (where (< :id 100))))
-         "SELECT users.* FROM users WHERE (id > 50) INTERSECT SELECT users.* FROM users WHERE (id < 100)"))
-
-  (testing "union"
-    (are [x y] (= (-> x to-sql interpolate-sql) y)         
-         (union (select (table :users) (where (> :id 50)))
-                (select (table :users) (where (< :id 100))))
-         "SELECT users.* FROM users WHERE (id > 50) UNION SELECT users.* FROM users WHERE (id < 100)"))
-
   )
