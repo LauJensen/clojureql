@@ -243,7 +243,7 @@
        (join-str " ")
        upper-case))
 
-(defn append-combination [type relation-1 relation-2 & [mode]]
+(defn- append-combination [type relation-1 relation-2 & [mode]]
   (assoc relation-1
     :combination
     (if-let [combination (:combination relation-1)]
