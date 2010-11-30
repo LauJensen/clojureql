@@ -1,6 +1,11 @@
 (ns clojureql.test.predicates
   (:use clojureql.predicates clojure.test))
 
+(deftest test-parameterize
+  (are [op expression result] (= result (parameterize op expression))
+       :like '(:x "foo%") "(x :like ?)"
+       :not-like '(:y "bar%") "(y :not like ?)"))
+
 (deftest test-compile-expr
   (are [expression result] (= result ((juxt str :env) expression))
        (=* :id 5)
