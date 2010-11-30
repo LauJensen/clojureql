@@ -83,6 +83,9 @@
     (spec-op (predicate) (into ["IS NOT"] args))
     (infix (predicate) "!=" args)))
 
+(defn not-like [& args]
+  (infix (predicate) "NOT LIKE" args))
+
 (defoperator like :like  "LIKE operator:  (like :x \"%y%\"")
 (defoperator >*   :>     "> operator:     (> :x 5)")
 (defoperator <*   :<     "< operator:     (< :x 5)")
