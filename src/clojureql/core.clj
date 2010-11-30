@@ -321,9 +321,9 @@
     (let [[sql-string & env] (to-sql this)]
      (in-connection*
        (with-open [stmt (.prepareStatement (:connection sqlint/*db*) sql-string)]
+	 (doseq [[idx v] (map vector (iterate inc 1) env)]
+	   (.setObject stmt idx v))
          (with-open [rset (.executeQuery stmt)]
-           (doseq [[idx v] (map vector (iterate inc 1) env)]
-             (.setObject stmt idx v))
            (f (resultset-seq rset)))))))
 
   (select [this predicate]
