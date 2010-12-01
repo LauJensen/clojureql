@@ -1,5 +1,8 @@
 (ns clojureql.test
-  (:use clojure.contrib.sql clojure.test))
+  (refer-clojure :exclude [drop take sort conj! disj!])
+  (:use clojure.contrib.sql
+        clojure.test
+        clojureql.core))
 
 (def mysql
   {:classname   "com.mysql.jdbc.Driver"
@@ -20,10 +23,10 @@
    :subname     "//localhost:5432/cql"})
 
 (def sqlite3
-  {:classname "org.sqlite.JDBC"
+  {:classname   "org.sqlite.JDBC"
    :subprotocol "sqlite"
-   :subname "/tmp/cql.sqlite3"
-   :create true})
+   :subname     "/tmp/cql.sqlite3"
+   :create      true})
 
 (def databases [mysql postgresql sqlite3])
 
@@ -81,6 +84,21 @@
    [:id        :integer "PRIMARY KEY" "AUTOINCREMENT"]
    [:wage      :integer]))
 
+(def users  (-> (table :users) (project [:id :name :title])))
+(def salary (-> (table :salary) (project [:id :wage])))
+
+(def roster
+  [{:name "Lau Jensen" :title "Dev"}
+   {:name "Christophe" :title "Design Guru"}
+   {:name "sthuebner"  :title "Mr. Macros"}
+   {:name "Frank"      :title "Engineer"}])
+
+(def wages (map #(hash-map :wage %) [100 200 300 400]))
+
+(defn insert-data []
+  (conj! users roster)
+  (conj! salary wages))
+
 (defmacro database-test [name & body]
   (let [name# name body# body]
     `(do ~@(for [database# databases]
@@ -88,4 +106,6 @@
                 (with-connection ~database#
                   (drop-schema)
                   (create-schema)
+                  (insert-data)
                   ~@body#))))))
+
