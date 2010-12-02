@@ -149,19 +149,19 @@ Aggregates
 
     (-> (table db :salary)
         (aggregate [:avg/wage:expenses])
-        to-sql)
+        (compile nil))
     >>> "SELECT avg(salary.wage, salary.expenses) FROM salary;
 
      (-> (table {} :users)
          (select (where (= :admin true)))
          (aggregate [:count/*])
-         to-sql)
+         (compile nil))
      >>> "SELECT count(users.*) FROM users WHERE (admin = true)"
 
      (-> (table {} :users)
          (select (where (= :admin true)))
          (aggregate [:count/*] [:country])
-         to-sql)
+         (compile nil))
      >>> "SELECT users.country,count(users.*) FROM users  WHERE (admin = true) GROUP BY country"
 
 Manipulation
@@ -200,7 +200,7 @@ Joins
     >>> ({:id 1 :name "Lau" :guest "false"} {:id 3 :name "Frank" :guest "true"})
 
     (-> (outer-join users visitors :right (where (= :users.id :visitors.id)))
-        to-sql)
+        (compile nil))
     >>> "SELECT users.* FROM users RIGHT OUTER JOIN
            (SELECT avg(visitors.field) FROM visitors GROUP BY field)
            AS visitors_aggregation
