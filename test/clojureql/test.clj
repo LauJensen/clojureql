@@ -107,7 +107,6 @@
                   (drop-schema)
                   (create-schema)
                   (insert-data)
-                  (binding [*debug* true]
-                    (println "----------------------")
-                    ~@body#)))))))
+                  (println "Testing (" (:subprotocol ~database#) "):\t\t\t" ~(str name#))
+                    ~@body#))))))
 
