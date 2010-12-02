@@ -11,7 +11,7 @@
             (map #(if (keyword? %)
                     (str (to-tablename %))
                     "?"))
-            (join-str (str \space (.replace (str op) "-" " ") \space)))
+            (join-str (str \space (name op) \space)))
        ")"))
 
 (defprotocol Predicate
@@ -83,12 +83,12 @@
     (spec-op (predicate) (into ["IS NOT"] args))
     (infix (predicate) "!=" args)))
 
-(defoperator like     :like     "LIKE operator:      (like :x \"%y%\"")
-(defoperator not-like :not-like "NOT LIKE operator:  (not-like :x \"%y%\"")
-(defoperator >*       :>        "> operator:         (> :x 5)")
-(defoperator <*       :<        "< operator:         (< :x 5)")
-(defoperator <=*      :<=       "<= operator:        (<= :x 5)")
-(defoperator >=*      :>=       ">= operator:        (>= :x 5)")
+(defoperator like     :like      "LIKE operator:      (like :x \"%y%\"")
+(defoperator not-like "not like" "NOT LIKE operator:  (not-like :x \"%y%\"")
+(defoperator >*       :>         "> operator:         (> :x 5)")
+(defoperator <*       :<         "< operator:         (< :x 5)")
+(defoperator <=*      :<=        "<= operator:        (<= :x 5)")
+(defoperator >=*      :>=        ">= operator:        (>= :x 5)")
 
 (defn restrict
   "Returns a query string.
