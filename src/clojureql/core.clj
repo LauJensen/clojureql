@@ -214,15 +214,14 @@
         tables    (if joins
                     (str (if renames
                            (with-rename tname (qualify tname tcols) renames)
-                           (to-tablename tname)) \space
-                           (join-str " " (map first jdata)))
+                           (to-tablename tname))
+                         \space
+                         (join-str " " (map first jdata)))
                     (if renames
                       (with-rename tname (qualify tname tcols) renames)
                       (to-tablename tname)))
         preds     (if (and aliases restriction)
-                    (reduce (fn [acc [orig-name alias]]
-                              (replace-in acc orig-name (-> (.split alias "\\.") first)))
-                            restriction aliases)
+                    (apply-aliases-to-predicate restriction aliases)
                     (when restriction
                       restriction))
         statement (clean-sql ["SELECT" fields
@@ -232,12 +231,12 @@
                        (when grouped-by     (str "GROUP BY " (to-fieldlist tname grouped-by)))
                        (when limit          (str "LIMIT " limit))
                        (when offset         (str "OFFSET " offset))
-                       (when combination    (str (upper-case (name (:type (:combination tble)))) " " (first combination)))])
+                       (when combination    (str (-> tble :combination :type name upper-case)
+                                                 \space
+                                                 (first combination)))])
         env       (concat
                    (->> [(map (comp :env last) jdata) (if preds [(:env preds)])]
-                        flatten
-                        (remove nil?)
-                        vec)
+                        flatten (remove nil?) vec)
                    (rest combination))
         sql-vec   (into [statement] env)]
     (when *debug* (prn sql-vec))
