@@ -2,7 +2,7 @@
   (:import java.sql.Timestamp)
   (:use clojure.test clojureql.core clojureql.test)
   (:refer-clojure
-   :exclude [group-by take sort drop conj! disj!]
+   :exclude [compile take sort drop conj! disj!]
    :rename {take take-coll}))
 
 (database-test test-conj!

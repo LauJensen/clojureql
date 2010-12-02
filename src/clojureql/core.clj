@@ -63,12 +63,12 @@
                      (select (where (= :name \"Lau\")))
                      (project [:name :title]))
                      (sort :asc)
-                     to-sql)
+                     (compile nil))
 
              For more advanced examples please review README.md, demo.clj and core_test.clj."
     :url    "http://github.com/LauJensen/clojureql"}
   (:refer-clojure
-   :exclude [take drop sort conj! disj!])
+   :exclude [take drop sort conj! disj! compile])
   (:use
    [clojureql internal predicates]
    [clojure.string :only [join upper-case] :rename {join join-str}]
@@ -82,7 +82,7 @@
 (def global-connections (atom {}))
 
 (declare table?)
-(declare to-sql)
+(declare compile)
 (declare table?)
 
                                         ; CONNECTIVITY
@@ -170,6 +170,11 @@
        or  clojureql.predicates/or*}
      clause))
 
+                                        ; SQL COMPILER
+
+(defmulti compile
+  (fn [table db] (:dialect db)))
+
 (defn build-join
   "Generates a JOIN statement from the joins field of a table"
   [{[tname pred] :data type :type pos :position} aliases]
@@ -185,7 +190,7 @@
                        pred (map last aliases))
                pred)
         [subselect env] (when (requires-subselect? tname)
-                          (to-sql tname))]
+                          (compile tname :default))]
     [(assemble-sql "%s %s JOIN %s %s %s"
        (if (keyword? pos)  (-> pos name .toUpperCase) "")
        (if (not= :join type) (-> type name .toUpperCase) "")
@@ -201,11 +206,11 @@
        (assoc pred :env (into (:env pred) env))
        pred)]))
 
-(defn to-sql [tble]
+(defmethod compile :default [tble db]
   (let [{:keys [cnx tname tcols restriction renames joins
                 grouped-by limit offset order-by]} tble
         aliases   (when joins (extract-aliases joins))
-        combination (if (:combination tble) (to-sql (:relation (:combination tble))))
+        combination (if (:combination tble) (compile (:relation (:combination tble)) :default))
         fields    (str (if tcols (to-fieldlist tname tcols) "*")
                        (when (seq aliases)
                          (str "," (join-str "," (map last aliases)))))
@@ -242,10 +247,6 @@
     (when *debug* (prn sql-vec))
     sql-vec))
 
-(defn interpolate-sql [[stmt & args]]
-  "For compilation test purposes only"
-  (reduce #(.replaceFirst %1 "\\?" (if (nil? %2) "NULL" (str %2))) stmt args))
-
                                         ; RELATIONAL ALGEBRA
 
 (defprotocol Relation
@@ -276,12 +277,12 @@
   clojure.lang.IDeref
   (deref [this]
      (in-connection*
-      (with-results* (to-sql this)
+      (with-results* (compile this cnx)
         (fn [rs] (doall rs)))))
 
   Relation
   (apply-on [this f]
-    (let [[sql-string & env] (to-sql this)]
+    (let [[sql-string & env] (compile this cnx)]
      (in-connection*
        (with-open [stmt (.prepareStatement (:connection sqlint/*db*) sql-string)]
 	 (doseq [[idx v] (map vector (iterate inc 1) env)]
@@ -392,6 +393,10 @@
       :order-by fields)))
 
                                         ; INTERFACES
+
+(defn interpolate-sql [[stmt & args]]
+  "For compilation test purposes only"
+  (reduce #(.replaceFirst %1 "\\?" (if (nil? %2) "NULL" (str %2))) stmt args))
 
 (defn table
   "Constructs a relational object."
