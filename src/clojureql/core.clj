@@ -238,7 +238,7 @@
 
 (defn to-sql [tble]
   (let [{:keys [cnx tname tcols restriction renames joins
-                grouped-by limit offset order-by]} tble                
+                grouped-by limit offset order-by]} tble
         aliases   (when joins (extract-aliases joins))
         combination (if (:combination tble) (to-sql (:relation (:combination tble))))
         fields    (str (if tcols (to-fieldlist tname tcols) "*")
@@ -301,7 +301,7 @@
   (intersection [this relation]           "The set intersection of the relations.")
   (difference   [this relation]           "The set difference of the relations.")
   (union        [this relation]           "The set union of the relations.")
-  
+
   (limit      [this n]                    "Queries the table with LIMIT n, call via take")
   (offset     [this n]                    "Queries the table with OFFSET n, call via drop")
   (sorted     [this fields]               "Sorts the query using fields, call via sort")
@@ -321,9 +321,9 @@
     (let [[sql-string & env] (to-sql this)]
      (in-connection*
        (with-open [stmt (.prepareStatement (:connection sqlint/*db*) sql-string)]
+	 (doseq [[idx v] (map vector (iterate inc 1) env)]
+	   (.setObject stmt idx v))
          (with-open [rset (.executeQuery stmt)]
-           (doseq [[idx v] (map vector (iterate inc 1) env)]
-             (.setObject stmt idx v))
            (f (resultset-seq rset)))))))
 
   (select [this predicate]
@@ -350,10 +350,10 @@
                  :position ""}))))
 
   (difference [this relation]
-    (assoc this :combination {:relation relation :type :except}))  
+    (assoc this :combination {:relation relation :type :except}))
 
   (intersection [this relation]
-    (assoc this :combination {:relation relation :type :intersect}))  
+    (assoc this :combination {:relation relation :type :intersect}))
 
   (union [this relation]
     (assoc this :combination {:relation relation :type :union}))
