@@ -107,5 +107,7 @@
                   (drop-schema)
                   (create-schema)
                   (insert-data)
-                  ~@body#))))))
+                  (binding [*debug* true]
+                    (println "----------------------")
+                    ~@body#)))))))
 
