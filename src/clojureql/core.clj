@@ -79,8 +79,12 @@
                                         ; GLOBALS
 
 (def *debug* false) ; If true: Shows all SQL expressions before executing
-(declare table?)
 (def global-connections (atom {}))
+
+(declare table?)
+(declare to-sql)
+(declare table?)
+
                                         ; CONNECTIVITY
 
 (defn open-global [id specs]
@@ -100,6 +104,12 @@
       true)
     (throw
      (Exception. (format "No global connection by that name is open (%s)" conn-name)))))
+
+(defmacro with-cnx
+  "For internal use only. If you want to wrap a query in a connection, use
+   with-connection"
+  [db-spec & body]
+  `(with-cnx* ~db-spec (fn [] ~@body)))
 
 (defn with-cnx*
   "Evaluates func in the context of a new connection to a database then
@@ -127,12 +137,6 @@
          (.setAutoCommit con (or (-> con-info :auto-commit) true))
          (func))))))
 
-(defmacro with-cnx
-  "For internal use only. If you want to wrap a query in a connection, use
-   with-connection"
-  [db-spec & body]
-  `(with-cnx* ~db-spec (fn [] ~@body)))
-
                                        ; INTERFACES
 
 
@@ -142,20 +146,9 @@
 
   Example:
    (with-results table res
-     (println res))            "
+     (println res))"
   [[results tble] & body]
   `(apply-on ~tble (fn [~results] ~@body)))
-
-(defmacro in-connection*
-  "For internal use only!
-
-   This lets users supply a nil argument as the connection when
-   constructing a table, and instead wrapping their calls in
-   with-connection"
-  [& body]
-  `(if ~'cnx
-     (with-cnx ~'cnx (do ~@body))
-     (do ~@body)))
 
 (defmacro where [clause]
   "Constructs a where-clause for queries.
@@ -176,34 +169,6 @@
        and clojureql.predicates/and*
        or  clojureql.predicates/or*}
      clause))
-
-(defn requires-subselect?
-  [table]
-  (if (keyword? table)
-    false
-    (or (has-aggregate? table)
-        (number? (:limit table)) ; TODO: Check offset as well?
-        (seq (:restriction table)))))
-
-(defn extract-aliases
-  " Internal: Looks through the tables in 'joins' and finds tables
-              which requires subselects. It returns a vector of the
-              original name and the new name for each table "
-  [joins]
-  (for [[tbl-or-kwd pred] (map :data joins)
-             :when (requires-subselect? tbl-or-kwd)
-             :let [{:keys [tname tcols]} tbl-or-kwd
-                   alias (find-first-alias tcols)]]
-         [(to-tablename tname) (str (name tname) "_subselect." alias)]))
-
-(declare table?)
-(declare to-sql)
-
-(defn apply-aliases
-  [stmt aliases]
-  [(reduce (fn [acc [old new]]
-            (.replaceAll acc old (-> (.split new "\\.") first)))
-          stmt aliases)])
 
 (defn build-join
   "Generates a JOIN statement from the joins field of a table"
@@ -281,7 +246,6 @@
 (defn interpolate-sql [[stmt & args]]
   "For compilation test purposes only"
   (reduce #(.replaceFirst %1 "\\?" (if (nil? %2) "NULL" (str %2))) stmt args))
-
 
                                         ; RELATIONAL ALGEBRA
 

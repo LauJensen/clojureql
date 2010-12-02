@@ -8,6 +8,14 @@
 (defn upper-name [kw]
   (-> kw name .toUpperCase))
 
+(defn apply-aliases
+  "Takes a statement and a hashmap of aliases and returns
+   a statement with all aliases applied"
+  [stmt aliases]
+  [(reduce (fn [acc [old new]]
+            (.replaceAll acc old (-> (.split new "\\.") first)))
+          stmt aliases)])
+
 (defn clean-sql [coll]
   "For internal use only. Concats a collection of strings interposing spaces
    between the items. Removes any garbage whitespace."
@@ -175,6 +183,35 @@
   [tble]
   (some #(or (vector? %) (aggregate? %)) (:tcols tble)))
 
+(defn find-first-alias
+  "Scans a column spec to find the first alias, if none is found the
+   first column is used instead"
+  [tcols]
+  (let [alias (-?> (filter #(and (vector? %) (= 3 (count %))) tcols)
+                   first last name)]
+    (if (seq alias)
+      alias
+      (-> tcols first nskeyword))))
+
+(defn requires-subselect?
+  [table]
+  (if (keyword? table)
+    false
+    (or (has-aggregate? table)
+        (number? (:limit table)) ; TODO: Check offset as well?
+        (seq (:restriction table))))) ; TODO: Sorting as well?
+
+(defn extract-aliases
+  " Internal: Looks through the tables in 'joins' and finds tables
+              which requires subselects. It returns a vector of the
+              original name and the new name for each table "
+  [joins]
+  (for [[tbl-or-kwd pred] (map :data joins)
+             :when (requires-subselect? tbl-or-kwd)
+             :let [{:keys [tname tcols]} tbl-or-kwd
+                   alias (find-first-alias tcols)]]
+         [(to-tablename tname) (str (name tname) "_subselect." alias)]))
+
 (defn derived-fields
   "Computes the resulting fields from its input
 
@@ -185,16 +222,6 @@
   (str (->> cols (qualify tname) to-fieldlist)
        (when (and table-alias col-alias)
          (str "," (name table-alias) \. (nskeyword col-alias) ))))
-
-(defn find-first-alias
-  "Scans a column spec to find the first alias, if none is found the
-   first column is used instead"
-  [tcols]
-  (let [alias (-?> (filter #(and (vector? %) (= 3 (count %))) tcols)
-                   first last name)]
-    (if (seq alias)
-      alias
-      (-> tcols first nskeyword))))
 
 (defn with-rename
   "Renames fields that have had their parent aliased.
@@ -257,6 +284,16 @@
 
                                         ; SQL Specifics
 
+(defmacro in-connection*
+  "For internal use only!
+
+   This lets users supply a nil argument as the connection when
+   constructing a table, and instead wrapping their calls in
+   with-connection"
+  [& body]
+  `(if ~'cnx
+     (clojureql.core/with-cnx ~'cnx (do ~@body))
+     (do ~@body)))
 
 (defn result-seq
   "Creates and returns a lazy sequence of structmaps corresponding to
