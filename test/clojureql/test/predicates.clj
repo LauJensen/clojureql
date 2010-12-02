@@ -3,17 +3,17 @@
 
 (deftest test-parameterize
   (are [op expression result] (= result (parameterize op expression))
-       :< '(:x 5) "(x < ?)"
-       "<" '(:x 5) "(x < ?)"
-       :> '(:y 6) "(y > ?)"
-       ">" '(:y 6) "(y > ?)"
-       :<= '(:x 7) "(x <= ?)"
-       "<=" '(:x 7) "(x <= ?)"
-       :>= '(:y 8) "(y >= ?)"
-       ">=" '(:y 9) "(y >= ?)"
-       :like '(:x "foo%") "(x like ?)"
-       "like" '(:x "foo%") "(x like ?)"
-       "not like" '(:y "bar%") "(y not like ?)"))
+       :<         [:x 5]      "(x < ?)"
+       "<"        [:x 5]      "(x < ?)"
+       :>         [:y 6]      "(y > ?)"
+       ">"        [:y 6]      "(y > ?)"
+       :<=        [:x 7]      "(x <= ?)"
+       "<="       [:x 7]      "(x <= ?)"
+       :>=        [:y 8]      "(y >= ?)"
+       ">="       [:y 9]      "(y >= ?)"
+       :like      [:x "joh%"] "(x LIKE ?)"
+       "like"     [:x "joh%"] "(x LIKE ?)"
+       "not like" [:y "joh%"] "(y NOT LIKE ?)"))
 
 (deftest test-compile-expr
   (are [expression result] (= result ((juxt str :env) expression))

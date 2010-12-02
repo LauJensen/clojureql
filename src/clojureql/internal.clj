@@ -5,6 +5,9 @@
   (:use [clojure.string :only [join] :rename {join join-str}]
         [clojure.contrib.core :only [-?>]]))
 
+(defn upper-name [kw]
+  (-> kw name .toUpperCase))
+
 (defn clean-sql [coll]
   "For internal use only. Concats a collection of strings interposing spaces
    between the items. Removes any garbage whitespace."
@@ -281,7 +284,7 @@
   (when-not (vector? sql-params)
     (throw (Exception. "sql-params must be a vector")))
   (with-open [stmt (.prepareStatement (:connection sqlint/*db*) sql)]
-    (doseq [[idx v] (map vector (iterate inc 1) params)]      
+    (doseq [[idx v] (map vector (iterate inc 1) params)]
       (.setObject stmt idx v))
     (if-let [fetch-size (-> sqlint/*db* :opts :fetch-size)]
       (do
@@ -299,7 +302,7 @@
   [sql & param-groups]
   (with-open [stmt (.prepareStatement (:connection sqlint/*db*) sql)]
     (doseq [param-group param-groups]
-      (doseq [[idx v] (map vector (iterate inc 1) param-group)]        
+      (doseq [[idx v] (map vector (iterate inc 1) param-group)]
         (.setObject stmt idx v))
       (.addBatch stmt))
     (csql/transaction
