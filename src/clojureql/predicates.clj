@@ -11,7 +11,7 @@
             (map #(if (keyword? %)
                     (str (to-tablename %))
                     "?"))
-            (join-str (str \space (name op) \space)))
+            (join-str (str \space (upper-name op) \space)))
        ")"))
 
 (defprotocol Predicate

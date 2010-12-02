@@ -11,9 +11,9 @@
        "<="       [:x 7]      "(x <= ?)"
        :>=        [:y 8]      "(y >= ?)"
        ">="       [:y 9]      "(y >= ?)"
-       :like      [:x "joh%"] "(x like ?)"
-       "like"     [:x "joh%"] "(x like ?)"
-       "not like" [:y "joh%"] "(y not like ?)"))
+       :like      [:x "joh%"] "(x LIKE ?)"
+       "like"     [:x "joh%"] "(x LIKE ?)"
+       "not like" [:y "joh%"] "(y NOT LIKE ?)"))
 
 (deftest test-compile-expr
   (are [expression result] (= result ((juxt str :env) expression))
