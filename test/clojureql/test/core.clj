@@ -188,14 +188,3 @@
          "SELECT users.* FROM users WHERE (id >= 0) EXCEPT ALL SELECT users.* FROM users WHERE (id = 1) INTERSECT SELECT users.* FROM users WHERE (id = 2) UNION DISTINCT SELECT users.* FROM users WHERE (id <= 3)"))
 
   )
-
-(interpolate-sql
- (compile
-  (-> (select (table :users) (where (>= :id 0)))
-      (union (select (table :users) (where (= :id 1))) :all)
-      (union (select (table :users) (where (<= :id 2))) :distinct))
-  nil))
-
-  (-> (select (table :users) (where (>= :id 0)))
-      (union (select (table :users) (where (= :id 1))) :all)
-      (union (select (table :users) (where (<= :id 2))) :distinct))
