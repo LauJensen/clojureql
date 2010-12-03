@@ -11,7 +11,7 @@
             (map #(if (keyword? %)
                     (str (to-tablename %))
                     "?"))
-            (join-str (str \space op \space)))
+            (join-str (str \space (upper-name op) \space)))
        ")"))
 
 (defprotocol Predicate
@@ -66,6 +66,14 @@
                           (conj %1 (.replaceAll p orig new))
                           (conj %1 p))) [] (:env pred))))
 
+(defn apply-aliases-to-predicate
+  "Takes a predicate and a hashmap of aliases and returns
+   a statement with all aliases applied"
+  [pred aliases]
+  (reduce (fn [acc [old new]]
+            (replace-in acc old (-> (.split new "\\.") first)))
+          pred aliases))
+
 (defn or*  [& args] (sql-or (predicate) args))
 (defn and* [& args] (sql-and (predicate) args))
 
@@ -83,11 +91,12 @@
     (spec-op (predicate) (into ["IS NOT"] args))
     (infix (predicate) "!=" args)))
 
-(defoperator like :like  "LIKE operator:  (like :x \"%y%\"")
-(defoperator >*   :>     "> operator:     (> :x 5)")
-(defoperator <*   :<     "< operator:     (< :x 5)")
-(defoperator <=*  :<=    "<= operator:    (<= :x 5)")
-(defoperator >=*  :>=    ">= operator:    (>= :x 5)")
+(defoperator like     :like      "LIKE operator:      (like :x \"%y%\"")
+(defoperator not-like "not like" "NOT LIKE operator:  (not-like :x \"%y%\"")
+(defoperator >*       :>         "> operator:         (> :x 5)")
+(defoperator <*       :<         "< operator:         (< :x 5)")
+(defoperator <=*      :<=        "<= operator:        (<= :x 5)")
+(defoperator >=*      :>=        ">= operator:        (>= :x 5)")
 
 (defn restrict
   "Returns a query string.
