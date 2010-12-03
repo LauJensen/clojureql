@@ -63,12 +63,12 @@
                      (select (where (= :name \"Lau\")))
                      (project [:name :title]))
                      (sort :asc)
-                     to-sql)
+                     (compile nil))
 
              For more advanced examples please review README.md, demo.clj and core_test.clj."
     :url    "http://github.com/LauJensen/clojureql"}
   (:refer-clojure
-   :exclude [take drop sort conj! disj!])
+   :exclude [take drop sort conj! disj! compile])
   (:use
    [clojureql internal predicates]
    [clojure.string :only [join upper-case] :rename {join join-str}]
@@ -79,8 +79,12 @@
                                         ; GLOBALS
 
 (def *debug* false) ; If true: Shows all SQL expressions before executing
-(declare table?)
 (def global-connections (atom {}))
+
+(declare table?)
+(declare compile)
+(declare table?)
+
                                         ; CONNECTIVITY
 
 (defn open-global [id specs]
@@ -100,6 +104,12 @@
       true)
     (throw
      (Exception. (format "No global connection by that name is open (%s)" conn-name)))))
+
+(defmacro with-cnx
+  "For internal use only. If you want to wrap a query in a connection, use
+   with-connection"
+  [db-spec & body]
+  `(with-cnx* ~db-spec (fn [] ~@body)))
 
 (defn with-cnx*
   "Evaluates func in the context of a new connection to a database then
@@ -127,12 +137,6 @@
          (.setAutoCommit con (or (-> con-info :auto-commit) true))
          (func))))))
 
-(defmacro with-cnx
-  "For internal use only. If you want to wrap a query in a connection, use
-   with-connection"
-  [db-spec & body]
-  `(with-cnx* ~db-spec (fn [] ~@body)))
-
                                        ; INTERFACES
 
 
@@ -142,20 +146,9 @@
 
   Example:
    (with-results table res
-     (println res))            "
+     (println res))"
   [[results tble] & body]
   `(apply-on ~tble (fn [~results] ~@body)))
-
-(defmacro in-connection*
-  "For internal use only!
-
-   This lets users supply a nil argument as the connection when
-   constructing a table, and instead wrapping their calls in
-   with-connection"
-  [& body]
-  `(if ~'cnx
-     (with-cnx ~'cnx (do ~@body))
-     (do ~@body)))
 
 (defmacro where [clause]
   "Constructs a where-clause for queries.
@@ -177,33 +170,8 @@
        or  clojureql.predicates/or*}
      clause))
 
-(defn requires-subselect?
-  [table]
-  (if (keyword? table)
-    false
-    (or (has-aggregate? table)
-        (number? (:limit table)) ; TODO: Check offset as well?
-        (seq (:restriction table)))))
-
-(defn extract-aliases
-  " Internal: Looks through the tables in 'joins' and finds tables
-              which requires subselects. It returns a vector of the
-              original name and the new name for each table "
-  [joins]
-  (for [[tbl-or-kwd pred] (map :data joins)
-             :when (requires-subselect? tbl-or-kwd)
-             :let [{:keys [tname tcols]} tbl-or-kwd
-                   alias (find-first-alias tcols)]]
-         [(to-tablename tname) (str (name tname) "_subselect." alias)]))
-
-(declare table?)
-(declare to-sql)
-
-(defn apply-aliases
-  [stmt aliases]
-  [(reduce (fn [acc [old new]]
-            (.replaceAll acc old (-> (.split new "\\.") first)))
-          stmt aliases)])
+(defmulti compile
+  (fn [table db] (:dialect db)))
 
 (defn build-join
   "Generates a JOIN statement from the joins field of a table"
@@ -220,7 +188,7 @@
                        pred (map last aliases))
                pred)
         [subselect env] (when (requires-subselect? tname)
-                          (to-sql tname))]
+                          (compile tname :default))]
     [(assemble-sql "%s %s JOIN %s %s %s"
        (if (keyword? pos)  (-> pos name .toUpperCase) "")
        (if (not= :join type) (-> type name .toUpperCase) "")
@@ -236,11 +204,31 @@
        (assoc pred :env (into (:env pred) env))
        pred)]))
 
-(defn to-sql [tble]
+(defn- combination-op [combination]
+  (->> [(:type combination) (:mode combination)]
+       (remove nil?)
+       (map name)
+       (join-str " ")
+       upper-case))
+
+(defn- append-combination [type relation-1 relation-2 & [mode]]
+  (assoc relation-1
+    :combination
+    (if-let [combination (:combination relation-1)]
+      {:relation (append-combination type (:relation combination) relation-2 mode)
+       :type (:type combination)
+       :mode (:mode combination)}
+      {:relation relation-2 :type type :mode mode}) ))
+
+(defn- append-combinations [type relation relations & [mode]]
+  (reduce #(append-combination type %1 %2 mode)
+          relation (if (vector? relations) relations [relations])))
+
+(defmethod compile :default [tble db]
   (let [{:keys [cnx tname tcols restriction renames joins
                 grouped-by limit offset order-by]} tble
         aliases   (when joins (extract-aliases joins))
-        combination (if (:combination tble) (to-sql (:relation (:combination tble))))
+        combination (if (:combination tble) (compile (:relation (:combination tble)) :default))
         fields    (str (if tcols (to-fieldlist tname tcols) "*")
                        (when (seq aliases)
                          (str "," (join-str "," (map last aliases)))))
@@ -249,15 +237,14 @@
         tables    (if joins
                     (str (if renames
                            (with-rename tname (qualify tname tcols) renames)
-                           (to-tablename tname)) \space
-                           (join-str " " (map first jdata)))
+                           (to-tablename tname))
+                         \space
+                         (join-str " " (map first jdata)))
                     (if renames
                       (with-rename tname (qualify tname tcols) renames)
                       (to-tablename tname)))
         preds     (if (and aliases restriction)
-                    (reduce (fn [acc [orig-name alias]]
-                              (replace-in acc orig-name (-> (.split alias "\\.") first)))
-                            restriction aliases)
+                    (apply-aliases-to-predicate restriction aliases)
                     (when restriction
                       restriction))
         statement (clean-sql ["SELECT" fields
@@ -267,21 +254,14 @@
                        (when grouped-by     (str "GROUP BY " (to-fieldlist tname grouped-by)))
                        (when limit          (str "LIMIT " limit))
                        (when offset         (str "OFFSET " offset))
-                       (when combination    (str (upper-case (name (:type (:combination tble)))) " " (first combination)))])
+                       (when combination    (str (combination-op (:combination tble)) \space (first combination)))])
         env       (concat
                    (->> [(map (comp :env last) jdata) (if preds [(:env preds)])]
-                        flatten
-                        (remove nil?)
-                        vec)
+                        flatten (remove nil?) vec)
                    (rest combination))
         sql-vec   (into [statement] env)]
     (when *debug* (prn sql-vec))
     sql-vec))
-
-(defn interpolate-sql [[stmt & args]]
-  "For compilation test purposes only"
-  (reduce #(.replaceFirst %1 "\\?" (if (nil? %2) "NULL" (str %2))) stmt args))
-
 
                                         ; RELATIONAL ALGEBRA
 
@@ -298,9 +278,14 @@
   (disj!      [this predicate]            "Deletes record(s) from the table")
   (update-in! [this pred records]         "Inserts or updates record(s) where pred is true")
 
-  (intersection [this relation]           "The set intersection of the relations.")
-  (difference   [this relation]           "The set difference of the relations.")
-  (union        [this relation]           "The set union of the relations.")
+  (difference [this relations]
+              [this relations mode]       "Return a relation that is the difference of the input relations. To allow duplicate values use :all as mode.")
+
+  (intersection [this relations]
+                [this relations mode]     "Return a relation that is the intersection of the input relations. To allow duplicate values use :all as mode.")
+
+  (union      [this relations]
+              [this relations mode]       "Return a relation that is the difference of the input relations. To allow duplicate values use :all as mode.")
 
   (limit      [this n]                    "Queries the table with LIMIT n, call via take")
   (offset     [this n]                    "Queries the table with OFFSET n, call via drop")
@@ -313,12 +298,12 @@
   clojure.lang.IDeref
   (deref [this]
      (in-connection*
-      (with-results* (to-sql this)
+      (with-results* (compile this cnx)
         (fn [rs] (doall rs)))))
 
   Relation
   (apply-on [this f]
-    (let [[sql-string & env] (to-sql this)]
+    (let [[sql-string & env] (compile this cnx)]
      (in-connection*
        (with-open [stmt (.prepareStatement (:connection sqlint/*db*) sql-string)]
 	 (doseq [[idx v] (map vector (iterate inc 1) env)]
@@ -349,15 +334,6 @@
                  :type     :join
                  :position ""}))))
 
-  (difference [this relation]
-    (assoc this :combination {:relation relation :type :except}))
-
-  (intersection [this relation]
-    (assoc this :combination {:relation relation :type :intersect}))
-
-  (union [this relation]
-    (assoc this :combination {:relation relation :type :union}))
-
   (outer-join [this table2 type join-on]
     (if (requires-subselect? table2)
       (assoc this
@@ -374,6 +350,24 @@
                  {:data     [(to-tablename (:tname table2)) join-on]
                   :type     :outer
                   :position type}))))
+
+  (difference [this relations]
+    (difference this relations nil))
+
+  (difference [this relations mode]
+    (append-combinations :except this relations mode))
+
+  (intersection [this relations]
+    (intersection this relations nil))
+
+  (intersection [this relations mode]
+    (append-combinations :intersect this relations mode))
+
+  (union [this relations]
+    (union this relations nil))
+
+  (union [this relations mode]
+    (append-combinations :union this relations mode))
 
   (rename [this newnames]
     (assoc this :renames (merge (or renames {}) newnames)))
@@ -429,6 +423,10 @@
       :order-by fields)))
 
                                         ; INTERFACES
+
+(defn interpolate-sql [[stmt & args]]
+  "For compilation test purposes only"
+  (reduce #(.replaceFirst %1 "\\?" (if (nil? %2) "NULL" (str %2))) stmt args))
 
 (defn table
   "Constructs a relational object."

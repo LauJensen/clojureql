@@ -3,7 +3,7 @@
         clojure.test
         clojureql.core)
   (:refer-clojure
-   :exclude [take drop sort conj! disj!]))
+   :exclude [compile take drop sort conj! disj!]))
 
 ;;; TODO: Why do I get an "Unable to resolve symbol: comment in this
 ;;; context" exception when I put this into the above :use form ???
@@ -12,7 +12,7 @@
 (deftest sql-compilation
 
   (testing "simple selects"
-    (are [x y] (= (-> x to-sql interpolate-sql) y)
+    (are [x y] (= (-> x (compile nil) interpolate-sql) y)
          (table :users)
          "SELECT users.* FROM users"
          (-> (table :users) (project [:id :name]))
@@ -23,7 +23,7 @@
          "SELECT avg(users.wage) AS avg FROM users"))
 
   (testing "where predicates"
-    (are [x y] (= (-> x to-sql interpolate-sql) y)
+    (are [x y] (= (-> x (compile nil) interpolate-sql) y)
          (-> (table :users)
              (select (where (= :id 5)))
              (project [:id]))
@@ -57,13 +57,13 @@
          "SELECT users.* FROM users WHERE (lower(name) = bob)"))
 
   (testing "projections"
-    (are [x y] (= (-> x to-sql interpolate-sql) y)
+    (are [x y] (= (-> x (compile nil) interpolate-sql) y)
          (-> (table :users)
              (project [:id :name :title]))
          "SELECT users.id,users.name,users.title FROM users"))
 
   (testing "joins"
-    (are [x y] (= (-> x to-sql interpolate-sql) y)
+    (are [x y] (= (-> x (compile nil) interpolate-sql) y)
          (-> (table :users)
              (join (table :salary) :id)
              (project [:users.id :salary.wage]))
@@ -74,7 +74,7 @@
          "SELECT users.id,salary.wage FROM users JOIN salary ON (users.id = salary.id)"))
 
   (testing "renaming in joins"
-    (are [x y] (= (-> x to-sql interpolate-sql) y)
+    (are [x y] (= (-> x (compile nil) interpolate-sql) y)
          (-> (table :users)
              (join (table :salary) (where (= :user.id :salary.id)))
              (project [:users.id :salary.wage])
@@ -82,7 +82,7 @@
          "SELECT users.id,salary.wage FROM users AS users(idx) JOIN salary ON (user.id = salary.id)"))
                                         ; TODO: Shouldn't this be ON (users.idx = salary.id) ?
   (testing "aggregate functions"
-    (are [x y] (= (-> x to-sql interpolate-sql) y)
+    (are [x y] (= (-> x (compile nil) interpolate-sql) y)
          (-> (table :users)
              (select (where (= :admin true)))
              (aggregate [:count/* :avg/wage]))
@@ -101,7 +101,7 @@
   (testing "join with aggregate"
     (let [photo-counts-by-user (-> (table :photos)
                                    (aggregate [[:count/* :as :cnt]] [:user_id]))]
-      (are [x y] (= (-> x to-sql interpolate-sql) y)
+      (are [x y] (= (-> x (compile nil) interpolate-sql) y)
            (-> (table :users)
                (join photo-counts-by-user
                      (where (= :users.id :photos.user_id))))
@@ -112,7 +112,7 @@
   (testing "table aliases"
     (let [u1 (-> (table {:users :u1}) (project [:id :article :price]))
           w1 (table {:salary :w1})]
-      (are [x y] (= (-> x to-sql interpolate-sql) y)
+      (are [x y] (= (-> x (compile nil) interpolate-sql) y)
            (join u1 w1 (where (= :u1.id :w1.id)))
            "SELECT u1.id,u1.article,u1.price,w1.* FROM users u1 JOIN salary w1 ON (u1.id = w1.id)"
            (-> (join u1 w1 (where (= :u1.id :w1.id)))
@@ -120,7 +120,7 @@
            (str "SELECT u1.id,u1.article,u1.price,w1.* FROM users u1 "
                 "JOIN salary w1 ON (u1.id = w1.id) WHERE (s2.article IS NULL)"))))
   (testing "joining on multiple tables"
-    (are [x y] (= (-> x to-sql interpolate-sql) y)
+    (are [x y] (= (-> x (compile nil) interpolate-sql) y)
          (-> (table :users)
              (join (table :wages) :wid)
              (join (table :commits) :cid))
@@ -133,21 +133,58 @@
       (update-in! (table :users) (where (= :salary nil)) {:salary 1000})))
 
   (testing "difference"
-    (are [x y] (= (-> x to-sql interpolate-sql) y)         
-         (difference (select (table :users) (where (> :id 50)))
-                     (select (table :users) (where (< :id 100))))
-         "SELECT users.* FROM users WHERE (id > 50) EXCEPT SELECT users.* FROM users WHERE (id < 100)"))
+    (are [x y] (= (-> x (compile nil) interpolate-sql) y)
+         (difference (select (table :users) (where (>= :id 0)))
+                (select (table :users) (where (= :id 1))))
+         "SELECT users.* FROM users WHERE (id >= 0) EXCEPT SELECT users.* FROM users WHERE (id = 1)"
+         (-> (select (table :users) (where (>= :id 0)))
+             (difference (select (table :users) (where (= :id 1))))
+             (difference (select (table :users) (where (<= :id 2)))))
+         "SELECT users.* FROM users WHERE (id >= 0) EXCEPT SELECT users.* FROM users WHERE (id = 1) EXCEPT SELECT users.* FROM users WHERE (id <= 2)"
+         (-> (select (table :users) (where (>= :id 0)))
+             (difference (select (table :users) (where (= :id 1))) :all)
+             (difference (select (table :users) (where (<= :id 2))) :distinct))
+         "SELECT users.* FROM users WHERE (id >= 0) EXCEPT ALL SELECT users.* FROM users WHERE (id = 1) EXCEPT DISTINCT SELECT users.* FROM users WHERE (id <= 2)"))
 
   (testing "intersection"
-    (are [x y] (= (-> x to-sql interpolate-sql) y)         
-         (intersection (select (table :users) (where (> :id 50)))
-                       (select (table :users) (where (< :id 100))))
-         "SELECT users.* FROM users WHERE (id > 50) INTERSECT SELECT users.* FROM users WHERE (id < 100)"))
+    (are [x y] (= (-> x (compile nil) interpolate-sql) y)
+         (intersection (select (table :users) (where (>= :id 0)))
+                (select (table :users) (where (= :id 1))))
+         "SELECT users.* FROM users WHERE (id >= 0) INTERSECT SELECT users.* FROM users WHERE (id = 1)"
+         (-> (select (table :users) (where (>= :id 0)))
+             (intersection (select (table :users) (where (= :id 1))))
+             (intersection (select (table :users) (where (<= :id 2)))))
+         "SELECT users.* FROM users WHERE (id >= 0) INTERSECT SELECT users.* FROM users WHERE (id = 1) INTERSECT SELECT users.* FROM users WHERE (id <= 2)"
+         (-> (select (table :users) (where (>= :id 0)))
+             (intersection (select (table :users) (where (= :id 1))) :all)
+             (intersection (select (table :users) (where (<= :id 2))) :distinct))
+         "SELECT users.* FROM users WHERE (id >= 0) INTERSECT ALL SELECT users.* FROM users WHERE (id = 1) INTERSECT DISTINCT SELECT users.* FROM users WHERE (id <= 2)"))
 
   (testing "union"
-    (are [x y] (= (-> x to-sql interpolate-sql) y)         
-         (union (select (table :users) (where (> :id 50)))
-                (select (table :users) (where (< :id 100))))
-         "SELECT users.* FROM users WHERE (id > 50) UNION SELECT users.* FROM users WHERE (id < 100)"))
-  
+    (are [x y] (= (-> x (compile nil) interpolate-sql) y)
+         (union (select (table :users) (where (>= :id 0)))
+                (select (table :users) (where (= :id 1))))
+         "SELECT users.* FROM users WHERE (id >= 0) UNION SELECT users.* FROM users WHERE (id = 1)"
+         (-> (select (table :users) (where (>= :id 0)))
+             (union (select (table :users) (where (= :id 1))))
+             (union (select (table :users) (where (<= :id 2)))))
+         "SELECT users.* FROM users WHERE (id >= 0) UNION SELECT users.* FROM users WHERE (id = 1) UNION SELECT users.* FROM users WHERE (id <= 2)"
+         (-> (select (table :users) (where (>= :id 0)))
+             (union (select (table :users) (where (= :id 1))) :all)
+             (union (select (table :users) (where (<= :id 2))) :distinct))
+         "SELECT users.* FROM users WHERE (id >= 0) UNION ALL SELECT users.* FROM users WHERE (id = 1) UNION DISTINCT SELECT users.* FROM users WHERE (id <= 2)"))
+
+  (testing "difference, intersection and union"
+    (are [x y] (= (-> x (compile nil) interpolate-sql) y)
+         (let [t1 (table :t1) t2 (table :t2)]
+           (-> (select t1 (where (= :id 1)))
+               (union t2)
+               (limit 5)))
+         "SELECT t1.* FROM t1 WHERE (id = 1) LIMIT 5 UNION SELECT t2.* FROM t2"
+         (-> (select (table :users) (where (>= :id 0)))
+             (difference (select (table :users) (where (= :id 1))) :all)
+             (intersection (select (table :users) (where (= :id 2))))
+             (union (select (table :users) (where (<= :id 3))) :distinct))
+         "SELECT users.* FROM users WHERE (id >= 0) EXCEPT ALL SELECT users.* FROM users WHERE (id = 1) INTERSECT SELECT users.* FROM users WHERE (id = 2) UNION DISTINCT SELECT users.* FROM users WHERE (id <= 3)"))
+
   )

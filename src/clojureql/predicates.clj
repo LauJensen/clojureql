@@ -66,6 +66,14 @@
                           (conj %1 (.replaceAll p orig new))
                           (conj %1 p))) [] (:env pred))))
 
+(defn apply-aliases-to-predicate
+  "Takes a predicate and a hashmap of aliases and returns
+   a statement with all aliases applied"
+  [pred aliases]
+  (reduce (fn [acc [old new]]
+            (replace-in acc old (-> (.split new "\\.") first)))
+          pred aliases))
+
 (defn or*  [& args] (sql-or (predicate) args))
 (defn and* [& args] (sql-and (predicate) args))
 

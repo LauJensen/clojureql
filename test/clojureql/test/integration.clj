@@ -2,7 +2,7 @@
   (:import java.sql.Timestamp)
   (:use clojure.test clojureql.core clojureql.test)
   (:refer-clojure
-   :exclude [group-by take sort drop conj! disj!]
+   :exclude [compile take sort drop conj! disj!]
    :rename {take take-coll}))
 
 (database-test test-conj!
@@ -132,4 +132,7 @@
   (let [[alice bob] @(conj! users [{:name "Alice" :title "Developer"} {:name "Bob"}])]
     (is (= (map :id [alice bob])
            (map :id @(union (select (table :users) (where (= :id (:id alice))))
-                            (select (table :users) (where (= :id (:id bob))))))))))
+                            (select (table :users) (where (= :id (:id bob))))))))
+    (let [query (select (table :users) (where (= :id (:id alice))))]
+      (is (= (map :id [alice alice alice])
+             (map :id @(-> query (union query :all) (union query :all))))))))
