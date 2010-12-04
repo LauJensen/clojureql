@@ -84,7 +84,7 @@
    via the name supplies as results.
 
   Example:
-   (with-results table res
+   (with-results [res table]
      (println res))"
   [[results tble] & body]
   `(apply-on ~tble (fn [~results] ~@body)))
