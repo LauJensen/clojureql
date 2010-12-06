@@ -14,6 +14,8 @@
             (join-str (str \space (upper-name op) \space)))
        ")"))
 
+(declare predicate)
+
 (defprotocol Predicate
   (sql-or     [this exprs]     "Compiles to (expr OR expr)")
   (sql-and    [this exprs]     "Compiles to (expr AND expr)")
@@ -25,13 +27,21 @@
   (toString [this] (apply str stmt))
   Predicate
   (sql-or    [this exprs]
-    (assoc this
-      :stmt (conj stmt (str "(" (join-str " OR " (map str exprs)) ")"))
-      :env  (into env (mapcat :env exprs))))
+    (if (empty? (-> exprs first :stmt))
+      (assoc this
+        :stmt (map str exprs)
+        :env  (mapcat :env exprs))
+      (assoc this
+        :stmt (conj stmt (str "(" (join-str " OR " (map str exprs)) ")"))
+        :env  (into env (mapcat :env exprs)))))
   (sql-and   [this exprs]
-    (assoc this
-      :stmt (conj stmt (str "(" (join-str " AND " (map str exprs)) ")"))
-      :env  (into env (mapcat :env exprs))))
+    (if (empty? (-> exprs first :stmt))
+      (assoc this
+        :stmt (map str exprs)
+        :env  (mapcat :env exprs))
+      (assoc this
+        :stmt (conj stmt (str "(" (join-str " AND " (map str exprs)) ")"))
+        :env  (into env (mapcat :env exprs)))))
   (spec-op [this expr]
     (let [[op p1 p2] expr]
       (cond
