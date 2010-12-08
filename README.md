@@ -281,3 +281,8 @@ ClojureQL is primarily developed by [Lau Jensen](http://twitter.com/laujensen) o
 Large and **significant** contributions to both the design and codebase have been
 rendered by [Justin Balthrop](http://twitter.com/ninjudd) aka. ninjudd author
 of the powerful build tool [Cake](http://github.com/ninjudd/cake).
+
+In addition, the following people have made important contributions to ClojureQL:
+
+   - Roman Scherer (r0man)
+   - Christian Kebekus (ck)
