@@ -19,6 +19,7 @@
 (defprotocol Predicate
   (sql-or     [this exprs]     "Compiles to (expr OR expr)")
   (sql-and    [this exprs]     "Compiles to (expr AND expr)")
+  (sql-not    [this exprs]     "Compiles to NOT(exprs)")
   (spec-op    [this expr]      "Compiles a special, ie. non infix operation")
   (infix      [this op exprs]  "Compiles an infix operation"))
 
@@ -41,6 +42,14 @@
         :env  (mapcat :env exprs))
       (assoc this
         :stmt (conj stmt (str "(" (join-str " AND " (map str exprs)) ")"))
+        :env  (into env (mapcat :env exprs)))))
+  (sql-not   [this exprs]
+    (if (empty? (-> exprs first :stmt))
+      (assoc this
+        :stmt (map str exprs)
+        :env  (mapcat :env exprs))
+      (assoc this
+        :stmt (conj stmt (str "NOT(" (join-str exprs) ")"))
         :env  (into env (mapcat :env exprs)))))
   (spec-op [this expr]
     (let [[op p1 p2] expr]
@@ -86,6 +95,7 @@
 
 (defn or*  [& args] (sql-or (predicate) args))
 (defn and* [& args] (sql-and (predicate) args))
+(defn not* [& args] (sql-not (predicate) args))
 
 (defmacro defoperator [name op doc]
   `(defn ~name ~doc [& args#]

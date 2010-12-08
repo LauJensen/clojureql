@@ -90,6 +90,14 @@
   (is (= @(select users (where (or (= :id 1) (>= :id 10))))
          '({:title "Dev", :name "Lau Jensen", :id 1}))))
 
+(database-test test-select-not
+  (is (= @(select users (where (not (> :id 1))))
+         '({:title "Dev", :name "Lau Jensen", :id 1})))
+  (is (= @(select users (where (not (or (< :id 2) (> :id 2)))))
+         '({:title "Design Guru", :name "Christophe", :id 2})))
+  (is (= @(select users (where (not (or (< :id 2) (not (< :id 3))))))
+         '({:title "Design Guru", :name "Christophe", :id 2}))))
+
 (database-test test-update-in!
   (is (= @(-> (update-in! users (where (= :id 2)) {:name "John"})
               (select (where (= :id 2))))
