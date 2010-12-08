@@ -12,8 +12,7 @@
        :>=        [:y 8]      "(y >= ?)"
        ">="       [:y 9]      "(y >= ?)"
        :like      [:x "joh%"] "(x LIKE ?)"
-       "like"     [:x "joh%"] "(x LIKE ?)"
-       "not like" [:y "joh%"] "(y NOT LIKE ?)"))
+       "like"     [:x "joh%"] "(x LIKE ?)"))
 
 (deftest test-compile-expr
   (are [expression result] (= result ((juxt str :env) expression))
@@ -28,4 +27,14 @@
        (!=* :id nil)
        ["(id IS NOT NULL)" []]
        (=* :lower/name "bob")
-       ["(lower(name) = ?)" ["bob"]]))
+       ["(lower(name) = ?)" ["bob"]]
+       (not* nil)
+       ["" []]
+       (not* (=* :id 5))
+       ["NOT((id = ?))" [5]]
+       (not* (=* :id 5))
+       ["NOT((id = ?))" [5]]
+       (not* (like :x "chris%"))
+       ["NOT((x LIKE ?))" ["chris%"]]
+       (not* (or* (<* :id 100) (>* :id 101)))
+       ["NOT(((id < ?) OR (id > ?)))" [100 101]]))

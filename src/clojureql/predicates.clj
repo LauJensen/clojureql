@@ -33,7 +33,7 @@
         :stmt (map str exprs)
         :env  (mapcat :env exprs))
       (assoc this
-        :stmt (conj stmt (str "(" (join-str " OR " (map str exprs)) ")"))
+        :stmt (conj stmt (str "(" (join-str " OR " exprs) ")"))
         :env  (into env (mapcat :env exprs)))))
   (sql-and   [this exprs]
     (if (empty? (-> exprs first :stmt))
@@ -41,16 +41,16 @@
         :stmt (map str exprs)
         :env  (mapcat :env exprs))
       (assoc this
-        :stmt (conj stmt (str "(" (join-str " AND " (map str exprs)) ")"))
+        :stmt (conj stmt (str "(" (join-str " AND " exprs) ")"))
         :env  (into env (mapcat :env exprs)))))
-  (sql-not   [this exprs]
-    (if (empty? (-> exprs first :stmt))
+  (sql-not   [this expr]
+    (if (empty? (-> expr first :stmt))
       (assoc this
-        :stmt (map str exprs)
-        :env  (mapcat :env exprs))
+        :stmt (map str expr)
+        :env  (mapcat :env expr))
       (assoc this
-        :stmt (conj stmt (str "NOT(" (join-str exprs) ")"))
-        :env  (into env (mapcat :env exprs)))))
+        :stmt (conj stmt (str "NOT(" (join-str expr) ")"))
+        :env  (into env (mapcat :env expr)))))
   (spec-op [this expr]
     (let [[op p1 p2] expr]
       (cond
@@ -111,12 +111,11 @@
     (spec-op (predicate) (into ["IS NOT"] args))
     (infix (predicate) "!=" args)))
 
-(defoperator like     :like      "LIKE operator:      (like :x \"%y%\"")
-(defoperator not-like "not like" "NOT LIKE operator:  (not-like :x \"%y%\"")
-(defoperator >*       :>         "> operator:         (> :x 5)")
-(defoperator <*       :<         "< operator:         (< :x 5)")
-(defoperator <=*      :<=        "<= operator:        (<= :x 5)")
-(defoperator >=*      :>=        ">= operator:        (>= :x 5)")
+(defoperator like :like "LIKE operator:      (like :x \"%y%\"")
+(defoperator >*   :>    "> operator:         (> :x 5)")
+(defoperator <*   :<    "< operator:         (< :x 5)")
+(defoperator <=*  :<=   "<= operator:        (<= :x 5)")
+(defoperator >=*  :>=   ">= operator:        (>= :x 5)")
 
 (defn restrict
   "Returns a query string.
@@ -129,5 +128,5 @@
 
 (defn restrict-not
   "The inverse of the restrict fn"
-  ([ast]         (into [(str "not(" ast ")")] (:env ast)))
-  ([pred & args] (str "not(" (apply sql-clause pred args) ")")))
+  ([ast]         (into [(str "NOT(" ast ")")] (:env ast)))
+  ([pred & args] (str "NOT(" (apply sql-clause pred args) ")")))
