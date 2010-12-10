@@ -251,11 +251,12 @@
         statement (clean-sql ["SELECT" fields
                        (when tables "FROM") tables
                        (when preds "WHERE") (str preds)
-                       (when (seq order-by) (str "ORDER BY " (to-orderlist tname order-by)))
+                       
                        (when grouped-by     (str "GROUP BY " (to-fieldlist tname grouped-by)))
                        (when limit          (str "LIMIT " limit))
                        (when offset         (str "OFFSET " offset))
-                       (when combination    (str (combination-op (:combination tble)) \space (first combination)))])
+                       (when combination    (str (combination-op (:combination tble)) \space (first combination)))
+                       (when (seq order-by) (str "ORDER BY " (to-orderlist tname order-by)))])
         env       (concat
                    (->> [(map (comp :env last) jdata) (if preds [(:env preds)])]
                         flatten (remove nil?) vec)
