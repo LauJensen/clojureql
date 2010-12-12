@@ -46,7 +46,8 @@
 
 (defn aggregate? [c]
   (or (and (string? c) (.contains c "(")) ; Best guess
-      (not-any? nil? ((juxt namespace name) (keyword c)))))
+      (and (keyword c)
+           (not-any? nil? ((juxt namespace name) (keyword c))))))
 
 (defn split-fields [t a]
   (->> (.split a ":")
@@ -165,7 +166,7 @@
                 (cond
                  (vector? c)
                  (let [[nm _ alias] c]
-                   (str (to-name parent nm) " AS " (to-name parent alias)))
+                   (str (to-name parent nm) " AS " (to-name alias)))
                  (string? c)
                  c ; TODO: We might want to check for a period
                  :else
@@ -181,7 +182,7 @@
 
 (defn has-aggregate?
   [tble]
-  (some #(or (vector? %) (aggregate? %)) (:tcols tble)))
+  (some aggregate? (:tcols tble)))
 
 (defn find-first-alias
   "Scans a column spec to find the first alias, if none is found the
