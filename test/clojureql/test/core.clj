@@ -1,13 +1,10 @@
 (ns clojureql.test.core
+  (:refer-clojure
+   :exclude [compile take drop sort conj! disj!])
   (:use [clojureql.internal :only (update-or-insert-vals)]
         clojure.test
-        clojureql.core)
-  (:refer-clojure
-   :exclude [compile take drop sort conj! disj!]))
-
-;;; TODO: Why do I get an "Unable to resolve symbol: comment in this
-;;; context" exception when I put this into the above :use form ???
-(use 'clojure.contrib.mock)
+        clojureql.core
+        clojure.contrib.mock))
 
 (deftest sql-compilation
 
