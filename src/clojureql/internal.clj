@@ -45,9 +45,10 @@
   (.contains (nskeyword c) "."))
 
 (defn aggregate? [c]
-  (or (and (string? c) (.contains c "(")) ; Best guess
-      (and (keyword c)
-           (not-any? nil? ((juxt namespace name) (keyword c))))))
+  (let [c (if (vector? c) (first c) c)]
+    (or (and (string? c) (.contains c "(")) ; Best guess
+        (and (keyword? c)
+             (not-any? nil? ((juxt namespace name) (keyword c)))))))
 
 (defn split-fields [t a]
   (->> (.split a ":")
