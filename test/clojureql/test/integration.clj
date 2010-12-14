@@ -144,3 +144,9 @@
     (let [query (select (table :users) (where (= :id (:id alice))))]
       (is (= (map :id [alice alice alice])
              (map :id @(-> query (union query :all) (union query :all))))))))
+
+(deftest should-accept-fn-with-connection-info
+  (let [connection-info-fn (fn [] mysql)
+	connection-info-from-var (table mysql :users)
+	connection-info-from-fn (table connection-info-fn :users)]
+    (is (= connection-info-from-var connection-info-from-fn))))
