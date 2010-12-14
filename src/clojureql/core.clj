@@ -434,7 +434,10 @@
   ([table-name]
      (table nil table-name))
   ([connection-info table-name]
-     (RTable. connection-info table-name [:*] nil nil nil nil nil nil nil)))
+     (let [connection-info (if (fn? connection-info)
+			     (connection-info)
+			     connection-info)]
+       (RTable. connection-info table-name [:*] nil nil nil nil nil nil nil))))
 
 (defn table?
   "Returns true if tinstance is an instnce of RTable"
