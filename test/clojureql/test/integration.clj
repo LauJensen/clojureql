@@ -145,6 +145,14 @@
       (is (= (map :id [alice alice alice])
              (map :id @(-> query (union query :all) (union query :all))))))))
 
+(database-test test-in
+	       (when (or (postgresql?) (mysql?) (sqlite3?))
+		 (is (= @(-> (join users salary (where (= :users.id :salary.id)))
+			     (select (where (in :salary.wage [100 200])))
+			     (project [:salary.wage :users.name]))
+			'({:wage 100 :name "Lau Jensen"}
+			  {:wage 200 :name "Christophe"})))))
+
 (deftest should-accept-fn-with-connection-info
   (let [connection-info-fn (fn [] mysql)
 	connection-info-from-var (table mysql :users)

@@ -20,6 +20,7 @@
   (sql-or     [this exprs]     "Compiles to (expr OR expr)")
   (sql-and    [this exprs]     "Compiles to (expr AND expr)")
   (sql-not    [this exprs]     "Compiles to NOT(exprs)")
+  (sql-in     [this col vals]  "Compiles to col IN (val1, val2, ... )")
   (spec-op    [this expr]      "Compiles a special, ie. non infix operation")
   (infix      [this op exprs]  "Compiles an infix operation"))
 
@@ -51,6 +52,14 @@
       (assoc this
         :stmt (conj stmt (str "NOT(" (join-str expr) ")"))
         :env  (into env (mapcat :env expr)))))
+  (sql-in [this col vals]
+	  (assoc this
+	    :stmt (conj stmt
+			(str (name col)
+			     " IN ("
+			     (join-str "," (map (fn [_] "?") vals))
+			     ")"))
+	    :env  (into env vals)))
   (spec-op [this expr]
     (let [[op p1 p2] expr]
       (cond
@@ -96,6 +105,7 @@
 (defn or*  [& args] (sql-or (predicate) args))
 (defn and* [& args] (sql-and (predicate) args))
 (defn not* [& args] (sql-not (predicate) args))
+(defn in*  [col vals] (sql-in (predicate) col vals))
 
 (defmacro defoperator [name op doc]
   `(defn ~name ~doc [& args#]

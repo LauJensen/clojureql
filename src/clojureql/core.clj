@@ -168,7 +168,8 @@
        >=  clojureql.predicates/>=*
        and clojureql.predicates/and*
        or  clojureql.predicates/or*
-       not clojureql.predicates/not*}
+       not clojureql.predicates/not*
+       in  clojureql.predicates/in*}
      clause))
 
 (defmulti compile
