@@ -429,6 +429,10 @@
   "For compilation test purposes only"
   (reduce #(.replaceFirst %1 "\\?" (if (nil? %2) "NULL" (str %2))) stmt args))
 
+(defmethod print-method RTable [tble ^String out]
+  "RTables print as SQL92 compliant SQL"
+  (.write out (-> tble (compile nil) interpolate-sql)))
+
 (defn table
   "Constructs a relational object."
   ([table-name]
