@@ -4,68 +4,7 @@
              you to access tables and rows as objects that have uniform interfaces
              for queries, inserts and deletions.
 
-             Short Tutorial:
-
-             First you may define a connection object through which database access
-             will be provided.
-
-             (def db
-                  {:classname   \"com.mysql.jdbc.Driver\"
-                   :subprotocol \"mysql\"
-                   :user        \"cql\"
-                   :password    \"cql\"
-                   :subname     \"//localhost:3306/cql\"})
-
-             This object can be used in 2 ways:
-               1) As a connection which opens and closes on every query.
-                  To achieve this, pass the db object as the first argument
-                  when you construct a table:
-
-                          (table db :users)
-
-               2) As a persistent connection, which does not automatically close:
-
-                          (open-global :mysql db)
-
-                  This call opens the connection, which can then be supplied to the
-                  table constructor as well:
-
-                          (table :mysql :users)
-
-             With a connection established/defined you can begin interacting with your
-             database. Everything revolves around table objects, which can be queried (@)
-             added to (conj!), deleted from (disj!), joined to others tables (join or
-             outer-join) and much more. All actions on tables are composable and this
-             is the contract:
-
-                 No action is executed unless the table object is deferenced (@) or
-                 if you call a function which is suffixed with a bang (!).
-
-             How do I query all fields of a table named 'users'?
-
-                 @(table :mysql :users)
-
-             How do I query 2 specific columns?
-
-                 @(-> (table :mysql :users)
-                      (project [:name :title]))
-
-             How do I compose actions on queries?
-
-                 @(-> (table :mysql :users)
-                      (select (where (= :name \"Lau\")))
-                      (project [:name :title]))
-                      (sort :name :asc))
-
-             How do I inspect the compiled SQL statement before execution?
-
-                 (-> (table :mysql :users)
-                     (select (where (= :name \"Lau\")))
-                     (project [:name :title]))
-                     (sort :asc)
-                     (compile nil))
-
-             For more advanced examples please review README.md, demo.clj and core_test.clj."
+             Please see the README.md for documentation"
     :url    "http://github.com/LauJensen/clojureql"}
   (:refer-clojure
    :exclude [take drop sort conj! disj! compile])
@@ -78,7 +17,7 @@
 
                                         ; GLOBALS
 
-(def *debug* false) ; If true: Shows all SQL expressions before executing
+(def *debug* false)
 (def global-connections (atom {}))
 
 (declare table?)
