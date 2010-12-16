@@ -68,7 +68,11 @@
          (-> (table :users)
              (join (table :salary) (where (= :users.id :salary.id)))
              (project [:users.id :salary.wage]))
-         "SELECT users.id,salary.wage FROM users JOIN salary ON (users.id = salary.id)"))
+         "SELECT users.id,salary.wage FROM users JOIN salary ON (users.id = salary.id)"
+	 (-> (table :users)
+             (join (table :salary) (where (= :users.id :salary.id)))
+             (project [[:users.id :as :user_id] [:salary.wage :as :wage]]))
+         "SELECT users.id AS user_id,salary.wage AS wage FROM users JOIN salary ON (users.id = salary.id)"))
 
   (testing "renaming in joins"
     (are [x y] (= (-> x (compile nil) interpolate-sql) y)

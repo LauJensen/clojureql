@@ -56,6 +56,11 @@
        (interpose ",")
        (apply str)))
 
+(defn- prepend-table-name [tname field]
+  (str (if (not (.contains field "."))
+	 (str (name tname) \.))
+       field))
+
 (defn to-orderlist
   "Converts a list like [:id#asc :name#desc] to \"id asc, name desc\"
 
@@ -68,9 +73,7 @@
                     (map (fn [f]
 			   (if (or (= f "asc") (= f "desc"))
                                    f
-                                   (str (if (not (.contains f "."))
-					  (str (name tname) \.))
-					f))))
+                                   (prepend-table-name tname f))))
                     (interpose " ")
                     (apply str))
                (str (name %) " asc")))
@@ -124,7 +127,7 @@
                           [_ fn aggr] (split-aggregate col)]
                       (str fn "(" (split-fields tname aggr) ")" " AS " alias))
                     (let [[col _ alias] (map nskeyword i)]
-                      (str tname col " AS " alias)))
+                      (str (prepend-table-name tname col) " AS " alias)))
                    (and (aggregate? i) (not (string? i)))
                    (let [[_ fn aggr :as x] (split-aggregate i)]
                      (str fn "(" (split-fields tname aggr) ")"))
