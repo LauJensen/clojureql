@@ -65,9 +65,12 @@
        (map #(if (.contains (name %) "#")
                (->> (.split (name %) "#")
                     ((juxt first last))
-                    (map (fn [f] (if (or (= f "asc") (= f "desc"))
+                    (map (fn [f]
+			   (if (or (= f "asc") (= f "desc"))
                                    f
-                                   (str (name tname) \. f ))))
+                                   (str (if (not (.contains f "."))
+					  (str (name tname) \.))
+					f))))
                     (interpose " ")
                     (apply str))
                (str (name %) " asc")))

@@ -55,6 +55,14 @@
 (database-test test-implicit-asc-sort
   (is (= 1 (count @(limit users 1)))))
 
+(database-test test-specified-table-sort
+	       (is (= @(-> (join users salary (where (= :users.id :salary.id)))
+			   (sort [:salary.wage#desc]))
+		      '({:wage 400, :title "Engineer", :name "Frank", :id 4}
+			{:wage 300, :title "Mr. Macros", :name "sthuebner", :id 3}
+			{:wage 200, :title "Design Guru", :name "Christophe", :id 2}
+			{:wage 100, :title "Dev", :name "Lau Jensen", :id 1}))))
+
 (database-test test-avg
   (insert-data)
   (cond
