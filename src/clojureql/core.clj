@@ -251,6 +251,13 @@
          (with-open [rset (.executeQuery stmt)]
            (f (resultset-seq rset)))))))
 
+  clojure.lang.IFn
+  (invoke [this kw]
+    (let [results @this]
+      (if (= 1 (count results))
+        (kw (first results))
+        (throw (Exception. "Multiple items in resultsetseq, keyword lookup not possible")))))
+
   (select [this predicate]
     (assoc this :restriction predicate)) ;TODO: Make this additive
 
