@@ -295,7 +295,9 @@
   [& body]
   `(if ~'cnx
      (clojureql.core/with-cnx ~'cnx (do ~@body))
-     (do ~@body)))
+     (if (:connection sqlint/*db*)
+       (do ~@body)
+       (throw (Exception. "No connection found")))))
 
 (defn result-seq
   "Creates and returns a lazy sequence of structmaps corresponding to
