@@ -126,6 +126,7 @@
            (-> u1 (join (project w1 [[:wage :as :income]]) (where (= :u1.id :w1.id))))
            (str "SELECT u1.id,u1.article,u1.price,w1.wage AS income "
                 "FROM users u1 JOIN salary w1 ON (u1.id = w1.id)"))))
+
   (testing "joining on multiple tables"
     (are [x y] (= (-> x (compile nil) interpolate-sql) y)
          (-> (table :users)
@@ -186,7 +187,7 @@
          (let [t1 (table :t1) t2 (table :t2)]
            (-> (select t1 (where (= :id 1)))
                (union t2)
-               (limit 5)))
+               (take 5)))
          "SELECT t1.* FROM t1 WHERE (id = 1) LIMIT 5 UNION SELECT t2.* FROM t2"
          (-> (select (table :users) (where (>= :id 0)))
              (difference (select (table :users) (where (= :id 1))) :all)
@@ -194,4 +195,23 @@
              (union (select (table :users) (where (<= :id 3))) :distinct))
          "SELECT users.* FROM users WHERE (id >= 0) EXCEPT ALL SELECT users.* FROM users WHERE (id = 1) INTERSECT SELECT users.* FROM users WHERE (id = 2) UNION DISTINCT SELECT users.* FROM users WHERE (id <= 3)"))
 
-  )
+  (testing "sort"
+    (are [x y] (= (-> x (compile nil) interpolate-sql) y)
+         (-> (table :t1)
+             (sort [:id]))
+         "SELECT t1.* FROM t1 ORDER BY id asc"
+         (-> (table :t1)
+             (sort [:id])
+             (take 5))
+         "SELECT t1.* FROM t1 ORDER BY id asc LIMIT 5"
+         (-> (table :t1)
+             (sort [:id])
+             (take 5)
+             (sort [:wage]))
+         "SELECT * FROM (SELECT t1.* FROM t1 ORDER BY id asc LIMIT 5) ORDER BY wage asc"
+         (-> (table :t1)
+             (sort [:id])
+             (drop 10)
+             (take 5)
+             (sort [:wage]))
+         "SELECT * FROM (SELECT t1.* FROM t1 ORDER BY id asc LIMIT 5 OFFSET 10) ORDER BY wage asc")))
