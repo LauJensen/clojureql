@@ -53,6 +53,13 @@
              (select (where (= :lower/name "bob"))))
          "SELECT users.* FROM users WHERE (lower(name) = bob)"))
 
+  (testing "Nested where predicates"
+    (are [x y] (= (-> x (compile nil) interpolate-sql) y)
+         (-> (table :users)
+             (select (where (= :id 5)))
+             (select (where (= :title "Developer"))))
+         "SELECT users.* FROM users WHERE (id = 5) AND (title = Developer)"))
+
   (testing "projections"
     (are [x y] (= (-> x (compile nil) interpolate-sql) y)
          (-> (table :users)

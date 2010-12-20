@@ -258,8 +258,10 @@
         (kw (first results))
         (throw (Exception. "Multiple items in resultsetseq, keyword lookup not possible")))))
 
-  (select [this predicate]
-    (assoc this :restriction predicate)) ;TODO: Make this additive
+  (select [this clause]
+    (assoc this :restriction
+           (fuse-predicates (or restriction (predicate nil nil))
+                            clause)))
 
   (project [this fields]
     (assoc this :tcols fields))

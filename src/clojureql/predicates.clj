@@ -76,6 +76,13 @@
   ([stmt]     (predicate stmt []))
   ([stmt env] (APredicate. stmt env)))
 
+(defn fuse-predicates
+  [p1 p2]
+  (if (and (nil? (:env p1)) (nil? (:stmt p1)))
+    p2
+    (predicate (join-str " AND " [p1 p2])
+               (mapcat :env [p1 p2]))))
+
 (defn replace-in
   "Helper function to update the env field of a predicate"
   [pred orig new]
