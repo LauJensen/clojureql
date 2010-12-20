@@ -229,7 +229,7 @@
 
   (limit      [this n]                    "Queries the table with LIMIT n, call via take")
   (offset     [this n]                    "Queries the table with OFFSET n, call via drop")
-  (sorted     [this fields]               "Sorts the query using fields, call via sort")
+  (order-by   [this fields]               "Orders the query by fields, call via sort")
   (grouped    [this field]                "Groups the expression by field")
 
   (apply-on   [this f]                    "Applies f on a resultset, call via with-results"))
@@ -367,7 +367,7 @@
         :limit  limit
         :offset offset)))
 
-  (sorted [this fields]
+  (order-by [this fields]
     (assoc this
       :order-by fields)))
 
@@ -407,7 +407,7 @@
   "A sort which works on both tables and collections"
   [obj & args]
   (if (table? obj)
-    (apply sorted obj args)
+    (apply order-by obj args)
     (apply clojure.core/sort obj args)))
 
 (defn drop
