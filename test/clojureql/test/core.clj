@@ -195,7 +195,7 @@
              (union (select (table :users) (where (<= :id 3))) :distinct))
          "SELECT users.* FROM users WHERE (id >= 0) EXCEPT ALL SELECT users.* FROM users WHERE (id = 1) INTERSECT SELECT users.* FROM users WHERE (id = 2) UNION DISTINCT SELECT users.* FROM users WHERE (id <= 3)"))
 
-  (testing "sort"
+  #_(testing "sort"
     (are [x y] (= (-> x (compile nil) interpolate-sql) y)
          (-> (table :t1)
              (sort [:id]))
