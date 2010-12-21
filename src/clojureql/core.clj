@@ -113,6 +113,26 @@
 (defmulti compile
   (fn [table db] (:dialect db)))
 
+(defn- combination-op [combination]
+  (->> [(:type combination) (:mode combination)]
+       (remove nil?)
+       (map name)
+       (join-str " ")
+       upper-case))
+
+(defn- append-combination [type relation-1 relation-2 & [mode]]
+  (assoc relation-1
+    :combination
+    (if-let [combination (:combination relation-1)]
+      {:relation (append-combination type (:relation combination) relation-2 mode)
+       :type (:type combination)
+       :mode (:mode combination)}
+      {:relation relation-2 :type type :mode mode}) ))
+
+(defn- append-combinations [type relation relations & [mode]]
+  (reduce #(append-combination type %1 %2 mode)
+          relation (if (vector? relations) relations [relations])))
+
 (defn build-join
   "Generates a JOIN statement from the joins field of a table"
   [{[tname pred] :data type :type pos :position} aliases]
@@ -143,26 +163,6 @@
      (if (and subselect (map? pred))
        (assoc pred :env (into (:env pred) env))
        pred)]))
-
-(defn- combination-op [combination]
-  (->> [(:type combination) (:mode combination)]
-       (remove nil?)
-       (map name)
-       (join-str " ")
-       upper-case))
-
-(defn- append-combination [type relation-1 relation-2 & [mode]]
-  (assoc relation-1
-    :combination
-    (if-let [combination (:combination relation-1)]
-      {:relation (append-combination type (:relation combination) relation-2 mode)
-       :type (:type combination)
-       :mode (:mode combination)}
-      {:relation relation-2 :type type :mode mode}) ))
-
-(defn- append-combinations [type relation relations & [mode]]
-  (reduce #(append-combination type %1 %2 mode)
-          relation (if (vector? relations) relations [relations])))
 
 (defmethod compile :default [tble db]
   (let [{:keys [cnx tname tcols restriction renames joins
