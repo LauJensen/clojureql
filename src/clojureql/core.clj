@@ -171,7 +171,10 @@
         combination (if (:combination tble) (compile (:relation (:combination tble)) :default))
         fields    (str (if tcols (to-fieldlist tname tcols) "*")
                        (when (seq aliases)
-                         (str "," (join-str "," (map last aliases)))))
+                         (str ","
+                              (->> (map rest aliases)
+                                   (map #(join-str "," %))
+                                   (apply str)))))
         jdata     (when joins
                     (for [join-data joins] (build-join join-data aliases)))
         tables    (if joins
@@ -183,10 +186,10 @@
                     (if renames
                       (with-rename tname (qualify tname tcols) renames)
                       (to-tablename tname)))
-        preds     (if (and aliases restriction)
+        preds     (if (and (seq restriction) (seq aliases))
                     (apply-aliases-to-predicate restriction aliases)
                     (when restriction
-                      restriction))
+                    restriction))
         statement (clean-sql ["SELECT" fields
                        (when tables "FROM") tables
                        (when preds "WHERE") (str preds)
@@ -194,7 +197,9 @@
                        (when grouped-by     (str "GROUP BY " (to-fieldlist tname grouped-by)))
                        (when limit          (str "LIMIT " limit))
                        (when offset         (str "OFFSET " offset))
-                       (when combination    (str (combination-op (:combination tble)) \space (first combination)))])
+                       (when combination    (str (combination-op (:combination tble))
+                                                 \space
+                                                 (first combination)))])
         env       (concat
                    (->> [(map (comp :env last) jdata) (if preds [(:env preds)])]
                         flatten (remove nil?) vec)

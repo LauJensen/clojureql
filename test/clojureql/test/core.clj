@@ -111,6 +111,17 @@
                      (where (= :users.id :photos.user_id))))
            (str "SELECT users.*,photos_subselect.cnt FROM users JOIN "
                 "(SELECT photos.user_id,count(*) AS cnt FROM photos GROUP BY photos.user_id) "
+                "AS photos_subselect ON (users.id = photos_subselect.user_id)")))
+    (let [photo-counts-by-user (-> (table :photos)
+                                   (aggregate [[:count/* :as :cnt] [:sum/* :as :sum]]
+                                              [:user_id]))]
+      (are [x y] (= (-> x (compile nil) interpolate-sql) y)
+           (-> (table :users)
+               (join photo-counts-by-user
+                     (where (= :users.id :photos.user_id))))
+           (str "SELECT users.*,photos_subselect.cnt,photos_subselect.sum FROM users JOIN "
+                "(SELECT photos.user_id,count(*) AS cnt,sum(*) AS sum FROM photos "
+                "GROUP BY photos.user_id) "
                 "AS photos_subselect ON (users.id = photos_subselect.user_id)"))))
 
   (testing "table aliases"
