@@ -142,9 +142,7 @@
                                         (to-tablename tname)
                                         (to-tablename (:tname tname)))
                                alias  (-> (.split a "\\.") first)]
-                           (if (.contains alias t1name)
-                             (replace-in acc t1name alias)
-                             acc)))
+                             acc))
                        pred (map last aliases))
                pred)
         [subselect env] (when (requires-subselect? tname)
@@ -186,10 +184,7 @@
                     (if renames
                       (with-rename tname (qualify tname tcols) renames)
                       (to-tablename tname)))
-        preds     (if (and (seq restriction) (seq aliases))
-                    (apply-aliases-to-predicate restriction aliases)
-                    (when restriction
-                    restriction))
+        preds     (when restriction restriction)
         statement (clean-sql ["SELECT" fields
                        (when tables "FROM") tables
                        (when preds "WHERE") (str preds)

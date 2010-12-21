@@ -88,23 +88,6 @@
     (predicate (join-str " AND " [p1 p2])
                (mapcat :env [p1 p2]))))
 
-(defn replace-in
-  "Helper function to update the env field of a predicate"
-  [pred orig new]
-  (predicate (str pred)
-             (reduce #(if-let [p %2]
-                        (if (string? p)
-                          (conj %1 (.replaceAll p orig new))
-                          (conj %1 p))) [] (:env pred))))
-
-(defn apply-aliases-to-predicate
-  "Takes a predicate and a hashmap of aliases and returns
-   a statement with all aliases applied"
-  [pred aliases]
-  (reduce (fn [acc [old new]]
-            (replace-in acc old (-> (.split new "\\.") first)))
-          pred aliases))
-
 (defn or*  [& args] (sql-or (predicate) args))
 (defn and* [& args] (sql-and (predicate) args))
 (defn not* [& args] (sql-not (predicate) args))
