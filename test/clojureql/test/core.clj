@@ -53,6 +53,22 @@
              (select (where (= :lower/name "bob"))))
          "SELECT users.* FROM users WHERE (lower(name) = bob)"))
 
+  (testing "distinct selects"
+    (are [x y] (= (-> x (compile nil) interpolate-sql) y)
+	 (-> (table :users)
+	     (project [:id :name])
+	     (distinct))
+	 "SELECT DISTINCT users.id,users.name FROM users"))
+
+  (testing "distinct can safely be applied repeatedly"
+    (are [x y] (= (-> x (compile nil) interpolate-sql) y)
+	 (-> (table :users)
+	     (project [:id :name])
+	     (distinct)
+	     (distinct)
+	     (distinct))
+	 "SELECT DISTINCT users.id,users.name FROM users"))
+  
   (testing "Nested where predicates"
     (are [x y] (= (-> x (compile nil) interpolate-sql) y)
          (-> (table :users)
