@@ -254,7 +254,9 @@
 
   (pick       [this kw]
     "For queries where you know only a single result will be returned,
-     pick calls the keyword on that result.
+     pick calls the keyword on that result. You can supply multiple keywords
+     in a collection.  Returns nil for no-hits, throws
+     an exception on multiple hits.
 
      Ex. (-> (table :users)
              (select (where (= :id 5))) ; We know this will only match 1 row
@@ -307,11 +309,6 @@
   (apply-on   [this f]                    "Internal: Applies f on a resultset, call via with-results")
   (grouped    [this field]                "Internal: Groups the expression by field"))
 
-
-
-
-
-
 (defrecord RTable [cnx tname tcols restriction renames joins
                    grouped-by limit offset order-by modifiers]
   clojure.lang.IDeref
@@ -330,11 +327,12 @@
          (with-open [rset (.executeQuery stmt)]
            (f (resultset-seq rset)))))))
 
-  clojure.lang.IFn
-  (invoke [this kw]
+  (pick [this kw]
     (let [results @this]
-      (if (= 1 (count results))
-        (kw (first results))
+      (if (or (= 1 (count results)) (empty? results))
+        (if (coll? kw)
+          (map (first results) kw)
+          (kw (first results)))
         (throw (Exception. "Multiple items in resultsetseq, keyword lookup not possible")))))
 
   (select [this clause]
