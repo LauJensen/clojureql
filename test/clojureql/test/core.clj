@@ -111,6 +111,17 @@
                      (where (= :users.id :photos.user_id))))
            (str "SELECT users.*,photos_subselect.cnt FROM users JOIN "
                 "(SELECT photos.user_id,count(*) AS cnt FROM photos GROUP BY photos.user_id) "
+                "AS photos_subselect ON (users.id = photos_subselect.user_id)")))
+    (let [photo-counts-by-user (-> (table :photos)
+                                   (aggregate [[:count/* :as :cnt] [:sum/* :as :sum]]
+                                              [:user_id]))]
+      (are [x y] (= (-> x (compile nil) interpolate-sql) y)
+           (-> (table :users)
+               (join photo-counts-by-user
+                     (where (= :users.id :photos.user_id))))
+           (str "SELECT users.*,photos_subselect.cnt,photos_subselect.sum FROM users JOIN "
+                "(SELECT photos.user_id,count(*) AS cnt,sum(*) AS sum FROM photos "
+                "GROUP BY photos.user_id) "
                 "AS photos_subselect ON (users.id = photos_subselect.user_id)"))))
 
   (testing "table aliases"
@@ -195,23 +206,23 @@
              (union (select (table :users) (where (<= :id 3))) :distinct))
          "SELECT users.* FROM users WHERE (id >= 0) EXCEPT ALL SELECT users.* FROM users WHERE (id = 1) INTERSECT SELECT users.* FROM users WHERE (id = 2) UNION DISTINCT SELECT users.* FROM users WHERE (id <= 3)"))
 
-  (testing "sort"
+  #_(testing "sort"
     (are [x y] (= (-> x (compile nil) interpolate-sql) y)
          (-> (table :t1)
-             (sort "foo"))
-         "SELECT t1.* FROM t1 ORDER BY foo asc"
+             (sort [:id]))
+         "SELECT t1.* FROM t1 ORDER BY id asc"
          (-> (table :t1)
-             (sort "foo")
+             (sort [:id])
              (take 5))
-         "SELECT t1.* FROM t1 ORDER BY foo asc LIMIT 5"
+         "SELECT t1.* FROM t1 ORDER BY id asc LIMIT 5"
          (-> (table :t1)
-             (sort "foo")
+             (sort [:id])
              (take 5)
-             (sort "bar"))
-         "SELECT * FROM (SELECT t1.* FROM t1 ORDER BY foo asc LIMIT 5) ORDER BY bar asc"
+             (sort [:wage]))
+         "SELECT * FROM (SELECT t1.* FROM t1 ORDER BY id asc LIMIT 5) ORDER BY wage asc"
          (-> (table :t1)
-             (sort "foo")
+             (sort [:id])
              (drop 10)
              (take 5)
-             (sort "bar"))
-         "SELECT * FROM (SELECT t1.* FROM t1 ORDER BY foo asc LIMIT 5 OFFSET 10) ORDER BY bar asc")))
+             (sort [:wage]))
+         "SELECT * FROM (SELECT t1.* FROM t1 ORDER BY id asc LIMIT 5 OFFSET 10) ORDER BY wage asc")))

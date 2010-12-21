@@ -3,7 +3,7 @@
    [clojure.contrib.sql.internal :as sqlint]
    [clojure.contrib.sql :as csql])
   (:use [clojure.string :only [join] :rename {join join-str}]
-        [clojure.contrib.core :only [-?>]]))
+        [clojure.contrib.core :only [-?> -?>>]]))
 
 (defn upper-name [kw]
   (-> kw name .toUpperCase))
@@ -185,12 +185,12 @@
   [tble]
   (some aggregate? (:tcols tble)))
 
-(defn find-first-alias
+(defn find-aliases
   "Scans a column spec to find the first alias, if none is found the
    first column is used instead"
   [tcols]
-  (let [alias (-?> (filter #(and (vector? %) (= 3 (count %))) tcols)
-                   first last name)]
+  (let [alias (-?>> (filter #(and (vector? %) (= 3 (count %))) tcols)
+                    (map (comp name last)))]
     (if (seq alias)
       alias
       (-> tcols first nskeyword))))
@@ -209,10 +209,11 @@
               original name and the new name for each table "
   [joins]
   (for [[tbl-or-kwd pred] (map :data joins)
-             :when (requires-subselect? tbl-or-kwd)
-             :let [{:keys [tname tcols]} tbl-or-kwd
-                   alias (find-first-alias tcols)]]
-         [(to-tablename tname) (str (name tname) "_subselect." alias)]))
+        :when (requires-subselect? tbl-or-kwd)
+        :let [{:keys [tname tcols]} tbl-or-kwd
+              aliases (find-aliases tcols)]]
+    (into [(to-tablename tname)]
+          (map #(str (name tname) "_subselect." %) aliases))))
 
 (defn derived-fields
   "Computes the resulting fields from its input
