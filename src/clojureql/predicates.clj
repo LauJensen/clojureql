@@ -11,12 +11,12 @@
 (declare predicate)
 
 (defprotocol Predicate
-  (sql-or     [this exprs]     "Compiles to (expr OR expr)")
-  (sql-and    [this exprs]     "Compiles to (expr AND expr)")
-  (sql-not    [this exprs]     "Compiles to NOT(exprs)")
-  (spec-op    [this expr]      "Compiles a special, ie. non infix operation")
-  (infix      [this op exprs]  "Compiles an infix operation")
-  (prefix     [this op exprs]  "Compiles a prefix operation"))
+  (sql-or     [this exprs]           "Compiles to (expr OR expr)")
+  (sql-and    [this exprs]           "Compiles to (expr AND expr)")
+  (sql-not    [this exprs]           "Compiles to NOT(exprs)")
+  (spec-op    [this expr]            "Compiles a special, ie. non infix operation")
+  (infix      [this op exprs]        "Compiles an infix operation")
+  (prefix     [this op field exprs]  "Compiles a prefix operation"))
 
 (defrecord APredicate [stmt env]
   Object
@@ -67,12 +67,16 @@
                          (join-str (format " %s " (upper-name op))
                                    (parameterize expr))))
       :env  (into env (sanitize expr))))
-  (prefix [this op expr]
-    (prn (parameterize expr))
+  (prefix [this op field expr]
     (assoc this
-      :stmt (conj stmt (format "%s(%s)"
+      :stmt (conj stmt (format "%s %s (%s)"
+                               (nskeyword field)
                                (upper-name op)
-                               (join-str "," (parameterize expr))))
+                               (->> (if (vector? (first expr))
+                                      (first expr)
+                                      expr)
+                                    parameterize
+                                    (join-str ","))))
       :env (into env (sanitize expr)))))
 
 (defn predicate
@@ -113,10 +117,13 @@
 (definfixoperator >=*  :>=   ">= operator:        (>= :x 5)")
 
 (defmacro defprefixoperator [name op doc]
-  `(defn ~name ~doc [& args#]
-     (prefix (predicate) (name ~op) args#)))
+  `(defn ~name ~doc [field# & args#]
+     (prefix (predicate) (name ~op) field# args#)))
 
-(defprefixoperator in :in "IN operator:  (in 'one' 'two' 'three')")
+(defprefixoperator in :in
+  "IN operator:  (in :name \"Jack\" \"John\"). Accepts both
+   a vector of items or an arbitrary amount of values as seen
+   above.")
 
 (defn restrict
   "Returns a query string.
