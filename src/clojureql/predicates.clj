@@ -5,14 +5,8 @@
 (defn sanitize [expression]
   (reduce #(conj %1 %2) [] (remove keyword? expression)))
 
-(defn parameterize [op expression]
-  (str "("
-       (->> expression
-            (map #(if (keyword? %)
-                    (str (to-tablename %))
-                    "?"))
-            (join-str (str \space (upper-name op) \space)))
-       ")"))
+(defn parameterize [expression]
+  (map #(if (keyword? %) (str (to-tablename %)) "?") expression))
 
 (declare predicate)
 
@@ -21,7 +15,8 @@
   (sql-and    [this exprs]     "Compiles to (expr AND expr)")
   (sql-not    [this exprs]     "Compiles to NOT(exprs)")
   (spec-op    [this expr]      "Compiles a special, ie. non infix operation")
-  (infix      [this op exprs]  "Compiles an infix operation"))
+  (infix      [this op exprs]  "Compiles an infix operation")
+  (prefix     [this op exprs]  "Compiles a prefix operation"))
 
 (defrecord APredicate [stmt env]
   Object
@@ -68,8 +63,17 @@
        (infix this "=" (rest expr)))))
   (infix [this op expr]
     (assoc this
-      :stmt (conj stmt (parameterize op expr))
-      :env  (into env (sanitize expr)))))
+      :stmt (conj stmt (format "(%s)"
+                         (join-str (format " %s " (upper-name op))
+                                   (parameterize expr))))
+      :env  (into env (sanitize expr))))
+  (prefix [this op expr]
+    (prn (parameterize expr))
+    (assoc this
+      :stmt (conj stmt (format "%s(%s)"
+                               (upper-name op)
+                               (join-str "," (parameterize expr))))
+      :env (into env (sanitize expr)))))
 
 (defn predicate
   ([]         (predicate [] []))
@@ -77,6 +81,7 @@
   ([stmt env] (APredicate. stmt env)))
 
 (defn fuse-predicates
+  "Combines two predicates into one using AND"
   [p1 p2]
   (if (and (nil? (:env p1)) (nil? (:stmt p1)))
     p2
@@ -104,10 +109,6 @@
 (defn and* [& args] (sql-and (predicate) args))
 (defn not* [& args] (sql-not (predicate) args))
 
-(defmacro defoperator [name op doc]
-  `(defn ~name ~doc [& args#]
-     (infix (predicate) (name ~op) args#)))
-
 (defn =* [& args]
   (if (some #(nil? %) args)
     (spec-op (predicate) (into ["IS"] args))
@@ -118,11 +119,21 @@
     (spec-op (predicate) (into ["IS NOT"] args))
     (infix (predicate) "!=" args)))
 
-(defoperator like :like "LIKE operator:      (like :x \"%y%\"")
-(defoperator >*   :>    "> operator:         (> :x 5)")
-(defoperator <*   :<    "< operator:         (< :x 5)")
-(defoperator <=*  :<=   "<= operator:        (<= :x 5)")
-(defoperator >=*  :>=   ">= operator:        (>= :x 5)")
+(defmacro definfixoperator [name op doc]
+  `(defn ~name ~doc [& args#]
+     (infix (predicate) (name ~op) args#)))
+
+(definfixoperator like :like "LIKE operator:      (like :x \"%y%\"")
+(definfixoperator >*   :>    "> operator:         (> :x 5)")
+(definfixoperator <*   :<    "< operator:         (< :x 5)")
+(definfixoperator <=*  :<=   "<= operator:        (<= :x 5)")
+(definfixoperator >=*  :>=   ">= operator:        (>= :x 5)")
+
+(defmacro defprefixoperator [name op doc]
+  `(defn ~name ~doc [& args#]
+     (prefix (predicate) (name ~op) args#)))
+
+(defprefixoperator in :in "IN operator:  (in 'one' 'two' 'three')")
 
 (defn restrict
   "Returns a query string.

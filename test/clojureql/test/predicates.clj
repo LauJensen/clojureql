@@ -1,7 +1,7 @@
 (ns clojureql.test.predicates
   (:use clojureql.predicates clojure.test))
 
-(deftest test-parameterize
+#_(deftest test-parameterize
   (are [op expression result] (= result (parameterize op expression))
        :<         [:x 5]      "(x < ?)"
        "<"        [:x 5]      "(x < ?)"
