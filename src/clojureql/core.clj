@@ -7,7 +7,7 @@
              Please see the README.md for documentation"
     :url    "http://github.com/LauJensen/clojureql"}
   (:refer-clojure
-   :exclude [take drop sort conj! disj! compile])
+   :exclude [take drop sort conj! disj! compile distinct])
   (:use
    [clojureql internal predicates]
    [clojure.string :only [join upper-case] :rename {join join-str}]
@@ -166,7 +166,7 @@
 
 (defmethod compile :default [tble db]
   (let [{:keys [cnx tname tcols restriction renames joins
-                grouped-by limit offset order-by]} tble
+                grouped-by limit offset order-by select-modifiers]} tble
         aliases   (when joins (extract-aliases joins))
         combination (if (:combination tble) (compile (:relation (:combination tble)) :default))
         fields    (str (if tcols (to-fieldlist tname tcols) "*")
@@ -187,7 +187,9 @@
                     (apply-aliases-to-predicate restriction aliases)
                     (when restriction
                       restriction))
-        statement (clean-sql ["SELECT" fields
+        statement (clean-sql ["SELECT"
+			      (when select-modifiers (join-str (clojure.core/distinct select-modifiers)))
+			      fields
                        (when tables "FROM") tables
                        (when preds "WHERE") (str preds)
                        (when (seq order-by) (str "ORDER BY " (to-orderlist tname order-by)))
@@ -231,7 +233,7 @@
   (offset     [this n]                    "Queries the table with OFFSET n, call via drop")
   (order-by   [this fields]               "Orders the query by fields, call via sort")
   (grouped    [this field]                "Groups the expression by field")
-
+  (distinct   [this]                      "Makes a select query distinct on all fields")
   (apply-on   [this f]                    "Applies f on a resultset, call via with-results"))
 
 (defrecord RTable [cnx tname tcols restriction renames joins grouped-by limit offset order-by]
@@ -263,6 +265,11 @@
            (fuse-predicates (or restriction (predicate nil nil))
                             clause)))
 
+  (distinct [this]
+    (assoc this
+      :select-modifiers
+      (conj (or (:select-modifiers this) []) "DISTINCT")))
+  
   (project [this fields]
     (assoc this :tcols fields))
 

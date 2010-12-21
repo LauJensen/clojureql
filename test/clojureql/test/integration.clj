@@ -2,7 +2,7 @@
   (:import java.sql.Timestamp)
   (:use clojure.test clojureql.core clojureql.test)
   (:refer-clojure
-   :exclude [compile take sort drop conj! disj!]
+   :exclude [compile take sort drop conj! disj! distinct]
    :rename {take take-coll}))
 
 (database-test test-conj!
@@ -150,3 +150,18 @@
 	connection-info-from-var (table mysql :users)
 	connection-info-from-fn (table connection-info-fn :users)]
     (is (= connection-info-from-var connection-info-from-fn))))
+
+(database-test test-distinct
+  (let [alice {:name "Alice" :title "Dev"}]
+    @(conj! users [alice alice])
+    (let [query (-> (table :users)
+		    (project [:name :title])
+		    (select (where (= "Dev" :title))))
+	  non-distinct @query
+	  distinct @(-> query
+			distinct)]
+      (is (= 3 (count non-distinct)))
+      (is (= 2 (count distinct))))))
+	  
+      
+		 

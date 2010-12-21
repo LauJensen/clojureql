@@ -112,6 +112,7 @@ Queries
     >>> ({:name "Lau Jensen", :id 1}
          {:name "Christophe", :id 2})
 
+
 For lazy traversal of the results, use **with-results**
 
     (with-results [results users]
@@ -220,6 +221,7 @@ Since this is a true Relational Algebra implementation, everything composes!
          (select (where (!= :id 5)))        ; But filter out ID = 5
          (join :salary :id)                 ; Join with table salary USING column id
          (take 10))                         ; Dont extract more than 10 hits
+	 (distinct)			    ; Make the results distinct across all columns
     >>> ({:id 3 :name "Frank"} {:id 2 :name "Christophe"})
 
 **Note:** This executes SQL statements 3 times in this order: conj!, disj!, @
