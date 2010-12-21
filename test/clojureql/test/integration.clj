@@ -38,7 +38,7 @@
               (update-in! (where (= :id 2))
                           {:name "John"})     ; Update a third
               (sort [:id#desc])               ; Prepare to sort
-              (project #{:id :title})         ; Returns colums id and title
+              (project [:id :title])          ; Returns colums id and title
               (select (where (<= :id 10)))    ; Where ID is <= 10
               (join salary :id)               ; Join with table salary
               (limit 10))                     ; Take a maximum of 10 entries
