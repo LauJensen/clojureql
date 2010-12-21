@@ -207,35 +207,110 @@
                                         ; RELATIONAL ALGEBRA
 
 (defprotocol Relation
-  (select     [this predicate]            "Queries the table using a predicate")
-  (project    [this fields]               "Projects fields onto the query")
-  (join       [this table2 join_on]       "Joins two table")
-  (outer-join [this table2 type join_on]  "Makes an outer join of type :left|:right|:full")
-  (rename     [this newnames]             "Renames colums in a join")
+  (select     [this predicate]
+    "Confines the query to rows for which the predicate is true
+
+     Ex. (select (table :users) (where (= :id 5)))")
+  (project    [this fields]
+    "Confines the query to the fieldlist supplied in fields
+
+     Ex. (project (table :users) [:email])")
+  (join       [this table2 join_on]
+    "Joins two tables on join_on
+
+     Ex. (join (table :one) (table :two) :id)
+         (join (table :one) (table :two)
+               (where (= :one.col :two.col)))")
+  (outer-join [this table2 type join_on]
+    "Joins two tables on join_on and sets the direction of the join. type
+     can be :right, :left, :full etc. Backend support may vary.
+
+     Ex. (outer-join (table :one) (table :two) :left :id)
+         (outer-join (table :one) (table :two) :left
+                     (where (= :one.id :two.id)))")
+
+  (rename     [this newnames]
+    "Renames colums when joining. Newnames is a map of replacement pairs
+
+     Ex. (-> (join (table :one) (table :two) :id)
+             (project [:id])
+             (rename {:one.id :idx}))")
   (aggregate  [this aggregates]
-              [this aggregates group-by]  "Computes aggregates grouped by the specified fields")
+              [this aggregates group-by]
+    "Selects aggregates from a table. Aggregates are denoted with the
+     :function/field syntax. They can be aliased by supplying a vector
+     [:function/field :as :myfn]. Optionally accepts a group-by argument
 
-  (modify     [this modifiers]            "Adds modifiers to the result")
+     Ex. (-> (table :one)
+             (aggregate [[:count/* :as :cnt]] [:id]))")
 
-  (conj!      [this records]              "Inserts record(s) into the table")
-  (disj!      [this predicate]            "Deletes record(s) from the table")
-  (update-in! [this pred records]         "Inserts or updates record(s) where pred is true")
+  (modify     [this modifiers]
+    "Allows for arbitrary modifiers to be applied on the result. Can either
+     be called directly or via helper interfaces like 'distinct'.
 
-  (difference [this relations]
-              [this relations mode]       "Return a relation that is the difference of the input relations. To allow duplicate values use :all as mode.")
+     Ex. (-> (table :one)
+             (modify \"TOP 5\")) ; MSSqls special LIMIT syntax
+         (-> (table :one) distinct)")
 
+  (pick       [this kw]
+    "For queries where you know only a single result will be returned,
+     pick calls the keyword on that result.
+
+     Ex. (-> (table :users)
+             (select (where (= :id 5))) ; We know this will only match 1 row
+             (pick :email))")
+
+  (conj!      [this records]
+    "Inserts record(s) into the table
+
+     Ex. (conj! (table :one) {:age 22})
+         (conj! (table :one) [{:age 22} {:age 23}]")
+  (disj!      [this predicate]
+    "Deletes record(s) from the table
+
+     Ex. (disj! (table :one) (where (= :age 22)))")
+
+  (update-in! [this pred records]
+    "Inserts or updates record(s) where pred is true. Accepts records
+     as both maps and collections.
+
+     Ex. (update-in! (table :one) (where (= :id 5))
+            {:age 22})")
+
+  (difference   [this relations]
+                [this relations mode]
+    "Selects the difference between tables. Mode can take a keyword
+     which can be anything which your backend supports. Commonly :all is
+     used to allow duplicate rows.
+
+     Ex. (-> (table :one)
+             (difference (table :two) :all))")
   (intersection [this relations]
-                [this relations mode]     "Return a relation that is the intersection of the input relations. To allow duplicate values use :all as mode.")
+                [this relations mode]
+    "Selects the intersection between tables. Mode can take a keyword
+     which can be anything which your backend supports. Commonly :all is
+     used to allow duplicate rows.
 
-  (union      [this relations]
-              [this relations mode]       "Return a relation that is the difference of the input relations. To allow duplicate values use :all as mode.")
+     Ex. (-> (table :one)
+             (intersection (table :two) :all))")
+  (union        [this relations]
+                [this relations mode]
+    "Selects the union between tables. Mode can take a keyword
+     which can be anything which your backend supports. Commonly :all is
+     used to allow duplicate rows.
 
-  (limit      [this n]                    "Queries the table with LIMIT n, call via take")
-  (offset     [this n]                    "Queries the table with OFFSET n, call via drop")
-  (order-by   [this fields]               "Orders the query by fields, call via sort")
-  (grouped    [this field]                "Groups the expression by field")
+     Ex. (-> (table :one)
+             (union (table :two) :all))")
+  (limit      [this n]                    "Internal: Queries the table with LIMIT n, call via take")
+  (offset     [this n]                    "Internal: Queries the table with OFFSET n, call via drop")
+  (order-by   [this fields]               "Internal: Orders the query by fields, call via sort")
+  (apply-on   [this f]                    "Internal: Applies f on a resultset, call via with-results")
+  (grouped    [this field]                "Internal: Groups the expression by field"))
 
-  (apply-on   [this f]                    "Applies f on a resultset, call via with-results"))
+
+
+
+
 
 (defrecord RTable [cnx tname tcols restriction renames joins
                    grouped-by limit offset order-by modifiers]
