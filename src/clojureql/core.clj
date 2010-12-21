@@ -22,7 +22,7 @@
 
 (declare table?)
 (declare compile)
-(declare table?)
+(declare table)
 
                                         ; CONNECTIVITY
 
@@ -168,26 +168,33 @@
         aliases   (when joins (extract-aliases joins))
         mods      (join-str \space (map upper-name modifiers))
         combination (if (:combination tble) (compile (:relation (:combination tble)) :default))
-        fields    (str (if tcols (to-fieldlist tname tcols) "*")
-                       (when (seq aliases)
-                         (str ","
-                              (->> (map rest aliases)
-                                   (map #(join-str "," %))
-                                   (apply str)))))
+        fields    (when-not (table? tcols)
+                    (str (if tcols (to-fieldlist tname tcols) "*")
+                         (when (seq aliases)
+                           (str ","
+                                (->> (map rest aliases)
+                                     (map #(join-str "," %))
+                                     (apply str))))))
         jdata     (when joins
                     (for [join-data joins] (build-join join-data aliases)))
-        tables    (if joins
+        tables    (cond
+                   joins
                     (str (if renames
                            (with-rename tname (qualify tname tcols) renames)
                            (to-tablename tname))
                          \space
                          (join-str " " (map first jdata)))
+                    (table? tcols)
+                    (compile tcols nil)
+                    :else
                     (if renames
                       (with-rename tname (qualify tname tcols) renames)
                       (to-tablename tname)))
         preds     (when restriction restriction)
-        statement (clean-sql ["SELECT" mods fields
-                       (when tables "FROM") tables
+        statement (clean-sql ["SELECT" mods (or fields "*")
+                       (when tables "FROM") (if (string? tables)
+                                              tables
+                                              (format "(%s)" (first tables)))
                        (when preds "WHERE") (str preds)
                        (when (seq order-by) (str "ORDER BY " (to-orderlist tname order-by)))
                        (when grouped-by     (str "GROUP BY " (to-fieldlist tname grouped-by)))
@@ -197,7 +204,9 @@
                                                  \space
                                                  (first combination)))])
         env       (concat
-                   (->> [(map (comp :env last) jdata) (if preds [(:env preds)])]
+                   (->> [(map (comp :env last) jdata)
+                         (if (table? tcols) (rest tables))
+                         (if preds [(:env preds)])]
                         flatten (remove nil?) vec)
                    (rest combination))
         sql-vec   (into [statement] env)]
@@ -451,8 +460,12 @@
         :offset offset)))
 
   (order-by [this fields]
-    (assoc this
-      :order-by fields)))
+    (if (seq order-by)
+      (assoc (table cnx tname)
+        :tcols (assoc this :order-by order-by)
+        :order-by fields)
+      (assoc this
+        :order-by fields))))
 
                                         ; INTERFACES
 
