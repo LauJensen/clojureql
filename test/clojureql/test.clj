@@ -1,5 +1,5 @@
 (ns clojureql.test
-  (refer-clojure :exclude [compile drop take sort conj! disj!])
+  (refer-clojure :exclude [compile drop take sort distinct conj! disj!])
   (:use clojure.contrib.sql
         clojure.test
         clojureql.core))
@@ -103,10 +103,11 @@
   (let [name# name body# body]
     `(do ~@(for [database# databases]
              `(deftest ~(symbol (str name# "-" (:subprotocol database#)))
-                (with-connection ~database#
-                  (drop-schema)
-                  (create-schema)
-                  (insert-data)
-                  (println "Testing (" (:subprotocol ~database#) "):\t\t\t" ~(str name#))
-                    ~@body#))))))
+                (when (= "test-all" (System/getenv "clojureql"))
+                  (with-connection ~database#
+                    (drop-schema)
+                    (create-schema)
+                    (insert-data)
+                    (println "Testing (" (:subprotocol ~database#) "):\t\t\t" ~(str name#))
+                    ~@body#)))))))
 

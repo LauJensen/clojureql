@@ -219,7 +219,8 @@ Since this is a true Relational Algebra implementation, everything composes!
          (project [:id :title])             ; Select only these columns in the query
          (select (where (!= :id 5)))        ; But filter out ID = 5
          (join :salary :id)                 ; Join with table salary USING column id
-         (take 10))                         ; Dont extract more than 10 hits
+         (take 10)                          ; Dont extract more than 10 hits
+         distinct)                          ; Make the result distinct
     >>> ({:id 3 :name "Frank"} {:id 2 :name "Christophe"})
 
 **Note:** This executes SQL statements 3 times in this order: conj!, disj!, @

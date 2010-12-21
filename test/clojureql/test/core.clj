@@ -1,6 +1,6 @@
 (ns clojureql.test.core
   (:refer-clojure
-   :exclude [compile take drop sort conj! disj!])
+   :exclude [compile take drop sort distinct conj! disj!])
   (:use [clojureql.internal :only (update-or-insert-vals)]
         clojure.test
         clojureql.core
@@ -18,6 +18,13 @@
          "SELECT avg(users.wage) FROM users"
          (-> (table :users) (aggregate [[:avg/wage :as :avg]]))
          "SELECT avg(users.wage) AS avg FROM users"))
+
+  (testing "modifiers"
+    (are [x y] (= (-> x (compile nil) interpolate-sql) y)
+         (-> (table :users) distinct)
+         "SELECT DISTINCT users.* FROM users"
+         (-> (table :users) (modify [:high_priority :distinct]))
+         "SELECT HIGH_PRIORITY DISTINCT users.* FROM users"))
 
   (testing "where predicates"
     (are [x y] (= (-> x (compile nil) interpolate-sql) y)

@@ -7,7 +7,7 @@
              Please see the README.md for documentation"
     :url    "http://github.com/LauJensen/clojureql"}
   (:refer-clojure
-   :exclude [take drop sort conj! disj! compile])
+   :exclude [take drop sort distinct conj! disj! compile])
   (:use
    [clojureql internal predicates]
    [clojure.string :only [join upper-case] :rename {join join-str}]
@@ -164,8 +164,9 @@
 
 (defmethod compile :default [tble db]
   (let [{:keys [cnx tname tcols restriction renames joins
-                grouped-by limit offset order-by]} tble
+                grouped-by limit offset order-by modifiers]} tble
         aliases   (when joins (extract-aliases joins))
+        mods      (join-str \space (map upper-name modifiers))
         combination (if (:combination tble) (compile (:relation (:combination tble)) :default))
         fields    (str (if tcols (to-fieldlist tname tcols) "*")
                        (when (seq aliases)
@@ -185,7 +186,7 @@
                       (with-rename tname (qualify tname tcols) renames)
                       (to-tablename tname)))
         preds     (when restriction restriction)
-        statement (clean-sql ["SELECT" fields
+        statement (clean-sql ["SELECT" mods fields
                        (when tables "FROM") tables
                        (when preds "WHERE") (str preds)
                        (when (seq order-by) (str "ORDER BY " (to-orderlist tname order-by)))
@@ -214,6 +215,8 @@
   (aggregate  [this aggregates]
               [this aggregates group-by]  "Computes aggregates grouped by the specified fields")
 
+  (modify     [this modifiers]            "Adds modifiers to the result")
+
   (conj!      [this records]              "Inserts record(s) into the table")
   (disj!      [this predicate]            "Deletes record(s) from the table")
   (update-in! [this pred records]         "Inserts or updates record(s) where pred is true")
@@ -234,7 +237,8 @@
 
   (apply-on   [this f]                    "Applies f on a resultset, call via with-results"))
 
-(defrecord RTable [cnx tname tcols restriction renames joins grouped-by limit offset order-by]
+(defrecord RTable [cnx tname tcols restriction renames joins
+                   grouped-by limit offset order-by modifiers]
   clojure.lang.IDeref
   (deref [this]
      (in-connection*
@@ -299,6 +303,12 @@
                  {:data     [(to-tablename (:tname table2)) join-on]
                   :type     :outer
                   :position type}))))
+
+  (modify [this new-modifiers]
+    (assoc this :modifiers
+           (into (or modifiers []) (if (coll? new-modifiers)
+                                     new-modifiers
+                                     [new-modifiers]))))
 
   (difference [this relations]
     (difference this relations nil))
@@ -389,7 +399,7 @@
      (let [connection-info (if (fn? connection-info)
 			     (connection-info)
 			     connection-info)]
-       (RTable. connection-info table-name [:*] nil nil nil nil nil nil nil))))
+       (RTable. connection-info table-name [:*] nil nil nil nil nil nil nil nil))))
 
 (defn table?
   "Returns true if tinstance is an instnce of RTable"
@@ -416,3 +426,10 @@
   (if (table? obj)
     (apply offset obj args)
     (apply clojure.core/drop obj args)))
+
+(defn distinct
+  "A distinct which works on both tables and collections"
+  [obj & args]
+  (if (table? obj)
+    (modify obj :distinct)
+    (apply clojure.core/distinct obj args)))
