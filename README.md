@@ -271,7 +271,7 @@ available:
 License
 =======
 
-Eclipse Pulic License - v 1.0, see LICENSE.
+Eclipse Public License - v 1.0, see LICENSE.
 
 Credit
 ======
