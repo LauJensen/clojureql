@@ -1,4 +1,4 @@
-(ns clojureql.core)
+(in-ns 'clojureql.core)
 
 (def global-connections (atom {}))
 

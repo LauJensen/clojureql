@@ -1,4 +1,4 @@
-(ns clojureql.core)
+(in-ns 'clojureql.core)
 
 (defn- combination-op [combination]
   (->> [(:type combination) (:mode combination)]
