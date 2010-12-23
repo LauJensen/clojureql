@@ -16,68 +16,18 @@
    [clojure.walk :only (postwalk-replace)]))
 
                                         ; GLOBALS
-
 (def *debug* false)
-(def global-connections (atom {}))
 
 (declare table?)
-(declare compile)
 (declare table)
 
-                                        ; CONNECTIVITY
+(defmulti compile
+  (fn [table db] (:dialect db)))
 
-(defn open-global [id specs]
-  (let [con (sqlint/get-connection specs)]
-    (when-let [ac (-> specs :auto-commit)]
-      (.setAutoCommit con ac))
-    (swap! global-connections assoc id {:connection con :opts specs})))
+(load "connectivity")
+(load "sql92compiler")
 
-(defn close-global
-  "Supplied with a keyword identifying a global connection, that connection
-  is closed and the reference dropped."
-  [conn-name]
-  (if-let [conn (conn-name @global-connections)]
-    (do
-      (.close (:connection conn))
-      (swap! global-connections dissoc conn-name)
-      true)
-    (throw
-     (Exception. (format "No global connection by that name is open (%s)" conn-name)))))
-
-(defmacro with-cnx
-  "For internal use only. If you want to wrap a query in a connection, use
-   with-connection"
-  [db-spec & body]
-  `(with-cnx* ~db-spec (fn [] ~@body)))
-
-(defn with-cnx*
-  "Evaluates func in the context of a new connection to a database then
-  closes the connection."
-  [con-info func]
-  (io!
-   (if (keyword? con-info)
-     (if-let [con (@clojureql.core/global-connections con-info)]
-       (binding [sqlint/*db*
-                 (assoc sqlint/*db*
-                   :connection (:connection con)
-                   :level 0
-                   :rollback (atom false)
-                   :opts     (:opts con))]
-         (func))
-       (throw
-        (Exception. "No such global connection currently open!")))
-     (with-open [con (sqlint/get-connection con-info)]
-       (binding [sqlint/*db*
-                 (assoc sqlint/*db*
-                   :connection con
-                   :level 0
-                   :rollback (atom false)
-                   :opts     con-info)]
-         (.setAutoCommit con (or (-> con-info :auto-commit) true))
-         (func))))))
-
-                                       ; INTERFACES
-
+                                        ; INTERFACES
 
 (defmacro with-results
   "Executes the body, wherein the results of the query can be accessed
@@ -109,111 +59,6 @@
        or  clojureql.predicates/or*
        not clojureql.predicates/not*}
      clause))
-
-(defmulti compile
-  (fn [table db] (:dialect db)))
-
-(defn- combination-op [combination]
-  (->> [(:type combination) (:mode combination)]
-       (remove nil?)
-       (map name)
-       (join-str " ")
-       upper-case))
-
-(defn- append-combination [type relation-1 relation-2 & [mode]]
-  (assoc relation-1
-    :combination
-    (if-let [combination (:combination relation-1)]
-      {:relation (append-combination type (:relation combination) relation-2 mode)
-       :type (:type combination)
-       :mode (:mode combination)}
-      {:relation relation-2 :type type :mode mode}) ))
-
-(defn- append-combinations [type relation relations & [mode]]
-  (reduce #(append-combination type %1 %2 mode)
-          relation (if (vector? relations) relations [relations])))
-
-(defn build-join
-  "Generates a JOIN statement from the joins field of a table"
-  [{[tname pred] :data type :type pos :position} aliases]
-  (let [pred (if (and (seq aliases) (string? pred))
-               (reduce (fn [acc a]
-                         (let [t1name (if (or (keyword? tname) (string? tname))
-                                        (to-tablename tname)
-                                        (to-tablename (:tname tname)))
-                               alias  (-> (.split a "\\.") first)]
-                             acc))
-                       pred (map last aliases))
-               pred)
-        [subselect env] (when (requires-subselect? tname)
-                          (compile tname :default))]
-    [(assemble-sql "%s %s JOIN %s %s %s"
-       (if (keyword? pos)  (-> pos name .toUpperCase) "")
-       (if (not= :join type) (-> type name .toUpperCase) "")
-       (if (requires-subselect? tname)
-         (assemble-sql "(%s) AS %s_subselect" subselect
-                       (to-tablename (:tname tname)))
-         (to-tablename tname))
-       (if-not (keyword? pred) " ON " "")
-       (if (keyword? pred)
-         (format " USING(%s) " (name pred))
-         (-> (str pred) (apply-aliases aliases) first)))
-     (if (and subselect (map? pred))
-       (assoc pred :env (into (:env pred) env))
-       pred)]))
-
-(defmethod compile :default [tble db]
-  (let [{:keys [cnx tname tcols restriction renames joins
-                grouped-by limit offset order-by modifiers]} tble
-        aliases   (when joins (extract-aliases joins))
-        mods      (join-str \space (map upper-name modifiers))
-        combination (if (:combination tble) (compile (:relation (:combination tble)) :default))
-        fields    (when-not (table? tcols)
-                    (str (if tcols (to-fieldlist tname tcols) "*")
-                         (when (seq aliases)
-                           (str ","
-                                (->> (map rest aliases)
-                                     (map #(join-str "," %))
-                                     (apply str))))))
-        jdata     (when joins
-                    (for [join-data joins] (build-join join-data aliases)))
-        tables    (cond
-                   joins
-                    (str (if renames
-                           (with-rename tname (qualify tname tcols) renames)
-                           (to-tablename tname))
-                         \space
-                         (join-str " " (map first jdata)))
-                    (table? tcols)
-                    (compile tcols nil)
-                    :else
-                    (if renames
-                      (with-rename tname (qualify tname tcols) renames)
-                      (to-tablename tname)))
-        preds     (when restriction restriction)
-        statement (clean-sql ["SELECT" mods (or fields "*")
-                       (when tables "FROM") (if (string? tables)
-                                              tables
-                                              (format "(%s)" (first tables)))
-                       (when preds "WHERE") (str preds)
-                       (when (seq order-by) (str "ORDER BY " (to-orderlist tname order-by)))
-                       (when grouped-by     (str "GROUP BY " (to-fieldlist tname grouped-by)))
-                       (when limit          (str "LIMIT " limit))
-                       (when offset         (str "OFFSET " offset))
-                       (when combination    (str (combination-op (:combination tble))
-                                                 \space
-                                                 (first combination)))])
-        env       (concat
-                   (->> [(map (comp :env last) jdata)
-                         (if (table? tcols) (rest tables))
-                         (if preds [(:env preds)])]
-                        flatten (remove nil?) vec)
-                   (rest combination))
-        sql-vec   (into [statement] env)]
-    (when *debug* (prn sql-vec))
-    sql-vec))
-
-                                        ; RELATIONAL ALGEBRA
 
 (defprotocol Relation
   (select     [this predicate]
@@ -467,31 +312,6 @@
       (assoc this
         :order-by fields))))
 
-                                        ; INTERFACES
-
-(defn interpolate-sql [[stmt & args]]
-  "For compilation test purposes only"
-  (reduce #(.replaceFirst %1 "\\?" (if (nil? %2) "NULL" (str %2))) stmt args))
-
-(defmethod print-method RTable [tble ^String out]
-  "RTables print as SQL92 compliant SQL"
-  (.write out (-> tble (compile nil) interpolate-sql)))
-
-(defn table
-  "Constructs a relational object."
-  ([table-name]
-     (table nil table-name))
-  ([connection-info table-name]
-     (let [connection-info (if (fn? connection-info)
-			     (connection-info)
-			     connection-info)]
-       (RTable. connection-info table-name [:*] nil nil nil nil nil nil nil nil))))
-
-(defn table?
-  "Returns true if tinstance is an instnce of RTable"
-  [tinstance]
-  (instance? clojureql.core.RTable tinstance))
-
 (defn take
   "A take which works on both tables and collections"
   [obj & args]
@@ -519,3 +339,28 @@
   (if (table? obj)
     (modify obj :distinct)
     (apply clojure.core/distinct obj args)))
+
+                                        ; HELPERS
+
+(defn interpolate-sql [[stmt & args]]
+  "For compilation test purposes only"
+  (reduce #(.replaceFirst %1 "\\?" (if (nil? %2) "NULL" (str %2))) stmt args))
+
+(defmethod print-method RTable [tble ^String out]
+  "RTables print as SQL92 compliant SQL"
+  (.write out (-> tble (compile nil) interpolate-sql)))
+
+(defn table
+  "Constructs a relational object."
+  ([table-name]
+     (table nil table-name))
+  ([connection-info table-name]
+     (let [connection-info (if (fn? connection-info)
+			     (connection-info)
+			     connection-info)]
+       (RTable. connection-info table-name [:*] nil nil nil nil nil nil nil nil))))
+
+(defn table?
+  "Returns true if tinstance is an instnce of RTable"
+  [tinstance]
+  (instance? clojureql.core.RTable tinstance))
