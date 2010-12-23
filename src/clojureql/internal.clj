@@ -127,7 +127,11 @@
   ([tname tcols]
      (let [tname (if-let [tname (to-tablename tname)]
                    (str (-> tname (.split " ") last) \.) "")]
-       (letfn [(split-aggregate [item]  (re-find #"(.*)\/(.*)" (nskeyword item)))
+       (letfn [(split-aggregate [item]
+                 (let [item (nskeyword item)]
+                   (if (.contains item "/")
+                     (re-find #"(.*)\/(.*)" (nskeyword item))
+                     (re-find #"(.*)\((.*)\)" item))))
                (item->string [i]
                  (cond
                   (string? i) i
