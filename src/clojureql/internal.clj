@@ -44,6 +44,22 @@
 (defn qualified? [c]
   (.contains (nskeyword c) "."))
 
+(defn add-tname
+  [tname colname]
+  (let [tname   (if (map? tname)
+                  (-> tname vals first)
+                  tname)
+        colname (if (vector? colname)
+                  (str (-> colname first nskeyword) " AS " (-> colname last nskeyword))
+                  colname)]
+    (if (qualified? colname)
+      (nskeyword colname)
+      (-> (str (if (or (keyword? tname)
+                       (not (empty? tname)))
+                 (str (nskeyword tname) \.) "")
+               (nskeyword colname))
+          (.replaceAll "\\.\\." "\\.")))))
+
 (defn aggregate? [c]
   (let [c (if (vector? c) (first c) c)]
     (or (and (string? c) (.contains c "(")) ; Best guess
@@ -67,7 +83,7 @@
                     ((juxt first last))
                     (map (fn [f] (if (or (= f "asc") (= f "desc"))
                                    f
-                                   (str (name tname) \. f ))))
+                                   (add-tname tname f))))
                     (interpose " ")
                     (apply str))
                (str (name %) " asc")))
@@ -100,7 +116,7 @@
          (if (aggregate? c)
            (let [[aggr col] (-> (nskeyword c) (.split "/"))]
              (str aggr "(" (split-fields p col) ")"))
-           (str p (nskeyword c)))))))
+           (add-tname p c))))))
 
 (defn to-fieldlist
   "Converts a column specification to SQL notation field list
@@ -121,16 +137,14 @@
                           [_ fn aggr] (split-aggregate col)]
                       (str fn "(" (split-fields tname aggr) ")" " AS " alias))
                     (let [[col _ alias] (map nskeyword i)]
-                      (str tname col " AS " alias)))
+                      (str (add-tname tname col) " AS " alias)))
                    (and (aggregate? i) (not (string? i)))
                    (let [[_ fn aggr :as x] (split-aggregate i)]
                      (str fn "(" (split-fields tname aggr) ")"))
                    (string? i)
                    i
                    :else
-                   (if (.contains (nskeyword i) ".")
-                     (nskeyword i)
-                     (str tname (nskeyword i)))))]
+                   (add-tname tname i)))]
          (cond
           (not (coll? tcols))
           tcols
@@ -143,43 +157,6 @@
                    (= :as (nth tcols 1))))
           (item->string tcols)
           :else (->> tcols (map item->string) (join-str \,)))))))
-
-(defn qualify
-  "Will fully qualify the names of the child(ren) to the parent.
-
-   :parent :child        => parent.child
-   :parent :other.child  => other.child
-   :parent :avg/sales    => avg(parent.sales)
-   :parent :avg/a:b      => avg(parent.a, parent.b)
-   :parent [:a :fn/b [:c :as :d]] => ('parent.a', 'fn(parent.b)'
-                                      'parent.c as parent.d') "
-  [parent children]
-  (let [parent (cond
-                (string? parent) ; has this already been treated as an alias?
-                (-> parent (.split " ") last)
-                (map? parent) ; is an alias
-                (-> parent vals first name)
-                :else
-                parent)]
-    (if (nil? children)
-      ""
-      (letfn [(singular [c]
-                (cond
-                 (vector? c)
-                 (let [[nm _ alias] c]
-                   (str (to-name parent nm) " AS " (to-name alias)))
-                 (string? c)
-                 c ; TODO: We might want to check for a period
-                 :else
-                  (let [childname (name c)]
-                    (if (or (qualified? c) (aggregate? c))
-                      (if (aggregate? c)
-                        (to-fieldlist parent [c])
-                        (name c))
-                      (str (name parent) \. (name c))))))]
-        (if (keyword? children)
-          (singular children)
-          (map singular children))))))
 
 (defn has-aggregate?
   [tble]
@@ -214,17 +191,6 @@
               aliases (find-aliases tcols)]]
     (into [(to-tablename tname)]
           (map #(str (name tname) "_subselect." %) aliases))))
-
-(defn derived-fields
-  "Computes the resulting fields from its input
-
-   :one [:a :b :c] :two :cnt => 'one.a,one.b,one.c,two.cnt
-
-   Note: Used internally when compiling a join with an aggregate "
-  [tname cols table-alias col-alias]
-  (str (->> cols (qualify tname) to-fieldlist)
-       (when (and table-alias col-alias)
-         (str "," (name table-alias) \. (nskeyword col-alias) ))))
 
 (defn with-rename
   "Renames fields that have had their parent aliased.

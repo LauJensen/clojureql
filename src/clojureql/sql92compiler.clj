@@ -67,7 +67,7 @@
         tables    (cond
                    joins
                     (str (if renames
-                           (with-rename tname (qualify tname tcols) renames)
+                           (with-rename tname (map #(add-tname tname %) tcols) renames)
                            (to-tablename tname))
                          \space
                          (join-str " " (map first jdata)))
@@ -75,7 +75,7 @@
                     (compile tcols nil)
                     :else
                     (if renames
-                      (with-rename tname (qualify tname tcols) renames)
+                      (with-rename tname (map #(add-tname tname %) tcols) renames)
                       (to-tablename tname)))
         preds     (when restriction restriction)
         statement (clean-sql ["SELECT" mods (or fields "*")

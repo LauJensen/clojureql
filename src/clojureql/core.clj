@@ -207,7 +207,9 @@
       (assoc this
         :tcols (if-let [t2cols (seq (:tcols table2))]
                  (apply conj (or tcols [])
-                        (qualify (to-tablename (:tname table2)) t2cols))
+                        (map #(add-tname (:tname table2) %)
+                             (if (coll? t2cols)
+                               t2cols [t2cols])))
                  tcols)
         :joins (conj (or joins [])
                  {:data     [(to-tablename (:tname table2)) join-on]
@@ -224,7 +226,9 @@
       (assoc this
         :tcols (if-let [t2cols (seq (:tcols table2))]
                  (apply conj (or tcols [])
-                        (qualify (to-tablename (:tname table2)) t2cols))
+                        (map #(add-tname (:tname table2) %)
+                             (if (coll? t2cols)
+                               t2cols [t2cols])))
                  tcols)
         :joins (conj (or joins [])
                  {:data     [(to-tablename (:tname table2)) join-on]
