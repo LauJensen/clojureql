@@ -2,7 +2,11 @@
   (refer-clojure :exclude [compile drop take sort distinct conj! disj!])
   (:use clojure.contrib.sql
         clojure.test
-        clojureql.core))
+        clojureql.core
+        [cake :only [*opts*]]))
+
+(when (:show-sql *opts*)
+  (alter-var-root #'clojureql.core/*debug* (constantly true)))
 
 (def mysql
   {:classname   "com.mysql.jdbc.Driver"
@@ -103,7 +107,7 @@
   (let [name# name body# body]
     `(do ~@(for [database# databases]
              `(deftest ~(symbol (str name# "-" (:subprotocol database#)))
-                (when (= "test-all" (System/getenv "clojureql"))
+                (when (:integration *opts*)
                   (with-connection ~database#
                     (drop-schema)
                     (create-schema)
