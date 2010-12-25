@@ -83,8 +83,8 @@
                                               tables
                                               (format "(%s)" (first tables)))
                        (when preds "WHERE") (str preds)
-                       (when (seq order-by) (str "ORDER BY " (to-orderlist tname order-by)))
                        (when grouped-by     (str "GROUP BY " (to-fieldlist tname grouped-by)))
+                       (when (seq order-by) (str "ORDER BY " (to-orderlist tname order-by)))
                        (when limit          (str "LIMIT " limit))
                        (when offset         (str "OFFSET " offset))
                        (when combination    (str (combination-op (:combination tble))
