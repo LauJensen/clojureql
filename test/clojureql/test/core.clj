@@ -6,6 +6,22 @@
         clojureql.core
         clojure.contrib.mock))
 
+(def select-country-ids-with-spot-count
+  (-> (table :spots)
+      (aggregate [[:count/id :as :spots]] [:country_id])))
+
+(def select-country-ids-with-region-count
+  (-> (table :regions)
+      (aggregate [[:count/id :as :regions]] [:country_id])))
+
+(def select-countries-with-region-and-spot-count
+  (-> (table :countries)
+      (outer-join select-country-ids-with-region-count :left
+                  (where (= :countries.id :regions.country_id)))
+      (outer-join select-country-ids-with-spot-count :left
+                  (where (= :countries.id :spots.country_id)))
+      (select (where (= :regions_subselect.country_id :spots_subselect.country_id)))))
+
 (deftest sql-compilation
 
   (testing "simple selects"
@@ -114,7 +130,11 @@
              (select (where (= :admin true)))
              (aggregate [:count/*, :corr/x:y] [:country :city]))
          (str "SELECT users.country,users.city,count(*),corr(users.x,users.y) FROM users "
-              "WHERE (admin = true) GROUP BY users.country,users.city")))
+              "WHERE (admin = true) GROUP BY users.country,users.city")
+         select-country-ids-with-region-count
+         (str "SELECT regions.country_id,count(regions.id) AS regions FROM regions GROUP BY regions.country_id")
+         select-country-ids-with-spot-count
+         (str "SELECT spots.country_id,count(spots.id) AS spots FROM spots GROUP BY spots.country_id")))
 
   (testing "join with aggregate"
     (let [photo-counts-by-user (-> (table :photos)
@@ -157,7 +177,14 @@
          (-> (table :users)
              (join (table :wages) :wid)
              (join (table :commits) :cid))
-         "SELECT users.*,wages.*,commits.* FROM users JOIN wages USING(wid) JOIN commits USING(cid)"))
+         "SELECT users.*,wages.*,commits.* FROM users JOIN wages USING(wid) JOIN commits USING(cid)"
+         select-countries-with-region-and-spot-count
+         (str "SELECT countries.*,regions_subselect.regions,spots_subselect.spots FROM countries "
+              "LEFT OUTER JOIN (SELECT regions.country_id,count(regions.id) AS regions FROM regions GROUP BY regions.country_id) AS regions_subselect "
+              "ON (countries.id = regions_subselect.country_id) "
+              "LEFT OUTER JOIN (SELECT spots.country_id,count(spots.id) AS spots FROM spots GROUP BY spots.country_id) AS spots_subselect "
+              "ON (countries.id = spots_subselect.country_id) "
+              "WHERE (regions_subselect.country_id = spots_subselect.country_id)")))
 
   (testing "update-in!"
     (expect [update-or-insert-vals (has-args [:users ["(id = ?)" 1] {:name "Bob"}])]
