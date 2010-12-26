@@ -134,7 +134,7 @@
             {:age 22})")
 
   (difference   [this relations]
-                [this relations mode]
+                [this relations opts]
     "Selects the difference between tables. Mode can take a keyword
      which can be anything which your backend supports. Commonly :all is
      used to allow duplicate rows.
@@ -142,7 +142,7 @@
      Ex. (-> (table :one)
              (difference (table :two) :all))")
   (intersection [this relations]
-                [this relations mode]
+                [this relations opts]
     "Selects the intersection between tables. Mode can take a keyword
      which can be anything which your backend supports. Commonly :all is
      used to allow duplicate rows.
@@ -150,7 +150,7 @@
      Ex. (-> (table :one)
              (intersection (table :two) :all))")
   (union        [this relations]
-                [this relations mode]
+                [this relations opts]
     "Selects the union between tables. Mode can take a keyword
      which can be anything which your backend supports. Commonly :all is
      used to allow duplicate rows.
@@ -164,7 +164,8 @@
   (grouped    [this field]                "Internal: Groups the expression by field"))
 
 (defrecord RTable [cnx tname tcols restriction renames joins
-                   grouped-by limit offset order-by modifiers]
+                   grouped-by pre-scope scope order-by modifiers
+                   combinations]
   clojure.lang.IDeref
   (deref [this]
      (in-connection*
@@ -244,20 +245,26 @@
   (difference [this relations]
     (difference this relations nil))
 
-  (difference [this relations mode]
-    (append-combinations :except this relations mode))
+  (difference [this relations opts]
+    (assoc this :combinations
+           (conj (or combinations [])
+                 {:table relations :mode :except :opts opts})))
 
   (intersection [this relations]
     (intersection this relations nil))
 
-  (intersection [this relations mode]
-    (append-combinations :intersect this relations mode))
+  (intersection [this relations opts]
+    (assoc this :combinations
+           (conj (or combinations [])
+                 {:table relations :mode :intersect :opts opts})))
 
   (union [this relations]
     (union this relations nil))
 
-  (union [this relations mode]
-    (append-combinations :union this relations mode))
+  (union [this relations opts]
+    (assoc this :combinations
+           (conj (or combinations [])
+                 {:table relations :mode :union :opts opts})))
 
   (rename [this newnames]
     (assoc this :renames (merge (or renames {}) newnames)))
@@ -269,7 +276,7 @@
      (let [grps (reduce conj group-by grouped-by)
            table (project this (into grps aggregates))]
       (if (seq grps)
-        (assoc table :grouped-by grps)
+        (grouped table grps)
         table)))
 
   (conj! [this records]
@@ -294,27 +301,51 @@
       this))
 
   (grouped [this field]
-    (assoc this :grouped-by (to-name tname field)))
+    (let [colname (with-meta [(to-fieldlist tname field)] {:prepend true})]
+      (assoc this :grouped-by
+             (conj (or grouped-by [])
+                   (if (seq combinations)
+                     colname
+                     (with-meta colname {:prepend true}))))))
 
   (limit [this n]
-    (if limit
-      (assoc this :limit (min limit n))
-      (assoc this :limit n)))
+    (if (seq combinations)
+      ; Working on the entire statement
+      (let [{:keys [limit offset]} scope]
+        (assoc this :scope
+               {:limit (if limit (min limit n) n)
+                :offset offset}))
+      ; Working in prepend mode
+      (let [{:keys [limit offset]} pre-scope]
+        (assoc this :pre-scope
+               {:limit (if limit (min limit n) n)
+                :offset offset}))))
 
   (offset [this n]
-    (let [limit  (if limit  (- limit  n))
-          offset (if offset (+ offset n) n)]
-      (assoc this
-        :limit  limit
-        :offset offset)))
+    (if (seq combinations)
+      ; Working on the entire statement
+      (let [limit  (if (:limit scope)  (- (:limit scope)  n))
+            offset (if (:offset scope) (+ (:offset scope) n) n)]
+        (assoc this
+          :scope {:limit limit :offset offset}))
+      ; Working in prepend mode
+      (let [limit  (if (:limit pre-scope)  (- (:limit pre-scope)  n))
+            offset (if (:offset pre-scope) (+ (:offset pre-scope) n) n)]
+        (assoc this
+          :pre-scope {:limit limit :offset offset}))))
 
   (order-by [this fields]
-    (if (seq order-by)
-      (assoc (table cnx tname)
-        :tcols (assoc this :order-by order-by)
-        :order-by fields)
-      (assoc this
-        :order-by fields))))
+    (let [fields (if (seq combinations)
+                   fields
+                   (with-meta fields {:prepend true}))]
+      (if (and (seq (filter #(true? (-> % meta :prepend)) order-by))
+               (not (seq combinations)))
+        (assoc (table cnx tname)
+          :tcols (assoc this :order-by order-by)
+          :order-by fields)
+        (assoc this
+          :order-by (conj (or order-by [])
+                          fields))))))
 
 (defn take
   "A take which works on both tables and collections"
@@ -362,7 +393,7 @@
      (let [connection-info (if (fn? connection-info)
 			     (connection-info)
 			     connection-info)]
-       (RTable. connection-info table-name [:*] nil nil nil nil nil nil nil nil))))
+       (RTable. connection-info table-name [:*] nil nil nil nil nil nil nil nil nil))))
 
 (defn table?
   "Returns true if tinstance is an instnce of RTable"

@@ -22,7 +22,9 @@
   (loop [s (-> (join-str " " coll) .trim)]
     (if-not (.contains s "  ")
       s
-      (recur (.replace s "  " " ")))))
+      (recur (-> (.replace s "  " " ")
+                 (.replaceAll "\\( " "\\(")
+                 (.replaceAll " \\)" "\\)"))))))
 
 (defn assemble-sql [s & args]
   "For internal use only. Works like format but cleans up afterwards"

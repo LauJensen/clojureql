@@ -122,7 +122,7 @@
                      {:birthday (Timestamp/valueOf "1980-01-02 00:00:00.00")}))))
 
 (database-test test-difference
-  (when (or (postgresql?) (sqlite3?))
+  (when (postgresql?) ;(mysql?)) ;(sqlite3?)) TODO:  sqlite does not support queries in parens
     (drop-schema)
     (create-schema)
     (let [[alice bob] @(conj! users [{:name "Alice" :title "Developer"} {:name "Bob"}])]
@@ -130,20 +130,21 @@
                                (select (table :users) (where (= :id (:id alice))))))))))
 
 (database-test test-intersection
-  (when (or (postgresql?) (sqlite3?))
+  (when (postgresql?) ; (mysql?)) ;(sqlite3?)) TODO: MySQL does not have INTERSECT
     (let [[alice bob] @(conj! users [{:name "Alice" :title "Developer"} {:name "Bob"}])]
       (is (= (map :id [alice])
              (map :id @(intersection (select (table :users) (where (= :id (:id alice))))
                                      (table :users))))))))
 
 (database-test test-union
-  (let [[alice bob] @(conj! users [{:name "Alice" :title "Developer"} {:name "Bob"}])]
-    (is (= (map :id [alice bob])
-           (map :id @(union (select (table :users) (where (= :id (:id alice))))
-                            (select (table :users) (where (= :id (:id bob))))))))
-    (let [query (select (table :users) (where (= :id (:id alice))))]
-      (is (= (map :id [alice alice alice])
-             (map :id @(-> query (union query :all) (union query :all))))))))
+  (when (or (postgresql?) (mysql?))
+    (let [[alice bob] @(conj! users [{:name "Alice" :title "Developer"} {:name "Bob"}])]
+      (is (= (map :id [alice bob])
+             (map :id @(union (select (table :users) (where (= :id (:id alice))))
+                              (select (table :users) (where (= :id (:id bob))))))))
+      (let [query (select (table :users) (where (= :id (:id alice))))]
+        (is (= (map :id [alice alice alice])
+               (map :id @(-> query (union query :all) (union query :all)))))))))
 
 (deftest should-accept-fn-with-connection-info
   (let [connection-info-fn (fn [] mysql)

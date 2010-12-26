@@ -1,25 +1,5 @@
 (in-ns 'clojureql.core)
 
-(defn- combination-op [combination]
-  (->> [(:type combination) (:mode combination)]
-       (remove nil?)
-       (map name)
-       (join-str " ")
-       upper-case))
-
-(defn- append-combination [type relation-1 relation-2 & [mode]]
-  (assoc relation-1
-    :combination
-    (if-let [combination (:combination relation-1)]
-      {:relation (append-combination type (:relation combination) relation-2 mode)
-       :type (:type combination)
-       :mode (:mode combination)}
-      {:relation relation-2 :type type :mode mode}) ))
-
-(defn- append-combinations [type relation relations & [mode]]
-  (reduce #(append-combination type %1 %2 mode)
-          relation (if (vector? relations) relations [relations])))
-
 (defn build-join
   "Generates a JOIN statement from the joins field of a table"
   [{[tname pred] :data type :type pos :position} aliases]
@@ -50,11 +30,16 @@
        pred)]))
 
 (defmethod compile :default [tble db]
-  (let [{:keys [cnx tname tcols restriction renames joins
-                grouped-by limit offset order-by modifiers]} tble
+  (let [{:keys [cnx tname tcols restriction renames joins combinations
+                grouped-by pre-scope scope order-by modifiers]} tble
         aliases   (when joins (extract-aliases joins))
         mods      (join-str \space (map upper-name modifiers))
-        combination (if (:combination tble) (compile (:relation (:combination tble)) :default))
+        combs     (if (seq combinations)
+                    (for [{:keys [table mode opts]} combinations]
+                      (let [[stmt & [env]] (compile table :default)]
+                        [(format " %s (%s)"
+                                 (str (upper-name mode) (if opts (str \space (upper-name opts))))
+                                 stmt) env])))
         fields    (when-not (table? tcols)
                     (str (if tcols (to-fieldlist tname tcols) "*")
                          (when (seq aliases)
@@ -77,25 +62,47 @@
                     (if renames
                       (with-rename tname (map #(add-tname tname %) tcols) renames)
                       (to-tablename tname)))
+        pre-order  (filter #(true? (-> % meta :prepend)) order-by)
+        post-order (remove #(true? (-> % meta :prepend)) order-by)
         preds     (when restriction restriction)
-        statement (clean-sql ["SELECT" mods (or fields "*")
+        statement (clean-sql [(when combs "(")
+                       "SELECT" mods (or fields "*")
                        (when tables "FROM") (if (string? tables)
                                               tables
                                               (format "(%s)" (first tables)))
                        (when preds "WHERE") (str preds)
-                       (when grouped-by     (str "GROUP BY " (to-fieldlist tname grouped-by)))
-                       (when (seq order-by) (str "ORDER BY " (to-orderlist tname order-by)))
-                       (when limit          (str "LIMIT " limit))
-                       (when offset         (str "OFFSET " offset))
-                       (when combination    (str (combination-op (:combination tble))
-                                                 \space
-                                                 (first combination)))])
+
+                       (when (or (and (seq grouped-by) (not (seq combs)))
+                                 (-> grouped-by first meta :prepend))
+                         (str "GROUP BY " (to-fieldlist tname (first grouped-by))))
+                       (when (seq pre-order)
+                         (str "ORDER BY " (to-orderlist tname (first pre-order))))
+                       (when-let [limit (-> pre-scope :limit)]
+                         (str "LIMIT " limit))
+                       (when-let [offset (-> pre-scope :offset)]
+                         (str "OFFSET " offset))
+
+                       (when combs
+                         (->> (map first combs) (interpose \space)
+                              (apply str)       (format ") %s")))
+
+                       (when (and (seq grouped-by) (seq combs)
+                                  (nil? (-> order-by first meta :prepend)))
+                         (str "GROUP BY " (to-fieldlist tname (first grouped-by))))
+                       (when (seq post-order)
+                         (str "ORDER BY " (to-orderlist tname (first post-order))))
+                       (when-let [limit (-> scope :limit)]
+                         (str "LIMIT " limit))
+                       (when-let [offset (-> scope :offset)]
+                         (str "OFFSET " offset))
+                       ])
         env       (concat
                    (->> [(map (comp :env last) jdata)
                          (if (table? tcols) (rest tables))
                          (if preds [(:env preds)])]
                         flatten (remove nil?) vec)
-                   (rest combination))
+                   (->> (mapcat rest combs)
+                        (remove nil?)))
         sql-vec   (into [statement] env)]
     (when *debug* (prn sql-vec))
     sql-vec))
