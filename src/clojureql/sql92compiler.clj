@@ -45,8 +45,8 @@
                          (when (seq aliases)
                            (str ","
                                 (->> (map rest aliases)
-                                     (map #(join-str "," %))
-                                     (apply str))))))
+                                     flatten
+                                     (join-str ","))))))
         jdata     (when joins
                     (for [join-data joins] (build-join join-data aliases)))
         tables    (cond
