@@ -106,7 +106,7 @@
              (modify \"TOP 5\")) ; MSSqls special LIMIT syntax
          (-> (table :one) distinct)")
 
-  (pick       [this kw]
+  (pick!      [this kw]
     "For queries where you know only a single result will be returned,
      pick calls the keyword on that result. You can supply multiple keywords
      in a collection.  Returns nil for no-hits, throws
@@ -182,7 +182,7 @@
          (with-open [rset (.executeQuery stmt)]
            (f (resultset-seq rset)))))))
 
-  (pick [this kw]
+  (pick! [this kw]
     (let [results @this]
       (if (or (= 1 (count results)) (empty? results))
         (if (coll? kw)
