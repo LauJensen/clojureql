@@ -168,19 +168,12 @@
                    combinations]
   clojure.lang.IDeref
   (deref [this]
-     (in-connection*
-      (with-results* (compile this cnx)
-        (fn [rs] (doall rs)))))
+    (apply-on this doall))
 
   Relation
   (apply-on [this f]
-    (let [[sql-string & env] (compile this cnx)]
-     (in-connection*
-       (with-open [stmt (.prepareStatement (:connection sqlint/*db*) sql-string)]
-	 (doseq [[idx v] (map vector (iterate inc 1) env)]
-	   (.setObject stmt idx v))
-         (with-open [rset (.executeQuery stmt)]
-           (f (resultset-seq rset)))))))
+    (in-connection*
+     (with-results* (compile this cnx) f)))
 
   (pick! [this kw]
     (let [results @this]
@@ -394,8 +387,8 @@
      (table nil table-name))
   ([connection-info table-name]
      (let [connection-info (if (fn? connection-info)
-			     (connection-info)
-			     connection-info)]
+                             (connection-info)
+                             connection-info)]
        (RTable. connection-info table-name [:*] nil nil nil nil nil nil nil nil nil))))
 
 (defn table?
