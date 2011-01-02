@@ -235,20 +235,6 @@
   (-> (remove #(.contains (-> % name (.split "\\.") first) (name tname)) s)
       first))
 
-(defn non-unique-map
-  " Reduces a collection of key/val pairs to a single hashmap.
-
-   [[:a 5] [:b 10]] => {:a 5 :b 10}
-
-   [[:a 5] [:b 10] [:a 15]] => {:a [5 15] :b 10} "
-  [ks]
-  (reduce (fn [acc [k v]]
-            (assoc acc k (if-let [vl (acc k)]
-                           (if (not= vl (acc k))
-                             (conj [vl] v)
-                             vl)
-                           v))) {} ks))
-
 (defn sql-clause [pred & args]
   " Allows you to generate an sql clause by identifying params as %1, %2, %n.
 
@@ -284,19 +270,28 @@
   "Creates and returns a lazy sequence of structmaps corresponding to
   the rows in the java.sql.ResultSet rs. Accepts duplicate keys"
   [^java.sql.ResultSet rs]
-  (let [rsmeta (. rs (getMetaData))
-        idxs (range 1 (inc (. rsmeta (getColumnCount))))
-        keys (map (comp keyword #(.toLowerCase ^String %))
-                  (map (fn [i] (. rsmeta (getColumnLabel i))) idxs))
-        row-values (fn [] (map (fn [^Integer i] (. rs (getObject i))) idxs))
-        rows (fn thisfn []
-               (when (. rs (next))
-                 (cons
-                  (->> (for [i idxs :let [vals (row-values)]]
-                         [(nth keys (dec i)) (nth vals (dec i))])
-                       non-unique-map)
-                  (lazy-seq (thisfn)))))]
+  (let [rsmeta (.getMetaData rs)
+        idxs (range (.getColumnCount rsmeta))
+        keys (map (comp keyword
+                        #(.toLowerCase ^String %)
+                        #(.getColumnLabel rsmeta %)
+                        inc)
+                  idxs)
+        assoc-value (fn [mapping i]
+                      (let [key (nth keys i)
+                            val (.getObject rs ^Integer (inc i))]
+                        (when-let [old (mapping key)]
+                          (when-not (= old val)
+                            (throw (Exception. (format "ResultSet has same label %s for different values, please rename one" key)))))
+                        (assoc mapping key val)))
+        rows (fn rows []
+               (lazy-seq
+                (when (. rs (next))
+                  (cons
+                   (reduce assoc-value {} idxs)
+                   (rows)))))]
     (rows)))
+
 
 (defn with-results*
   "Executes a query, then evaluates func passing in a seq of the results as
