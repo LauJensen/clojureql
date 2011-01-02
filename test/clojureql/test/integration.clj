@@ -148,6 +148,11 @@
 
 (deftest should-accept-fn-with-connection-info
   (let [connection-info-fn (fn [] mysql)
-	connection-info-from-var (table mysql :users)
-	connection-info-from-fn (table connection-info-fn :users)]
+        connection-info-from-var (table mysql :users)
+        connection-info-from-fn (table connection-info-fn :users)]
     (is (= connection-info-from-var connection-info-from-fn))))
+
+(database-test test-resultset
+  (let [tbl (join users salary :id)]
+    (with-results [res tbl]
+      (is (= res @tbl)))))
