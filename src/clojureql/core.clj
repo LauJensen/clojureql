@@ -201,6 +201,9 @@
   (join [this table2 join-on]
     (if (requires-subselect? table2)
       (assoc this
+        :tcols (into (or tcols [])
+                     (rename-subselects (:tname table2)
+                                        (-> table2 :grouped-by first)))
         :joins (conj (or joins [])
                  {:data     [table2 join-on]
                  :type     :join

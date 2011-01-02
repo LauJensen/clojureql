@@ -74,6 +74,16 @@
        (interpose ",")
        (apply str)))
 
+(defn rename-subselects [tname tcols]
+  (let [tcols (mapcat #(.split % ",") tcols)
+        tname (nskeyword tname)]
+    (map #(let [col (nskeyword %)]
+            (if (.contains col ".")
+              (let [[name col] (.split col "\\.")]
+                (str tname "_subselect." col))
+              (str tname "_subselect." col)))
+         (remove aggregate? tcols))))
+
 (defn to-orderlist
   "Converts a list like [:id#asc :name#desc] to \"id asc, name desc\"
 

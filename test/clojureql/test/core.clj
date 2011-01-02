@@ -143,7 +143,7 @@
            (-> (table :users)
                (join photo-counts-by-user
                      (where (= :users.id :photos.user_id))))
-           (str "SELECT users.*,photos_subselect.cnt FROM users JOIN "
+           (str "SELECT users.*,photos_subselect.user_id,photos_subselect.cnt FROM users JOIN "
                 "(SELECT photos.user_id,count(*) AS cnt FROM photos GROUP BY photos.user_id) "
                 "AS photos_subselect ON (users.id = photos_subselect.user_id)")))
     (let [photo-counts-by-user (-> (table :photos)
@@ -153,7 +153,7 @@
            (-> (table :users)
                (join photo-counts-by-user
                      (where (= :users.id :photos.user_id))))
-           (str "SELECT users.*,photos_subselect.cnt,photos_subselect.sum FROM users JOIN "
+           (str "SELECT users.*,photos_subselect.user_id,photos_subselect.cnt,photos_subselect.sum FROM users JOIN "
                 "(SELECT photos.user_id,count(*) AS cnt,sum(*) AS sum FROM photos "
                 "GROUP BY photos.user_id) "
                 "AS photos_subselect ON (users.id = photos_subselect.user_id)"))))
