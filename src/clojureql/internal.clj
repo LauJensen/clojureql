@@ -280,15 +280,25 @@
         assoc-value (fn [mapping i]
                       (let [key (nth keys i)
                             val (.getObject rs ^Integer (inc i))]
+                                        ; as soon as http://dev.clojure.org/jira/browse/CLJ-700
+                                        ; is fixed change this to a contains? based test and start the reduce from an actually empty map
+                                        ; for added accuracy
                         (when-let [old (mapping key)]
-                          (when-not (= old val)
-                            (throw (Exception. (format "ResultSet has same label %s for different values, please rename one" key)))))
-                        (assoc mapping key val)))
+                          (when-not (= val old)
+                            (throw (Exception.
+                                    (format "ResultSet has same label %s for different values, please rename one" key)))))
+                        (assoc! mapping key val)))
+        empty (apply hash-map
+                     (interleave (set keys)
+                                 (repeat nil)))
         rows (fn rows []
                (lazy-seq
-                (when (. rs (next))
+                (when (.next rs)
                   (cons
-                   (reduce assoc-value {} idxs)
+                   (persistent!
+                    (reduce assoc-value
+                            (transient empty)
+                            idxs))
                    (rows)))))]
     (rows)))
 
