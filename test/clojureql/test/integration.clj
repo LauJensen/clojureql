@@ -156,3 +156,11 @@
   (let [tbl (join users salary :id)]
     (with-results [res tbl]
       (is (= res @tbl)))))
+
+(database-test test-dupes
+  (let [tbl (join
+             (project users [[:name :as :dupe]])
+             (project salary  [[:wage :as :dupe]])
+             :id)]
+    (is (thrown-with-msg? Exception
+          #".*:dupe.*" @tbl))))
