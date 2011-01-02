@@ -153,8 +153,13 @@
     (is (= connection-info-from-var connection-info-from-fn))))
 
 (database-test test-resultset
-  (let [tbl (join users salary :id)]
+  (let [tbl (join users salary :id)
+        no-missing? #(not
+                     (some keyword? ; which would be :clojureql.internal/missing
+                           (mapcat vals %)))]
+    (is (no-missing? @tbl))
     (with-results [res tbl]
+      (is (no-missing? res))
       (is (= res @tbl)))))
 
 (database-test test-dupes
@@ -163,4 +168,8 @@
              (project salary  [[:wage :as :dupe]])
              :id)]
     (is (thrown-with-msg? Exception
-          #".*:dupe.*" @tbl))))
+          #".*:dupe.*" @tbl)))
+  (let [tbl (project users [[:name :as :dupe]
+                            [:name :as :dupe]])]
+    (is (= (map :name @users)
+           (map :dupe @tbl)))))
