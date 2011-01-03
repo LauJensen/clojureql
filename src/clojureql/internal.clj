@@ -151,7 +151,9 @@
                   (if (aggregate? (first i))
                     (let [[col _ alias] (map nskeyword i)
                           [_ fn aggr] (split-aggregate col)]
-                      (str fn "(" (split-fields tname aggr) ")" " AS " alias))
+                      (if (string? (first i))
+                        (str _ " AS " alias)
+                        (str fn "(" (split-fields tname aggr) ")" " AS " alias)))
                     (let [[col _ alias] (map nskeyword i)]
                       (str (add-tname tname col) " AS " alias)))
                    (and (aggregate? i) (not (string? i)))
