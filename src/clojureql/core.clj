@@ -168,7 +168,9 @@
                    combinations]
   clojure.lang.IDeref
   (deref [this]
-    (apply-on this doall))
+    (if cnx
+      (apply-on this doall)
+      (throw (Exception. "No database connection is associated with this table"))))
 
   Relation
   (apply-on [this f]
