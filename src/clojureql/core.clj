@@ -168,7 +168,8 @@
                    combinations]
   clojure.lang.IDeref
   (deref [this]
-    (if cnx
+    (if (or cnx (contains? @clojureql.core/global-connections
+                           ::clojureql.core/default-connection))
       (apply-on this doall)
       (throw (Exception. "No database connection is associated with this table"))))
 

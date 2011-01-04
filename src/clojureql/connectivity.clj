@@ -2,23 +2,31 @@
 
 (def global-connections (atom {}))
 
-(defn open-global [id specs]
-  (let [con (sqlint/get-connection specs)]
-    (when-let [ac (-> specs :auto-commit)]
-      (.setAutoCommit con ac))
-    (swap! global-connections assoc id {:connection con :opts specs})))
+(defn open-global
+  "Opens a global connection with the supplied specs. If given a
+  conn-name, use it as a key to access that connection, else set the
+  default global connection."
+  ([specs] (open-global ::default-connection specs))
+  ([conn-name specs]
+     (let [con (sqlint/get-connection specs)]
+       (when-let [ac (-> specs :auto-commit)]
+         (.setAutoCommit con ac))
+       (swap! global-connections assoc conn-name {:connection con :opts specs}))))
 
 (defn close-global
-  "Supplied with a keyword identifying a global connection, that connection
-  is closed and the reference dropped."
-  [conn-name]
-  (if-let [conn (conn-name @global-connections)]
-    (do
-      (.close (:connection conn))
-      (swap! global-connections dissoc conn-name)
-      true)
-    (throw
-     (Exception. (format "No global connection by that name is open (%s)" conn-name)))))
+  "Supplied with a keyword identifying a global connection, that
+  connection is closed and the reference dropped. When called without
+  argument, close the default global connection."
+  [& [conn-name]]
+  (let [conn-name (or conn-name ::default-connection)]
+    (if-let [conn (conn-name @global-connections)]
+      (do
+        (.close (:connection conn))
+        (swap! global-connections dissoc conn-name)
+        true)
+      (throw
+       (Exception.
+        (format "No global connection by that name is open (%s)" conn-name))))))
 
 (defmacro with-cnx
   "For internal use only. If you want to wrap a query in a connection, use
@@ -31,23 +39,24 @@
   closes the connection."
   [con-info func]
   (io!
-   (if (keyword? con-info)
-     (if-let [con (@clojureql.core/global-connections con-info)]
-       (binding [sqlint/*db*
-                 (assoc sqlint/*db*
-                   :connection (:connection con)
-                   :level 0
-                   :rollback (atom false)
-                   :opts     (:opts con))]
-         (func))
-       (throw
-        (Exception. "No such global connection currently open!")))
-     (with-open [con (sqlint/get-connection con-info)]
-       (binding [sqlint/*db*
-                 (assoc sqlint/*db*
-                   :connection con
-                   :level 0
-                   :rollback (atom false)
-                   :opts     con-info)]
-         (.setAutoCommit con (or (-> con-info :auto-commit) true))
-         (func))))))
+  (let [con-info (or con-info ::default-connection)]
+    (if (keyword? con-info)
+      (if-let [con (@clojureql.core/global-connections con-info)]
+        (binding [sqlint/*db*
+                  (assoc sqlint/*db*
+                    :connection (:connection con)
+                    :level 0
+                    :rollback (atom false)
+                    :opts     (:opts con))]
+          (func))
+        (throw
+         (Exception. "No such global connection currently open!")))
+      (with-open [con (sqlint/get-connection con-info)]
+        (binding [sqlint/*db*
+                  (assoc sqlint/*db*
+                    :connection con
+                    :level 0
+                    :rollback (atom false)
+                    :opts     con-info)]
+          (.setAutoCommit con (or (-> con-info :auto-commit) true))
+          (func)))))))
