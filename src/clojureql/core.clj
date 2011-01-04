@@ -296,10 +296,16 @@
                {:limit (if limit (min limit n) n)
                 :offset offset}))
       ; Working in prepend mode
-      (let [{:keys [limit offset]} pre-scope]
-        (assoc this :pre-scope
-               {:limit (if limit (min limit n) n)
-                :offset offset}))))
+      (if (number? (:limit pre-scope))
+        ; There is already a limit on the table
+        (assoc (table cnx tname)
+          :tcols     this
+          :pre-scope {:limit n, :offset nil})
+        ; There is no existing limit
+        (let [{:keys [limit offset]} pre-scope]
+          (assoc this :pre-scope
+                 {:limit (if limit (min limit n) n)
+                  :offset offset})))))
 
   (offset [this n]
     (if (seq combinations)
@@ -311,8 +317,11 @@
       ; Working in prepend mode
       (let [limit  (if (:limit pre-scope)  (- (:limit pre-scope)  n))
             offset (if (:offset pre-scope) (+ (:offset pre-scope) n) n)]
-        (assoc this
-          :pre-scope {:limit limit :offset offset}))))
+        (if (some neg? (filter number? [limit offset]))
+          (throw (Exception. (format "Limit/Offset cannot have negative values: (limit: %s, offset: %s)"
+                                     limit offset)))
+          (assoc this
+            :pre-scope {:limit limit :offset offset})))))
 
   (order-by [this fields]
     (let [fields (if (seq combinations)
