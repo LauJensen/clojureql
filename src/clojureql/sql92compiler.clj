@@ -2,7 +2,7 @@
 
 (defn build-join
   "Generates a JOIN statement from the joins field of a table"
-  [{[tname pred] :data type :type pos :position} aliases]
+  [dialect {[tname pred] :data type :type pos :position} aliases]
   (let [pred (if (and (seq aliases) (string? pred))
                (reduce (fn [acc a]
                          (let [t1name (if (or (keyword? tname) (string? tname))
@@ -13,7 +13,7 @@
                        pred (map last aliases))
                pred)
         [subselect env] (when (requires-subselect? tname)
-                          (compile tname :default))]
+                          (compile tname (or dialect :default)))]
     [(assemble-sql "%s %s JOIN %s %s %s"
        (if (keyword? pos)  (-> pos name .toUpperCase) "")
        (if (not= :join type) (-> type name .toUpperCase) "")
@@ -36,7 +36,7 @@
         mods      (join-str \space (map upper-name modifiers))
         combs     (if (seq combinations)
                     (for [{:keys [table mode opts]} combinations]
-                      (let [[stmt & [env]] (compile table :default)]
+                      (let [[stmt & [env]] (compile table (or (:dialect cnx) :default))]
                         [(format " %s (%s)"
                                  (str (upper-name mode) (if opts (str \space (upper-name opts))))
                                  stmt) env])))
@@ -48,7 +48,8 @@
                                      flatten
                                      (join-str ","))))))
         jdata     (when joins
-                    (for [join-data joins] (build-join join-data aliases)))
+                    (for [join-data joins]
+                      (build-join (:dialect cnx) join-data aliases)))
         tables    (cond
                    joins
                     (str (if renames
@@ -57,7 +58,7 @@
                          \space
                          (join-str " " (map first jdata)))
                     (table? tcols)
-                    (compile tcols nil)
+                    (compile tcols (or (:dialect cnx) :default))
                     :else
                     (if renames
                       (with-rename tname (map #(add-tname tname %) tcols) renames)
