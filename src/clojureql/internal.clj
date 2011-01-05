@@ -218,12 +218,13 @@
    :one [:one.a :one.b] {:one :two} => 'one AS one(a,b)' "
   [tname tcols renames]
   (let [oname (to-tablename tname)
-        unqualify (fn [s] (let [s (name s)] (subs s (inc (.indexOf s ".")))))]
+        unqualify (fn [s] (let [s (nskeyword s)]
+                            (subs s (inc (.indexOf s ".")))))]
     (if (map? renames)
       (format "%s AS %s(%s)" oname oname
               (reduce #(let [[orig new] %2]
                          (.replaceAll %1 (unqualify orig) (unqualify new)))
-                      (join-str "," (->> tcols (map name)
+                      (join-str "," (->> (map nskeyword tcols)
                                          (filter #(.contains % oname))
                                          (map #(subs % (inc (.indexOf % "."))))))
                       renames))

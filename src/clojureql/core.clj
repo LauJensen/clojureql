@@ -372,6 +372,9 @@
 
 (defmethod print-method RTable [tble ^String out]
   "RTables print as SQL92 compliant SQL"
+  (when *debug*
+    (doseq [[k v] tble]
+      (.write out (format "%s\t\t\t\t%s\n" (str k) (str v)))))
   (.write out (-> tble (compile nil) interpolate-sql)))
 
 (defn table
