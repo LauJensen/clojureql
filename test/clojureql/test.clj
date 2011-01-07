@@ -2,8 +2,12 @@
   (:refer-clojure :exclude [compile drop take sort distinct conj! disj!])
   (:use clojure.contrib.sql
         clojure.test
-        clojureql.core
-        [cake :only [*opts*]]))
+        clojureql.core))
+
+(try 
+  (use '[cake :only [*opts*]])
+  (catch Exception _
+    (def *opts* {:integration true})))
 
 (when (:show-sql *opts*)
   (alter-var-root #'clojureql.core/*debug* (constantly true)))
