@@ -22,6 +22,23 @@
                   (where (= :countries.id :spots.country_id)))
       (select (where (= :regions_subselect.country_id :spots_subselect.country_id)))))
 
+(defn select-location [table-name]
+  (-> (table table-name)
+      (select (where (!= :location nil)))
+      (project [:location])))
+
+(defn select-location-union []
+  (-> (select-location :continents)
+      (union (select-location :countries))
+      (union (select-location :regions))
+      (union (select-location :spots))))
+
+(defn select-location-union-without-address []
+  (-> (outer-join (table :addresses) (select-location-union) :right
+                  (where (= :addresses.location :continents.location)))
+      (select (where (= :addresses.location nil)))
+      (project [:continents_subselect.location])))
+
 (deftest sql-compilation
 
   (testing "simple selects"
@@ -232,7 +249,11 @@
          (-> (select (table :users) (where (>= :id 0)))
              (union (select (table :users) (where (= :id 1))) :all)
              (union (select (table :users) (where (<= :id 2))) :distinct))
-         "(SELECT users.* FROM users WHERE (id >= 0)) UNION ALL (SELECT users.* FROM users WHERE (id = 1)) UNION DISTINCT (SELECT users.* FROM users WHERE (id <= 2))"))
+         "(SELECT users.* FROM users WHERE (id >= 0)) UNION ALL (SELECT users.* FROM users WHERE (id = 1)) UNION DISTINCT (SELECT users.* FROM users WHERE (id <= 2))"
+         (select-location-union)
+         "(SELECT continents.location FROM continents WHERE (location IS NOT NULL)) UNION (SELECT countries.location FROM countries WHERE (location IS NOT NULL)) UNION (SELECT regions.location FROM regions WHERE (location IS NOT NULL)) UNION (SELECT spots.location FROM spots WHERE (location IS NOT NULL))"
+         (select-location-union-without-address)
+         "SELECT continents_subselect.location,continents_subselect.location FROM addresses RIGHT OUTER JOIN ((SELECT continents.location FROM continents WHERE (location IS NOT NULL)) UNION (SELECT countries.location FROM countries WHERE (location IS NOT NULL)) UNION (SELECT regions.location FROM regions WHERE (location IS NOT NULL)) UNION (SELECT spots.location FROM spots WHERE (location IS NOT NULL))) AS continents_subselect ON (addresses.location = continents_subselect.location) WHERE (addresses.location IS NULL)"))
 
   (testing "difference, intersection and union"
     (are [x y] (= (-> x (compile nil) interpolate-sql) y)
@@ -294,5 +315,3 @@
              (take 10))
          "(SELECT t1.* FROM t1 LIMIT 5) UNION (SELECT t2.* FROM t2) LIMIT 10"))
   )
-
-
