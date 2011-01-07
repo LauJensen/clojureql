@@ -1,6 +1,6 @@
 (ns clojureql.pagination
-  (:refer-clojure :exclude [drop])
-  (:use [clojureql.core :only (drop limit)]))
+  (:refer-clojure :exclude [drop take])
+  (:use [clojureql.core :only (drop take)]))
 
 (def *per-page* 25)
 
@@ -23,7 +23,7 @@
   "Paginate the given relation by page and per-page."
   [table & {:keys [page per-page]}]
   (let [page (or page 1) per-page (or per-page *per-page*)]
-    (with-meta @(-> table (drop (offset page per-page)) (limit per-page))
+    (with-meta @(-> table (drop (offset page per-page)) (take per-page))
       {:page page
        :per-page per-page
        :total (total table)})))
