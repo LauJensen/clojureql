@@ -4,6 +4,7 @@
   (:use [clojureql.internal :only (update-or-insert-vals)]
         clojure.test
         clojureql.core
+        clojureql.compiler
         clojure.contrib.mock))
 
 (def select-country-ids-with-spot-count

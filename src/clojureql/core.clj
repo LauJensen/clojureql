@@ -9,7 +9,7 @@
   (:refer-clojure
    :exclude [take drop sort distinct conj! disj! compile])
   (:use
-   [clojureql internal predicates]
+   [clojureql internal predicates compiler]
    [clojure.string :only [join upper-case] :rename {join join-str}]
    [clojure.contrib sql [core :only [-?> -?>>]]]
    [clojure.contrib.sql.internal :as sqlint]
@@ -21,11 +21,7 @@
 (declare table?)
 (declare table)
 
-(defmulti compile
-  (fn [table db] (:dialect db)))
-
 (load "connectivity")
-(load "sql92compiler")
 
                                         ; INTERFACES
 
@@ -174,7 +170,9 @@
   Relation
   (apply-on [this f]
     (in-connection*
-     (with-results* (compile this cnx) f)))
+     (with-results* (let [sql-vec (compile this cnx)]
+                      (when *debug* (prn sql-vec))
+                      sql-vec) f)))
 
   (pick! [this kw]
     (let [results @this]
@@ -300,7 +298,7 @@
       (if (number? (:limit pre-scope))
         ; There is already a limit on the table
         (assoc (table cnx tname)
-          :tcols     this
+          :tcols     (:tcols this)
           :pre-scope {:limit n, :offset nil})
         ; There is no existing limit
         (let [{:keys [limit offset]} pre-scope]
@@ -331,7 +329,8 @@
       (if (and (seq (filter #(true? (-> % meta :prepend)) order-by))
                (not (seq combinations)))
         (assoc (table cnx tname)
-          :tcols (assoc this :order-by order-by)
+          :tcols "*"
+          :subtable (assoc this :order-by order-by)
           :order-by fields)
         (assoc this
           :order-by (conj (or order-by [])

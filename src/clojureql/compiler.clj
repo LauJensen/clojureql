@@ -1,4 +1,14 @@
-(in-ns 'clojureql.core)
+(ns clojureql.compiler
+  ^{:author "Lau B. Jensen    <lau.jensen@bestinclass.dk>"
+    :doc    "Please see the README.md for documentation"
+    :url    "http://github.com/LauJensen/clojureql"}
+  (:refer-clojure :exclude [compile])
+  (:use
+   [clojureql internal]
+   [clojure.string :only [join upper-case] :rename {join join-str}]))
+
+(defmulti compile
+  (fn [table db] (:dialect db)))
 
 (defn build-join
   "Generates a JOIN statement from the joins field of a table"
@@ -15,8 +25,8 @@
         [subselect env] (when (requires-subselect? tname)
                           (compile tname (or dialect :default)))]
     [(assemble-sql "%s %s JOIN %s %s %s"
-       (if (keyword? pos)  (-> pos name .toUpperCase) "")
-       (if (not= :join type) (-> type name .toUpperCase) "")
+       (if (keyword? pos)  (-> pos name upper-case) "")
+       (if (not= :join type) (-> type name upper-case) "")
        (if (requires-subselect? tname)
          (assemble-sql "(%s) AS %s_subselect" subselect
                        (to-tablename (:tname tname)))
@@ -31,7 +41,7 @@
 
 (defmethod compile :default [tble db]
   (let [{:keys [cnx tname tcols restriction renames joins combinations
-                grouped-by pre-scope scope order-by modifiers]} tble
+                grouped-by pre-scope scope order-by modifiers subtable]} tble
         aliases   (when joins (extract-aliases joins))
         mods      (join-str \space (map upper-name modifiers))
         combs     (if (seq combinations)
@@ -40,29 +50,28 @@
                         [(format " %s (%s)"
                                  (str (upper-name mode) (if opts (str \space (upper-name opts))))
                                  stmt) env])))
-        fields    (when-not (table? tcols)
-                    (str (if tcols (to-fieldlist tname tcols) "*")
-                         (when (seq aliases)
-                           (str ","
-                                (->> (map rest aliases)
-                                     flatten
-                                     (join-str ","))))))
+        fields    (str (if tcols (to-fieldlist tname tcols) "*")
+                       (when (seq aliases)
+                         (str ","
+                              (->> (map rest aliases)
+                                   flatten
+                                   (join-str ",")))))
         jdata     (when joins
                     (for [join-data joins]
                       (build-join (:dialect cnx) join-data aliases)))
         tables    (cond
                    joins
-                    (str (if renames
-                           (with-rename tname (map #(add-tname tname %) tcols) renames)
-                           (to-tablename tname))
-                         \space
-                         (join-str " " (map first jdata)))
-                    (table? tcols)
-                    (compile tcols (or (:dialect cnx) :default))
-                    :else
-                    (if renames
-                      (with-rename tname (map #(add-tname tname %) tcols) renames)
-                      (to-tablename tname)))
+                   (str (if renames
+                          (with-rename tname (map #(add-tname tname %) tcols) renames)
+                          (to-tablename tname))
+                        \space
+                        (join-str " " (map first jdata)))
+                   subtable
+                   (compile subtable (or (:dialect cnx) :default))
+                   :else
+                   (if renames
+                     (with-rename tname (map #(add-tname tname %) tcols) renames)
+                     (to-tablename tname)))
         pre-order  (filter #(true? (-> % meta :prepend)) order-by)
         post-order (remove #(true? (-> % meta :prepend)) order-by)
         preds     (when restriction restriction)
@@ -99,11 +108,10 @@
                        ])
         env       (concat
                    (->> [(map (comp :env last) jdata)
-                         (if (table? tcols) (rest tables))
-                         (if preds [(:env preds)])]
+                         (when subtable (rest tables))
+                         (when preds [(:env preds)])]
                         flatten (remove nil?) vec)
                    (->> (mapcat rest combs)
                         (remove nil?)))
         sql-vec   (into [statement] env)]
-    (when *debug* (prn sql-vec))
     sql-vec))
