@@ -6,7 +6,7 @@
 
 (defn- assert-page
   "Ensure that page is greater than zero."
-  [page] (if (< page 1) (throw (IllegalArgumentException. "Page must be greater than 0."))))
+  [page] (if-not (pos? page) (throw (IllegalArgumentException. "Page must be greater than 0."))))
 
 (defn offset
   "Calculate the SQL offset from page and per-page."
