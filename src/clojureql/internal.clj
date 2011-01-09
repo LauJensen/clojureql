@@ -286,7 +286,7 @@
   [& body]
   `(if (or ~'cnx
            (contains? @clojureql.core/global-connections
-                      ::clojureql.core/default-connection))
+                      ::default-connection))
      (clojureql.core/with-cnx ~'cnx (do ~@body))
      (do ~@body)))
 
