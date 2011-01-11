@@ -64,31 +64,31 @@
          (-> (table :users)
              (select (where (= :id 5)))
              (project [:id]))
-         "SELECT users.id FROM users WHERE (id = 5)"
+         "SELECT users.id FROM users WHERE (users.id = 5)"
          (-> (table :users)
              (select (where (= :id nil))))
-         "SELECT users.* FROM users WHERE (id IS NULL)"
+         "SELECT users.* FROM users WHERE (users.id IS NULL)"
          (-> (table :users)
              (select (where (!= :id nil))))
-         "SELECT users.* FROM users WHERE (id IS NOT NULL)"
+         "SELECT users.* FROM users WHERE (users.id IS NOT NULL)"
          (-> (table :users)
              (select (where (or (= :id 5) (>= :id 10))))
              (project [:id]))
-         "SELECT users.id FROM users WHERE ((id = 5) OR (id >= 10))"
+         "SELECT users.id FROM users WHERE ((users.id = 5) OR (users.id >= 10))"
          (-> (table :users)
              (select (where (and (= :id 5) (>= :id 10))))
              (project [:id]))
-         "SELECT users.id FROM users WHERE ((id = 5) AND (id >= 10))"
+         "SELECT users.id FROM users WHERE ((users.id = 5) AND (users.id >= 10))"
          (-> (table {} :users)
              (select (where (and (= :id 5) (or (>= :id 10)
                                                (<= :id 20)))))
              (project [:id]))
-         "SELECT users.id FROM users WHERE ((id = 5) AND ((id >= 10) OR (id <= 20)))"
+         "SELECT users.id FROM users WHERE ((users.id = 5) AND ((users.id >= 10) OR (users.id <= 20)))"
          (-> (table :users)
              (select (where (and (!= :id 5) (or (> :id 10)
                                                 (< :id 20)))))
              (project [:id]))
-         "SELECT users.id FROM users WHERE ((id != 5) AND ((id > 10) OR (id < 20)))"
+         "SELECT users.id FROM users WHERE ((users.id != 5) AND ((users.id > 10) OR (users.id < 20)))"
          (-> (table :users)
              (select (where (= :lower/name "bob"))))
          "SELECT users.* FROM users WHERE (lower(name) = bob)"))
@@ -98,7 +98,7 @@
          (-> (table :users)
              (select (where (= :id 5)))
              (select (where (= :title "Developer"))))
-         "SELECT users.* FROM users WHERE (id = 5) AND (title = Developer)"))
+         "SELECT users.* FROM users WHERE (users.id = 5) AND (users.title = Developer)"))
 
   (testing "projections"
     (are [x y] (= (-> x (compile nil) interpolate-sql) y)
@@ -127,27 +127,27 @@
   (testing "renaming in joins"
     (are [x y] (= (-> x (compile nil) interpolate-sql) y)
          (-> (table :users)
-             (join (table :salary) (where (= :user.id :salary.id)))
+             (join (table :salary) (where (= :users.id :salary.id)))
              (project [:users.id :salary.wage])
              (rename {:users.id :idx})) ; TODO: This should only work with fully qualified names
-         "SELECT users.id,salary.wage FROM users AS users(idx) JOIN salary ON (user.id = salary.id)"))
+         "SELECT users.id,salary.wage FROM users AS users(idx) JOIN salary ON (users.id = salary.id)"))
                                         ; TODO: Shouldn't this be ON (users.idx = salary.id) ?
   (testing "aggregate functions"
     (are [x y] (= (-> x (compile nil) interpolate-sql) y)
          (-> (table :users)
              (select (where (= :admin true)))
              (aggregate [:count/* :avg/wage]))
-         "SELECT count(*),avg(users.wage) FROM users WHERE (admin = true)"
+         "SELECT count(*),avg(users.wage) FROM users WHERE (users.admin = true)"
          (-> (table :users)
              (select (where (= :admin true)))
              (aggregate [:count/*, "corr(x,y)"] [:country :city]))
          (str "SELECT users.country,users.city,count(*),corr(x,y) FROM users "
-              "WHERE (admin = true) GROUP BY users.country,users.city")
+              "WHERE (users.admin = true) GROUP BY users.country,users.city")
          (-> (table :users)
              (select (where (= :admin true)))
              (aggregate [:count/*, :corr/x:y] [:country :city]))
          (str "SELECT users.country,users.city,count(*),corr(users.x,users.y) FROM users "
-              "WHERE (admin = true) GROUP BY users.country,users.city")
+              "WHERE (users.admin = true) GROUP BY users.country,users.city")
          select-country-ids-with-region-count
          (str "SELECT regions.country_id,count(regions.id) AS regions FROM regions GROUP BY regions.country_id")
          select-country-ids-with-spot-count
@@ -213,47 +213,47 @@
     (are [x y] (= (-> x (compile nil) interpolate-sql) y)
          (difference (select (table :users) (where (>= :id 0)))
                 (select (table :users) (where (= :id 1))))
-         "(SELECT users.* FROM users WHERE (id >= 0)) EXCEPT (SELECT users.* FROM users WHERE (id = 1))"
+         "(SELECT users.* FROM users WHERE (users.id >= 0)) EXCEPT (SELECT users.* FROM users WHERE (users.id = 1))"
          (-> (select (table :users) (where (>= :id 0)))
              (difference (select (table :users) (where (= :id 1))))
              (difference (select (table :users) (where (<= :id 2)))))
-         "(SELECT users.* FROM users WHERE (id >= 0)) EXCEPT (SELECT users.* FROM users WHERE (id = 1)) EXCEPT (SELECT users.* FROM users WHERE (id <= 2))"
+         "(SELECT users.* FROM users WHERE (users.id >= 0)) EXCEPT (SELECT users.* FROM users WHERE (users.id = 1)) EXCEPT (SELECT users.* FROM users WHERE (users.id <= 2))"
          (-> (select (table :users) (where (>= :id 0)))
              (difference (select (table :users) (where (= :id 1))) :all)
              (difference (select (table :users) (where (<= :id 2))) :distinct))
-         "(SELECT users.* FROM users WHERE (id >= 0)) EXCEPT ALL (SELECT users.* FROM users WHERE (id = 1)) EXCEPT DISTINCT (SELECT users.* FROM users WHERE (id <= 2))"))
+         "(SELECT users.* FROM users WHERE (users.id >= 0)) EXCEPT ALL (SELECT users.* FROM users WHERE (users.id = 1)) EXCEPT DISTINCT (SELECT users.* FROM users WHERE (users.id <= 2))"))
 
   (testing "intersection"
     (are [x y] (= (-> x (compile nil) interpolate-sql) y)
          (intersection (select (table :users) (where (>= :id 0)))
                 (select (table :users) (where (= :id 1))))
-         "(SELECT users.* FROM users WHERE (id >= 0)) INTERSECT (SELECT users.* FROM users WHERE (id = 1))"
+         "(SELECT users.* FROM users WHERE (users.id >= 0)) INTERSECT (SELECT users.* FROM users WHERE (users.id = 1))"
          (-> (select (table :users) (where (>= :id 0)))
              (intersection (select (table :users) (where (= :id 1))))
              (intersection (select (table :users) (where (<= :id 2)))))
-         "(SELECT users.* FROM users WHERE (id >= 0)) INTERSECT (SELECT users.* FROM users WHERE (id = 1)) INTERSECT (SELECT users.* FROM users WHERE (id <= 2))"
+         "(SELECT users.* FROM users WHERE (users.id >= 0)) INTERSECT (SELECT users.* FROM users WHERE (users.id = 1)) INTERSECT (SELECT users.* FROM users WHERE (users.id <= 2))"
          (-> (select (table :users) (where (>= :id 0)))
              (intersection (select (table :users) (where (= :id 1))) :all)
              (intersection (select (table :users) (where (<= :id 2))) :distinct))
-         "(SELECT users.* FROM users WHERE (id >= 0)) INTERSECT ALL (SELECT users.* FROM users WHERE (id = 1)) INTERSECT DISTINCT (SELECT users.* FROM users WHERE (id <= 2))"))
+         "(SELECT users.* FROM users WHERE (users.id >= 0)) INTERSECT ALL (SELECT users.* FROM users WHERE (users.id = 1)) INTERSECT DISTINCT (SELECT users.* FROM users WHERE (users.id <= 2))"))
 
   (testing "union"
     (are [x y] (= (-> x (compile nil) interpolate-sql) y)
          (union (select (table :users) (where (>= :id 0)))
                 (select (table :users) (where (= :id 1))))
-         "(SELECT users.* FROM users WHERE (id >= 0)) UNION (SELECT users.* FROM users WHERE (id = 1))"
+         "(SELECT users.* FROM users WHERE (users.id >= 0)) UNION (SELECT users.* FROM users WHERE (users.id = 1))"
          (-> (select (table :users) (where (>= :id 0)))
              (union (select (table :users) (where (= :id 1))))
              (union (select (table :users) (where (<= :id 2)))))
-         "(SELECT users.* FROM users WHERE (id >= 0)) UNION (SELECT users.* FROM users WHERE (id = 1)) UNION (SELECT users.* FROM users WHERE (id <= 2))"
+         "(SELECT users.* FROM users WHERE (users.id >= 0)) UNION (SELECT users.* FROM users WHERE (users.id = 1)) UNION (SELECT users.* FROM users WHERE (users.id <= 2))"
          (-> (select (table :users) (where (>= :id 0)))
              (union (select (table :users) (where (= :id 1))) :all)
              (union (select (table :users) (where (<= :id 2))) :distinct))
-         "(SELECT users.* FROM users WHERE (id >= 0)) UNION ALL (SELECT users.* FROM users WHERE (id = 1)) UNION DISTINCT (SELECT users.* FROM users WHERE (id <= 2))"
+         "(SELECT users.* FROM users WHERE (users.id >= 0)) UNION ALL (SELECT users.* FROM users WHERE (users.id = 1)) UNION DISTINCT (SELECT users.* FROM users WHERE (users.id <= 2))"
          (select-location-union)
-         "(SELECT continents.location FROM continents WHERE (location IS NOT NULL)) UNION (SELECT countries.location FROM countries WHERE (location IS NOT NULL)) UNION (SELECT regions.location FROM regions WHERE (location IS NOT NULL)) UNION (SELECT spots.location FROM spots WHERE (location IS NOT NULL))"
+         "(SELECT continents.location FROM continents WHERE (continents.location IS NOT NULL)) UNION (SELECT countries.location FROM countries WHERE (countries.location IS NOT NULL)) UNION (SELECT regions.location FROM regions WHERE (regions.location IS NOT NULL)) UNION (SELECT spots.location FROM spots WHERE (spots.location IS NOT NULL))"
          (select-location-union-without-address)
-         "SELECT continents_subselect.location,continents_subselect.location FROM addresses RIGHT OUTER JOIN ((SELECT continents.location FROM continents WHERE (location IS NOT NULL)) UNION (SELECT countries.location FROM countries WHERE (location IS NOT NULL)) UNION (SELECT regions.location FROM regions WHERE (location IS NOT NULL)) UNION (SELECT spots.location FROM spots WHERE (location IS NOT NULL))) AS continents_subselect ON (addresses.location = continents_subselect.location) WHERE (addresses.location IS NULL)"))
+         "SELECT continents_subselect.location,continents_subselect.location FROM addresses RIGHT OUTER JOIN ((SELECT continents.location FROM continents WHERE (continents.location IS NOT NULL)) UNION (SELECT countries.location FROM countries WHERE (countries.location IS NOT NULL)) UNION (SELECT regions.location FROM regions WHERE (regions.location IS NOT NULL)) UNION (SELECT spots.location FROM spots WHERE (spots.location IS NOT NULL))) AS continents_subselect ON (addresses.location = continents_subselect.location) WHERE (addresses.location IS NULL)"))
 
   (testing "difference, intersection and union"
     (are [x y] (= (-> x (compile nil) interpolate-sql) y)
@@ -261,12 +261,12 @@
            (-> (select t1 (where (= :id 1)))
                (union t2)
                (take 5)))
-         "(SELECT t1.* FROM t1 WHERE (id = 1)) UNION (SELECT t2.* FROM t2) LIMIT 5"
+         "(SELECT t1.* FROM t1 WHERE (t1.id = 1)) UNION (SELECT t2.* FROM t2) LIMIT 5"
          (-> (select (table :users) (where (>= :id 0)))
              (difference (select (table :users) (where (= :id 1))) :all)
              (intersection (select (table :users) (where (= :id 2))))
              (union (select (table :users) (where (<= :id 3))) :distinct))
-         "(SELECT users.* FROM users WHERE (id >= 0)) EXCEPT ALL (SELECT users.* FROM users WHERE (id = 1)) INTERSECT (SELECT users.* FROM users WHERE (id = 2)) UNION DISTINCT (SELECT users.* FROM users WHERE (id <= 3))"))
+         "(SELECT users.* FROM users WHERE (users.id >= 0)) EXCEPT ALL (SELECT users.* FROM users WHERE (users.id = 1)) INTERSECT (SELECT users.* FROM users WHERE (users.id = 2)) UNION DISTINCT (SELECT users.* FROM users WHERE (users.id <= 3))"))
 
   (testing "sort"
     (are [x y] (= (-> x (compile nil) interpolate-sql) y)

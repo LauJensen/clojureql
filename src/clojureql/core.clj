@@ -186,8 +186,8 @@
 
   (select [this clause]
     (assoc this :restriction
-           (fuse-predicates (or restriction (predicate nil nil))
-                            clause)))
+           (->> (qualify-predicate (to-tablename tname) clause)
+                (fuse-predicates (or restriction (predicate nil nil))))))
 
   (project [this fields]
     (assoc this :tcols fields))
