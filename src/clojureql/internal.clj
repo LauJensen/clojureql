@@ -87,19 +87,23 @@
 (defn to-orderlist
   "Converts a list like [:id#asc :name#desc] to \"id asc, name desc\"
 
-   Also takes a single keyword argument"
-  [tname fields]
+   Also takes a single keyword argument. Does not qualify fields found
+   in aggregates"
+  [tname aggregates fields]
   (->> (if (coll? fields) fields [fields])
        (map #(if (.contains (name %) "#")
                (->> (.split (name %) "#")
                     ((juxt first last))
-                    ; TODO: To qualify names means breaking aggregates
-                    #_(map (fn [f] (if (or (= f "asc") (= f "desc"))
+                    (map (fn [f] (if (or (= f "asc") (= f "desc"))
                                    f
-                                   (add-tname tname f))))
+                                   (if (some (fn [i] (= (nskeyword i) (nskeyword f))) aggregates)
+                                     f
+                                     (add-tname tname f)))))
                     (interpose " ")
                     (apply str))
-               (str (name %) " asc")))
+               (if (some (fn [i] (= (nskeyword i) (nskeyword %))) aggregates)
+                 (str (nskeyword %) " asc")
+                 (str (add-tname tname %) " asc"))))
        (interpose ",")
        (apply str)))
 

@@ -32,24 +32,27 @@
 (defmethod compile :default [tble db]
   (let [{:keys [cnx tname tcols restriction renames joins combinations
                 grouped-by pre-scope scope order-by modifiers having]} tble
-        aliases   (when joins (extract-aliases joins))
-        mods      (join-str \space (map upper-name modifiers))
-        combs     (if (seq combinations)
-                    (for [{:keys [table mode opts]} combinations]
-                      (let [[stmt & [env]] (compile table (or (:dialect cnx) :default))]
-                        [(format " %s (%s)"
-                                 (str (upper-name mode) (if opts (str \space (upper-name opts))))
-                                 stmt) env])))
-        fields    (when-not (table? tcols)
-                    (str (if tcols (to-fieldlist tname tcols) "*")
-                         (when (seq aliases)
-                           (str ","
-                                (->> (map rest aliases)
-                                     flatten
-                                     (join-str ","))))))
-        jdata     (when joins
-                    (for [join-data joins]
-                      (build-join (:dialect cnx) join-data aliases)))
+        aliases    (when joins (extract-aliases joins))
+        aggregates (-?>> (if (table? tcols) (:tcols tcols) tcols)
+                         (filter #(and (vector? %) (= 3 (count %))))
+                         (map (comp name last)))
+        mods       (join-str \space (map upper-name modifiers))
+        combs      (if (seq combinations)
+                     (for [{:keys [table mode opts]} combinations]
+                       (let [[stmt & [env]] (compile table (or (:dialect cnx) :default))]
+                         [(format " %s (%s)"
+                                  (str (upper-name mode) (if opts (str \space (upper-name opts))))
+                                  stmt) env])))
+        fields     (when-not (table? tcols)
+                     (str (if tcols (to-fieldlist tname tcols) "*")
+                          (when (seq aliases)
+                            (str ","
+                                 (->> (map rest aliases)
+                                      flatten
+                                      (join-str ","))))))
+        jdata      (when joins
+                     (for [join-data joins]
+                       (build-join (:dialect cnx) join-data aliases)))
         tables    (cond
                    joins
                     (str (if renames
@@ -78,7 +81,7 @@
                          (str "GROUP BY " (to-fieldlist tname (first grouped-by))))
                        (when (seq having) (str "HAVING " having))
                        (when (seq pre-order)
-                         (str "ORDER BY " (to-orderlist tname (first pre-order))))
+                         (str "ORDER BY " (to-orderlist tname aggregates (first pre-order))))
                        (when-let [limit (-> pre-scope :limit)]
                          (str "LIMIT " limit))
                        (when-let [offset (-> pre-scope :offset)]
@@ -93,7 +96,7 @@
                          (str "GROUP BY " (to-fieldlist tname (first grouped-by))))
                        (when (and (seq having) (seq combs)) (str "HAVING " having))
                        (when (seq post-order)
-                         (str "ORDER BY " (to-orderlist tname (first post-order))))
+                         (str "ORDER BY " (to-orderlist tname aggregates (first post-order))))
                        (when-let [limit (-> scope :limit)]
                          (str "LIMIT " limit))
                        (when-let [offset (-> scope :offset)]
