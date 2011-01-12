@@ -96,7 +96,7 @@
                          (str "GROUP BY " (to-fieldlist tname (first grouped-by))))
                        (when (and (seq having) (seq combs)) (str "HAVING " having))
                        (when (seq post-order)
-                         (str "ORDER BY " (to-orderlist tname aggregates (first post-order))))
+                         (str "ORDER BY " (to-orderlist tname :all (first post-order))))
                        (when-let [limit (-> scope :limit)]
                          (str "LIMIT " limit))
                        (when-let [offset (-> scope :offset)]

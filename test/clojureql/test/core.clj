@@ -281,13 +281,13 @@
              (sort [:id])
              (take 5)
              (sort [:wage]))
-         "SELECT * FROM (SELECT t1.* FROM t1 ORDER BY t1.id asc LIMIT 5) ORDER BY t1.wage asc"
+         "SELECT * FROM (SELECT t1.* FROM t1 ORDER BY t1.id asc LIMIT 5) ORDER BY wage asc"
          (-> (table :t1)
              (sort [:id])
              (drop 10)
              (take 5)
              (sort [:wage]))
-         "SELECT * FROM (SELECT t1.* FROM t1 ORDER BY t1.id asc LIMIT 5 OFFSET 10) ORDER BY t1.wage asc"))
+         "SELECT * FROM (SELECT t1.* FROM t1 ORDER BY t1.id asc LIMIT 5 OFFSET 10) ORDER BY wage asc"))
   ;TODO: Last two examples should not qualify wage?
 
   (testing "combinations with sort/limit"

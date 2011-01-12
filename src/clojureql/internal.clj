@@ -2,7 +2,7 @@
   (:require
    [clojure.contrib.sql.internal :as sqlint]
    [clojure.contrib.sql :as csql])
-  (:use [clojure.string :only [join] :rename {join join-str}]
+  (:use [clojure.string :only [join upper-case] :rename {join join-str}]
         [clojure.contrib.core :only [-?> -?>>]]))
 
 (defn upper-name [kw]
@@ -84,24 +84,29 @@
               (str tname "_subselect." col)))
          (remove aggregate? tcols))))
 
+;TODO: This function is too complex. First step to simplyfing is getting rid
+;      of the support for a non-collection argument.
 (defn to-orderlist
   "Converts a list like [:id#asc :name#desc] to \"id asc, name desc\"
 
    Also takes a single keyword argument. Does not qualify fields found
-   in aggregates"
+   in aggregates. aggregates can also be a keyword in which case all
+   fields are left unqualified."
   [tname aggregates fields]
   (->> (if (coll? fields) fields [fields])
        (map #(if (.contains (name %) "#")
                (->> (.split (name %) "#")
                     ((juxt first last))
                     (map (fn [f] (if (or (= f "asc") (= f "desc"))
-                                   f
-                                   (if (some (fn [i] (= (nskeyword i) (nskeyword f))) aggregates)
+                                   (upper-case f)
+                                   (if (or (keyword? aggregates)
+                                           (some (fn [i] (= (nskeyword i) (nskeyword f))) aggregates))
                                      f
                                      (add-tname tname f)))))
                     (interpose " ")
                     (apply str))
-               (if (some (fn [i] (= (nskeyword i) (nskeyword %))) aggregates)
+               (if (or (keyword? aggregates)
+                       (some (fn [i] (= (nskeyword i) (nskeyword %))) aggregates))
                  (str (nskeyword %) " asc")
                  (str (add-tname tname %) " asc"))))
        (interpose ",")
