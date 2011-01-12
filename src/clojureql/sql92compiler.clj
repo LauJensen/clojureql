@@ -12,8 +12,9 @@
                              acc))
                        pred (map last aliases))
                pred)
-        [subselect env] (when (requires-subselect? tname)
-                          (compile tname (or dialect :default)))]
+        [subselect & env]
+        (when (requires-subselect? tname)
+          (compile tname (or dialect :default)))]
     [(assemble-sql "%s %s JOIN %s %s %s"
        (if (keyword? pos)  (-> pos name .toUpperCase) "")
        (if (not= :join type) (-> type name .toUpperCase) "")
@@ -27,7 +28,8 @@
          (-> (str pred) (apply-aliases aliases) first)))
      (if (and subselect (map? pred))
        (assoc pred :env (into (:env pred) env))
-       pred)]))
+       pred)
+     env]))
 
 (defmethod compile :default [tble db]
   (let [{:keys [cnx tname tcols restriction renames joins combinations
@@ -103,10 +105,11 @@
                          (str "OFFSET " offset))
                        ])
         env       (concat
-                   (->> [(map (comp :env last) jdata)
+                   (->> [(map (comp :env second) jdata)
                          (if (table? tcols) (rest tables))
                          (if preds [(:env preds)])
-                         (if having [(:env having)])]
+                         (if having [(:env having)])
+                         (mapcat last jdata)]
                         flatten (remove nil?) vec)
                    (->> (mapcat rest combs)
                         (remove nil?)))
