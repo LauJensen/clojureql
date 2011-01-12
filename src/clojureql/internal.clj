@@ -93,7 +93,8 @@
        (map #(if (.contains (name %) "#")
                (->> (.split (name %) "#")
                     ((juxt first last))
-                    (map (fn [f] (if (or (= f "asc") (= f "desc"))
+                    ; TODO: To qualify names means breaking aggregates
+                    #_(map (fn [f] (if (or (= f "asc") (= f "desc"))
                                    f
                                    (add-tname tname f))))
                     (interpose " ")
