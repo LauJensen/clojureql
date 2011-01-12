@@ -31,7 +31,7 @@
 
 (defmethod compile :default [tble db]
   (let [{:keys [cnx tname tcols restriction renames joins combinations
-                grouped-by pre-scope scope order-by modifiers]} tble
+                grouped-by pre-scope scope order-by modifiers having]} tble
         aliases   (when joins (extract-aliases joins))
         mods      (join-str \space (map upper-name modifiers))
         combs     (if (seq combinations)
@@ -76,6 +76,7 @@
                        (when (or (and (seq grouped-by) (not (seq combs)))
                                  (-> grouped-by first meta :prepend))
                          (str "GROUP BY " (to-fieldlist tname (first grouped-by))))
+                       (when (seq having) (str "HAVING " having))
                        (when (seq pre-order)
                          (str "ORDER BY " (to-orderlist tname (first pre-order))))
                        (when-let [limit (-> pre-scope :limit)]
@@ -90,6 +91,7 @@
                        (when (and (seq grouped-by) (seq combs)
                                   (nil? (-> order-by first meta :prepend)))
                          (str "GROUP BY " (to-fieldlist tname (first grouped-by))))
+                       (when (and (seq having) (seq combs)) (str "HAVING " having))
                        (when (seq post-order)
                          (str "ORDER BY " (to-orderlist tname (first post-order))))
                        (when-let [limit (-> scope :limit)]
@@ -100,7 +102,8 @@
         env       (concat
                    (->> [(map (comp :env last) jdata)
                          (if (table? tcols) (rest tables))
-                         (if preds [(:env preds)])]
+                         (if preds [(:env preds)])
+                         (if having [(:env having)])]
                         flatten (remove nil?) vec)
                    (->> (mapcat rest combs)
                         (remove nil?)))

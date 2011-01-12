@@ -166,7 +166,7 @@
 
 (defrecord RTable [cnx tname tcols restriction renames joins
                    grouped-by pre-scope scope order-by modifiers
-                   combinations]
+                   combinations having]
   clojure.lang.IDeref
   (deref [this]
     (apply-on this doall))
@@ -185,9 +185,13 @@
         (throw (Exception. "Multiple items in resultsetseq, keyword lookup not possible")))))
 
   (select [this clause]
+    (if (and (has-aggregate? this) (seq grouped-by))
+      (assoc this :having ; TODO: Throw exception if clause contains column not in grouped-by
+             (->> (qualify-predicate (to-tablename tname) clause)
+                  (fuse-predicates (or having (predicate nil nil)))))
     (assoc this :restriction
            (->> (qualify-predicate (to-tablename tname) clause)
-                (fuse-predicates (or restriction (predicate nil nil))))))
+                (fuse-predicates (or restriction (predicate nil nil)))))))
 
   (project [this fields]
     (assoc this :tcols fields))
@@ -282,6 +286,7 @@
       this))
 
   (grouped [this field]
+    ;TODO: We shouldn't call to-fieldlist here, first in the compiler
     (let [colname (with-meta [(to-fieldlist tname field)] {:prepend true})]
       (assoc this :grouped-by
              (conj (or grouped-by [])
@@ -386,7 +391,7 @@
      (let [connection-info (if (fn? connection-info)
                              (connection-info)
                              connection-info)]
-       (RTable. connection-info table-name [:*] nil nil nil nil nil nil nil nil nil))))
+       (RTable. connection-info table-name [:*] nil nil nil nil nil nil nil nil nil nil))))
 
 (defn table?
   "Returns true if tinstance is an instnce of RTable"
