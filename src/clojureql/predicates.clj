@@ -109,20 +109,21 @@
                (mapcat :cols [p1 p2]))))
 
 (defn qualify-predicate
-  [tname pred]
-  (let [{:keys [stmt env cols]} pred
-        tname (to-tablename tname)]
+  [this pred]
+  (let [tname (to-tablename (:tname this))
+        {:keys [stmt env cols]} pred
+        aggregates (find-aggregates this)]
     (predicate
      (reduce #(let [colname (nskeyword %2)]
                 (.replaceAll %1 colname
-                         (if (.contains colname ".")
-                           colname
-                           (str tname \. colname))))
+                      (if (some (fn [i] (= colname (nskeyword i))) aggregates)
+                        colname
+                        (if (.contains colname ".")
+                          colname
+                          (str tname \. colname)))))
              (str pred) (set cols))
      env
      cols)))
-
-
 
 (defn or*  [& args] (sql-or (predicate) args))
 (defn and* [& args] (sql-and (predicate) args))

@@ -187,11 +187,11 @@
   (select [this clause]
     (if (and (has-aggregate? this) (seq grouped-by))
       (assoc this :having ; TODO: Throw exception if clause contains column not in grouped-by
-             (->> (qualify-predicate (to-tablename tname) clause)
+             (->> (qualify-predicate this clause)
                   (fuse-predicates (or having (predicate nil nil)))))
-    (assoc this :restriction
-           (->> (qualify-predicate (to-tablename tname) clause)
-                (fuse-predicates (or restriction (predicate nil nil)))))))
+      (assoc this :restriction
+             (->> (qualify-predicate this clause)
+                  (fuse-predicates (or restriction (predicate nil nil)))))))
 
   (project [this fields]
     (assoc this :tcols fields))

@@ -200,6 +200,15 @@
       alias
       [(-> tcols first nskeyword)])))
 
+(defn find-aggregates
+  "Goes through tcols looking for vectors with 3 items and returns
+   the alias for those found."
+  [tcols]
+  ; TODO: Dangerous, vector? should be table? and arguments reversed
+  (-?>> (if (vector? tcols) tcols (:tcols tcols))
+        (filter #(and (vector? %) (= 3 (count %))))
+        (map (comp name last))))
+
 (defn requires-subselect?
   [table]
   (if (keyword? table)
