@@ -188,7 +188,7 @@
                     (map (comp name last)))]
     (if (seq alias)
       alias
-      [(-> tcols first nskeyword)])))
+      (-> tcols first nskeyword))))
 
 (defn requires-subselect?
   [table]

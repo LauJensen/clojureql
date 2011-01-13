@@ -57,8 +57,7 @@
        >=  clojureql.predicates/>=*
        and clojureql.predicates/and*
        or  clojureql.predicates/or*
-       not clojureql.predicates/not*
-       in  clojureql.predicates/in}
+       not clojureql.predicates/not*}
      clause))
 
 (defprotocol Relation
