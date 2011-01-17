@@ -39,6 +39,11 @@
       (select (where (= :addresses.location nil)))
       (project [:continents_subselect.location])))
 
+(deftest error-behavior
+  (testing "missing connection info"
+    (is (thrown-with-msg? Exception
+          #".*connection information.*" @(table :no-conn)))))
+
 (deftest sql-compilation
 
   (testing "simple selects"
@@ -108,10 +113,10 @@
 
   (testing "projection from aliased column on join table"
     (are [x y] (= (-> x (compile nil) interpolate-sql) y)
-	 (-> (table :users)
-	     (join (table :salary) (where (= :users.id :salary.id)))
-	     (project [:salary.wage :as :something]))
-	 "SELECT salary.wage AS something FROM users JOIN salary ON (users.id = salary.id)"))
+         (-> (table :users)
+             (join (table :salary) (where (= :users.id :salary.id)))
+             (project [:salary.wage :as :something]))
+         "SELECT salary.wage AS something FROM users JOIN salary ON (users.id = salary.id)"))
 
   (testing "joins"
     (are [x y] (= (-> x (compile nil) interpolate-sql) y)
