@@ -277,19 +277,6 @@
 
                                         ; SQL Specifics
 
-(defmacro in-connection*
-  "For internal use only!
-
-   This lets users supply a nil argument as the connection when
-   constructing a table, and instead wrapping their calls in
-   with-connection"
-  [& body]
-  `(if (or ~'cnx
-           (contains? @clojureql.core/global-connections
-                      ::default-connection))
-     (clojureql.core/with-cnx ~'cnx (do ~@body))
-     (do ~@body)))
-
 (defn result-seq
   "Creates and returns a lazy sequence of structmaps corresponding to
   the rows in the java.sql.ResultSet rs. Accepts duplicate keys"

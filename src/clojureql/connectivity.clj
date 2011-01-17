@@ -35,28 +35,37 @@
   `(with-cnx* ~db-spec (fn [] ~@body)))
 
 (defn with-cnx*
-  "Evaluates func in the context of a new connection to a database then
-  closes the connection."
+  "Evaluates func in the context of a database connection, with
+  following precedence: Already open connection > connection passed on
+  table > global connection"
   [con-info func]
   (io!
-  (let [con-info (or con-info ::clojureql.internal/default-connection)]
-    (if (keyword? con-info)
-      (if-let [con (@clojureql.core/global-connections con-info)]
-        (binding [sqlint/*db*
-                  (assoc sqlint/*db*
-                    :connection (:connection con)
-                    :level 0
-                    :rollback (atom false)
-                    :opts     (:opts con))]
-          (func))
-        (throw
-         (Exception. "No such global connection currently open!")))
-      (with-open [con (sqlint/get-connection con-info)]
-        (binding [sqlint/*db*
-                  (assoc sqlint/*db*
-                    :connection con
-                    :level 0
-                    :rollback (atom false)
-                    :opts     con-info)]
-          (.setAutoCommit con (or (-> con-info :auto-commit) true))
-          (func)))))))
+   (cond
+
+    (find-connection) ; an already open c.c.sql connection takes precedence
+    (func)
+    
+    (map? con-info) ; then we try a passed connection info (presumably associated with some table in the query)
+    (with-open [con (sqlint/get-connection con-info)]
+      (binding [sqlint/*db*
+                (assoc sqlint/*db*
+                  :connection con
+                  :level 0
+                  :rollback (atom false)
+                  :opts     con-info)]
+        (.setAutoCommit con (:auto-commit con-info true))
+        (func)))
+
+    :default ; try global connection
+    (if-let [con (@clojureql.core/global-connections
+                  (or con-info :clojureql.internal/default-connection))]
+      (binding [sqlint/*db*
+                (assoc sqlint/*db*
+                  :connection (:connection con)
+                  :level 0
+                  :rollback (atom false)
+                  :opts     (:opts con))]
+        (func))
+      (throw
+       (Exception.
+        "Missing connection information; no global connection :"))))))

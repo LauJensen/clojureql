@@ -1,10 +1,59 @@
 (ns clojureql.test.core
   (:refer-clojure
    :exclude [compile take drop sort distinct conj! disj!])
-  (:use [clojureql.internal :only (update-or-insert-vals)]
+  (:use [clojureql.internal :only [update-or-insert-vals]]
+        [clojure.contrib.sql :only [with-connection find-connection]]
         clojure.test
         clojureql.core
-        clojure.contrib.mock))
+        clojure.contrib.mock)
+  (:import java.io.Closeable
+           java.sql.Connection))
+
+(defrecord MockConnection [id]
+  Closeable
+  (close [this])
+  Connection
+  (setAutoCommit [this ac]))
+
+(defn mock-connection-creator
+  "Create factory function"
+  [identifier]
+  (fn [_]
+    (MockConnection. identifier)))
+
+(defn mock-connection-info
+  "Create configuration for (get-connection ..)"
+  [identifier]
+  {:factory (mock-connection-creator identifier)})
+
+(defn resolve-table-db [spec-on-tble]
+  (with-cnx spec-on-tble
+    (get (find-connection) :id)))
+
+(deftest connection-sources
+  (testing "missing connection info"
+    (is (thrown-with-msg? Exception #".*connection information.*"
+          (resolve-table-db nil))))
+
+  (open-global (mock-connection-info :global))
+  (testing "global connection"
+    (is (= :global
+           (resolve-table-db nil)))
+    
+    ; with-connection takes precedence
+    (with-connection (mock-connection-info :with-connection)
+      (is (= :with-connection
+            (resolve-table-db nil)))))
+
+  (testing "connection on table"
+    (is (= :local
+           (resolve-table-db (mock-connection-info :local))))
+
+    ; c.c.sql with-connection still takes precedence
+    (with-connection (mock-connection-info :with-connection)
+      (is (= :with-connection
+            (resolve-table-db (mock-connection-info :local))))))
+  (close-global))
 
 (def select-country-ids-with-spot-count
   (-> (table :spots)
@@ -38,11 +87,6 @@
                   (where (= :addresses.location :continents.location)))
       (select (where (= :addresses.location nil)))
       (project [:continents_subselect.location])))
-
-(deftest error-behavior
-  (testing "missing connection info"
-    (is (thrown-with-msg? Exception
-          #".*connection information.*" @(table :no-conn)))))
 
 (deftest sql-compilation
 
@@ -209,9 +253,11 @@
               "WHERE (regions_subselect.country_id = spots_subselect.country_id)")))
 
   (testing "update-in!"
-    (expect [update-or-insert-vals (has-args [:users ["(id = ?)" 1] {:name "Bob"}])]
+    (expect [update-or-insert-vals (has-args [:users ["(id = ?)" 1] {:name "Bob"}])
+             find-connection (returns true)]
       (update-in! (table :users) (where (= :id 1)) {:name "Bob"}))
-    (expect [update-or-insert-vals (has-args [:users ["(salary IS NULL)"] {:salary 1000}])]
+    (expect [update-or-insert-vals (has-args [:users ["(salary IS NULL)"] {:salary 1000}])
+             find-connection (returns true)]
       (update-in! (table :users) (where (= :salary nil)) {:salary 1000})))
 
   (testing "difference"

@@ -173,8 +173,8 @@
 
   Relation
   (apply-on [this f]
-    (in-connection*
-     (with-results* (compile this cnx) f)))
+    (with-cnx cnx
+      (with-results* (compile this cnx) f)))
 
   (pick! [this kw]
     (let [results @this]
@@ -265,21 +265,21 @@
         table)))
 
   (conj! [this records]
-     (in-connection*
+     (with-cnx cnx
       (if (map? records)
         (insert-records tname records)
         (apply insert-records tname records)))
      this)
 
   (disj! [this predicate]
-     (in-connection*
+     (with-cnx cnx
        (delete-rows tname (into [(str predicate)] (:env predicate))))
     this)
 
   (update-in! [this pred records]
     (let [predicate (into [(str pred)] (:env pred))]
       (when *debug* (prn predicate))
-      (in-connection*
+      (with-cnx cnx
        (if (map? records)
          (update-or-insert-vals tname predicate records)
          (apply update-or-insert-vals tname predicate records)))
