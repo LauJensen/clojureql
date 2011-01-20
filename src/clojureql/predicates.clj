@@ -139,6 +139,9 @@
     (spec-op (predicate) (into ["IS NOT"] args))
     (infix (predicate) "!=" args)))
 
+(defn nil?* [field]
+  (=* nil field))
+
 (defmacro definfixoperator [name op doc]
   `(defn ~name ~doc [& args#]
      (infix (predicate) (name ~op) args#)))

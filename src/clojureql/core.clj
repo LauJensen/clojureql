@@ -49,16 +49,17 @@
 
    Use as: (select tble (where ...))"
   `~(postwalk-replace
-     '{=   clojureql.predicates/=*
-       !=  clojureql.predicates/!=*
-       <   clojureql.predicates/<*
-       >   clojureql.predicates/>*
-       <=  clojureql.predicates/<=*
-       >=  clojureql.predicates/>=*
-       and clojureql.predicates/and*
-       or  clojureql.predicates/or*
-       not clojureql.predicates/not*
-       in  clojureql.predicates/in}
+     '{=    clojureql.predicates/=*
+       !=   clojureql.predicates/!=*
+       <    clojureql.predicates/<*
+       >    clojureql.predicates/>*
+       <=   clojureql.predicates/<=*
+       >=   clojureql.predicates/>=*
+       and  clojureql.predicates/and*
+       or   clojureql.predicates/or*
+       not  clojureql.predicates/not*
+       nil? clojureql.predicates/nil?*
+       in   clojureql.predicates/in}
      clause))
 
 (defprotocol Relation
