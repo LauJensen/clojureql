@@ -1,5 +1,5 @@
 (ns clojureql.test
-  (:refer-clojure :exclude [compile drop take sort distinct conj! disj!])
+  (:refer-clojure :exclude [compile drop take sort distinct conj! disj! case])
   (:use clojure.contrib.sql
         clojure.test
         clojureql.core

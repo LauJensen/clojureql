@@ -7,7 +7,7 @@
              Please see the http://www.clojureql.org for documentation"
     :url    "http://github.com/LauJensen/clojureql"}
   (:refer-clojure
-   :exclude [take drop sort distinct conj! disj! compile])
+   :exclude [take drop sort distinct conj! disj! compile case])
   (:use
    [clojureql internal predicates]
    [clojure.string :only [join upper-case] :rename {join join-str}]
@@ -39,6 +39,19 @@
   [[results tble] & body]
   `(apply-on ~tble (fn [~results] ~@body)))
 
+(def predicate-symbols
+  '{=    clojureql.predicates/=*
+    !=   clojureql.predicates/!=*
+    <    clojureql.predicates/<*
+    >    clojureql.predicates/>*
+    <=   clojureql.predicates/<=*
+    >=   clojureql.predicates/>=*
+    and  clojureql.predicates/and*
+    or   clojureql.predicates/or*
+    not  clojureql.predicates/not*
+    nil? clojureql.predicates/nil?*
+    in   clojureql.predicates/in})
+
 (defmacro where [clause]
   "Constructs a where-clause for queries.
 
@@ -48,19 +61,32 @@
    (:env) you will see the captured environment
 
    Use as: (select tble (where ...))"
-  `~(postwalk-replace
-     '{=    clojureql.predicates/=*
-       !=   clojureql.predicates/!=*
-       <    clojureql.predicates/<*
-       >    clojureql.predicates/>*
-       <=   clojureql.predicates/<=*
-       >=   clojureql.predicates/>=*
-       and  clojureql.predicates/and*
-       or   clojureql.predicates/or*
-       not  clojureql.predicates/not*
-       nil? clojureql.predicates/nil?*
-       in   clojureql.predicates/in}
-     clause))
+  `~(postwalk-replace predicate-symbols clause))
+
+(defmacro case
+  "Lets you specify a column using the SQL CASE operator.
+
+   The first argument is your alias for the return of CASE, the remaining
+   arguments are a series of conditions and their returns similar to condp.
+   The final two arguments can optionally be ':else value'.
+
+   Example:
+     (project (table :t1)
+           [:id (case :wages
+                  (<= :wage 5)  \"low\"
+                  (>= :wage 10) \"high\"
+                  :else         \"average\")])"
+  [alias & clauses]
+  (let [pairs (->> (if (= :else (-> clauses vec rseq second))
+                     (drop-last 2 clauses)
+                     clauses)
+                   `~(postwalk-replace predicate-symbols)
+                   (partition 2))]
+    {:alias   alias
+     :clauses (vec (map first pairs))
+     :else    (when (= :else (-> clauses vec rseq second))
+                (last clauses))
+     :returns (vec (map last pairs))}))
 
 (defprotocol Relation
   (select     [this predicate]

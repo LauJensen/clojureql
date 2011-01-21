@@ -140,6 +140,14 @@
              (str aggr "(" (split-fields p col) ")"))
            (add-tname p c))))))
 
+(defn emit-case
+  [{:keys [alias clauses returns else]}]
+  (format "CASE %s %s END AS %s"
+          (reduce #(str %1 (format " WHEN %s THEN ?" %2))
+                  "" clauses)
+          (if else " ELSE ?" "")
+          (nskeyword alias)))
+
 (defn to-fieldlist
   "Converts a column specification to SQL notation field list
 
@@ -156,8 +164,10 @@
                      (re-find #"(.*)\((.*)\)" item))))
                (item->string [i]
                  (cond
-                  (string? i) i
-                  (vector? i)
+                  (string? i) i       ;User passed a string
+                  (map? i)            ;Used case
+                  (emit-case i)
+                  (vector? i)         ;Either aliased or aggregated
                   (if (aggregate? (first i))
                     (let [[col _ alias] (map nskeyword i)
                           [_ fn aggr] (split-aggregate col)]

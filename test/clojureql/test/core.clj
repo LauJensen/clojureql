@@ -1,6 +1,6 @@
 (ns clojureql.test.core
   (:refer-clojure
-   :exclude [compile take drop sort distinct conj! disj!])
+   :exclude [compile take drop sort distinct conj! disj! case])
   (:use [clojureql.internal :only [update-or-insert-vals]]
         [clojure.contrib.sql :only [with-connection find-connection]]
         clojure.test
@@ -39,7 +39,7 @@
   (testing "global connection"
     (is (= :global
            (resolve-table-db nil)))
-    
+
     ; with-connection takes precedence
     (with-connection (mock-connection-info :with-connection)
       (is (= :with-connection

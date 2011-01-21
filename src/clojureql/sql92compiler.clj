@@ -105,7 +105,12 @@
                          (str "OFFSET " offset))
                        ])
         env       (concat
-                   (->> [(map (comp :env second) jdata)
+                   (->> [(if-let [cases (filter map? tcols)]
+                           (interleave (mapcat #(mapcat (fn [clause] (:env clause)) %)
+                                               (map :clauses cases))
+                                       (mapcat :returns cases)))
+                         (map :else (filter map? tcols))
+                         (map (comp :env second) jdata)
                          (if (table? tcols) (rest tables))
                          (if preds [(:env preds)])
                          (if having [(:env having)])
