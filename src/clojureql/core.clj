@@ -4,7 +4,7 @@
              you to access tables and rows as objects that have uniform interfaces
              for queries, inserts and deletions.
 
-             Please see the README.md for documentation"
+             Please see the http://www.clojureql.org for documentation"
     :url    "http://github.com/LauJensen/clojureql"}
   (:refer-clojure
    :exclude [take drop sort distinct conj! disj! compile])
