@@ -354,7 +354,13 @@
         (.setObject stmt idx v))
       (.addBatch stmt))
     (csql/transaction
-     (seq (.executeBatch stmt)))))
+     (let [retr (.executeBatch stmt)
+           ks   (.getGeneratedKeys stmt)]
+       (with-meta
+         (seq retr)
+         {:last-index (if (.next ks)
+                        (.getInt ks 1)
+                        nil)})))))
 
 (defn conj-rows
   "Inserts rows into a table with values for specified columns only.

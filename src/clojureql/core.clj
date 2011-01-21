@@ -292,11 +292,13 @@
         table)))
 
   (conj! [this records]
-     (with-cnx cnx
-      (if (map? records)
-        (insert-records tname records)
-        (apply insert-records tname records)))
-     this)
+    (let [return (with-cnx cnx
+                   (if (map? records)
+                     (conj-rows tname (keys records) (vals records))
+                     (->> records
+                          (map #(conj-rows tname (keys %) (vals %)))
+                          last)))]
+      (with-meta this (meta return))))
 
   (disj! [this predicate]
      (with-cnx cnx
@@ -304,13 +306,13 @@
     this)
 
   (update-in! [this pred records]
-    (let [predicate (into [(str pred)] (:env pred))]
-      (when *debug* (prn predicate))
-      (with-cnx cnx
-       (if (map? records)
-         (update-or-insert-vals tname predicate records)
-         (apply update-or-insert-vals tname predicate records)))
-      this))
+    (let [predicate (into [(str pred)] (:env pred))
+          retr      (with-cnx cnx
+                      (when *debug* (prn predicate))
+                      (if (map? records)
+                        (update-or-insert-vals tname predicate records)
+                        (apply update-or-insert-vals tname predicate records)))]
+      (with-meta this (meta retr))))
 
   (grouped [this field]
     ;TODO: We shouldn't call to-fieldlist here, first in the compiler
