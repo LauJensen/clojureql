@@ -49,6 +49,7 @@
     and  clojureql.predicates/and*
     or   clojureql.predicates/or*
     not  clojureql.predicates/not*
+    like clojureql.predicates/like
     nil? clojureql.predicates/nil?*
     in   clojureql.predicates/in})
 
