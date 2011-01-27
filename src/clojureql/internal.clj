@@ -70,18 +70,24 @@
 
 (defn split-fields [t a]
   (->> (.split a ":")
-       (map #(if (= % "*") "*" (str t %)))
+       (map #(if (= % "*")
+               "*"
+               (if (.contains % ".")
+                              (str %)
+                              (str t %))))
        (interpose ",")
        (apply str)))
 
 (defn rename-subselects [tname tcols]
   (let [tcols (mapcat #(.split % ",") tcols)
-        tname (nskeyword tname)]
+        tname (if (map? tname)
+                (str (nskeyword (-> tname vals last)) ".")
+                (str (nskeyword tname) "_subselect."))]
     (map #(let [col (nskeyword %)]
             (if (.contains col ".")
               (let [[name col] (.split col "\\.")]
-                (str tname "_subselect." col))
-              (str tname "_subselect." col)))
+                (str tname col))
+              (str tname col)))
          (remove aggregate? tcols))))
 
 ;TODO: This function is too complex. First step to simplyfing is getting rid
@@ -237,7 +243,9 @@
         :let [{:keys [tname tcols]} tbl-or-kwd
               aliases (find-aliases tcols)]]
     (into [(to-tablename tname)]
-          (map #(str (name tname) "_subselect." %) aliases))))
+          (map #(if (map? tname)
+                  (str (-> tname vals last nskeyword) \. %)
+                  (str (name tname) "_subselect." %)) aliases))))
 
 (defn with-rename
   "Renames fields that have had their parent aliased.

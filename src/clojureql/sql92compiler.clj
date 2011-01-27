@@ -19,8 +19,12 @@
        (if (keyword? pos)  (-> pos name .toUpperCase) "")
        (if (not= :join type) (-> type name .toUpperCase) "")
        (if (requires-subselect? tname)
-         (assemble-sql "(%s) AS %s_subselect" subselect
-                       (to-tablename (:tname tname)))
+         (assemble-sql (if (map? (:tname tname))
+                                 "(%s) AS %s"
+                                 "(%s) AS %s_subselect") subselect
+                       (if (map? (:tname tname))
+                         (-> (:tname tname) vals last nskeyword)
+                         (to-tablename (:tname tname))))
          (to-tablename tname))
        (if-not (keyword? pred) " ON " "")
        (if (keyword? pred)
