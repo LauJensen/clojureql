@@ -1,4 +1,4 @@
-(ns clojureql.test.core
+(ns clojureql.test.pagination
   (:refer-clojure :exclude [sort])
   (:use [clojureql.core :only (table sort)]
         clojure.test
@@ -55,4 +55,7 @@
           (let [meta (meta result)]
             (is (= 2 (:page meta)))
             (is (= 3 (:per-page meta)))
-            (is (= 4 (:total meta)))))))))
+            (is (= 4 (:total meta))))))
+      (testing "pagination params given as string"
+        (is (= (paginate users :page 1 :per-page 5)
+               (paginate users :page "1" :per-page "5")))))))
