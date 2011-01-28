@@ -252,6 +252,13 @@
               "ON (countries.id = spots_subselect.country_id) "
               "WHERE (regions_subselect.country_id = spots_subselect.country_id)")))
 
+  (testing "joins are associative"
+    (let [ta (join (table :t1) (table :t2) :id)
+	  tb (join (table :t3) ta :id)] ;; swapping argument order of "ta" and "(table :t3)" works
+      (are [x y] (= (-> x (compile nil) interpolate-sql) y)
+	   tb
+	   "SELECT t1.*,t2.*,t3.* FROM t1 JOIN t2 USING(id) JOIN t3 USING(id)"))) 
+  
   (testing "update-in!"
     (expect [update-or-insert-vals (has-args [:users ["(id = ?)" 1] {:name "Bob"}])
              find-connection (returns true)]
