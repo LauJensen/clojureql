@@ -2,7 +2,7 @@
   (:import java.sql.Timestamp)
   (:use clojure.test clojureql.core clojureql.test)
   (:refer-clojure
-   :exclude [compile take sort drop distinct conj! disj!]
+   :exclude [compile take sort drop distinct conj! disj! case]
    :rename {take take-coll}))
 
 (database-test test-conj!
@@ -30,6 +30,16 @@
            {:wage 200, :title "Design Guru", :name "Christophe", :id 2}
            {:wage 300, :title "Mr. Macros", :name "sthuebner", :id 3}
            {:wage 400, :title "Engineer", :name "Frank", :id 4}))))
+
+(database-test test-case
+  (is (= @(-> (project salary
+                       [:id (case :wages
+                                  (<= :wage 150)  "low"
+                                  (>= :wage 150)  "high"
+                                  :else "average")])
+              (select (where (<= :id 2))))
+         '({:wages "low" :id 1}
+           {:wages "high" :id 2}))))
 
 (database-test test-chained-statements
   (is (= @(-> users

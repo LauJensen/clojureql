@@ -6,7 +6,7 @@
   "Opens a global connection with the supplied specs. If given a
   conn-name, use it as a key to access that connection, else set the
   default global connection."
-  ([specs] (open-global ::default-connection specs))
+  ([specs] (open-global ::clojureql.internal/default-connection specs))
   ([conn-name specs]
      (let [con (sqlint/get-connection specs)]
        (when-let [ac (-> specs :auto-commit)]
@@ -18,7 +18,7 @@
   connection is closed and the reference dropped. When called without
   argument, close the default global connection."
   [& [conn-name]]
-  (let [conn-name (or conn-name ::default-connection)]
+  (let [conn-name (or conn-name ::clojureql.internal/default-connection)]
     (if-let [conn (conn-name @global-connections)]
       (do
         (.close (:connection conn))
@@ -35,28 +35,37 @@
   `(with-cnx* ~db-spec (fn [] ~@body)))
 
 (defn with-cnx*
-  "Evaluates func in the context of a new connection to a database then
-  closes the connection."
+  "Evaluates func in the context of a database connection, with
+  following precedence: Already open connection > connection passed on
+  table > global connection"
   [con-info func]
   (io!
-  (let [con-info (or con-info ::default-connection)]
-    (if (keyword? con-info)
-      (if-let [con (@clojureql.core/global-connections con-info)]
-        (binding [sqlint/*db*
-                  (assoc sqlint/*db*
-                    :connection (:connection con)
-                    :level 0
-                    :rollback (atom false)
-                    :opts     (:opts con))]
-          (func))
-        (throw
-         (Exception. "No such global connection currently open!")))
-      (with-open [con (sqlint/get-connection con-info)]
-        (binding [sqlint/*db*
-                  (assoc sqlint/*db*
-                    :connection con
-                    :level 0
-                    :rollback (atom false)
-                    :opts     con-info)]
-          (.setAutoCommit con (or (-> con-info :auto-commit) true))
-          (func)))))))
+   (cond
+
+    (find-connection) ; an already open c.c.sql connection takes precedence
+    (func)
+    
+    (map? con-info) ; then we try a passed connection info (presumably associated with some table in the query)
+    (with-open [con (sqlint/get-connection con-info)]
+      (binding [sqlint/*db*
+                (assoc sqlint/*db*
+                  :connection con
+                  :level 0
+                  :rollback (atom false)
+                  :opts     con-info)]
+        (.setAutoCommit con (:auto-commit con-info true))
+        (func)))
+
+    :default ; try global connection
+    (if-let [con (@clojureql.core/global-connections
+                  (or con-info :clojureql.internal/default-connection))]
+      (binding [sqlint/*db*
+                (assoc sqlint/*db*
+                  :connection (:connection con)
+                  :level 0
+                  :rollback (atom false)
+                  :opts     (:opts con))]
+        (func))
+      (throw
+       (Exception.
+        "Missing connection information; no global connection :"))))))

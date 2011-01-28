@@ -2,7 +2,7 @@
   (:require
    [clojure.contrib.sql.internal :as sqlint]
    [clojure.contrib.sql :as csql])
-  (:use [clojure.string :only [join] :rename {join join-str}]
+  (:use [clojure.string :only [join upper-case] :rename {join join-str}]
         [clojure.contrib.core :only [-?> -?>>]]))
 
 (defn upper-name [kw]
@@ -70,35 +70,51 @@
 
 (defn split-fields [t a]
   (->> (.split a ":")
-       (map #(if (= % "*") "*" (str t %)))
+       (map #(if (= % "*")
+               "*"
+               (if (.contains % ".")
+                              (str %)
+                              (str t %))))
        (interpose ",")
        (apply str)))
 
 (defn rename-subselects [tname tcols]
   (let [tcols (mapcat #(.split % ",") tcols)
-        tname (nskeyword tname)]
+        tname (if (map? tname)
+                (str (nskeyword (-> tname vals last)) ".")
+                (str (nskeyword tname) "_subselect."))]
     (map #(let [col (nskeyword %)]
             (if (.contains col ".")
               (let [[name col] (.split col "\\.")]
-                (str tname "_subselect." col))
-              (str tname "_subselect." col)))
+                (str tname col))
+              (str tname col)))
          (remove aggregate? tcols))))
 
+;TODO: This function is too complex. First step to simplyfing is getting rid
+;      of the support for a non-collection argument.
 (defn to-orderlist
   "Converts a list like [:id#asc :name#desc] to \"id asc, name desc\"
 
-   Also takes a single keyword argument"
-  [tname fields]
+   Also takes a single keyword argument. Does not qualify fields found
+   in aggregates. aggregates can also be a keyword in which case all
+   fields are left unqualified."
+  [tname aggregates fields]
   (->> (if (coll? fields) fields [fields])
        (map #(if (.contains (name %) "#")
                (->> (.split (name %) "#")
                     ((juxt first last))
                     (map (fn [f] (if (or (= f "asc") (= f "desc"))
-                                   f
-                                   (add-tname tname f))))
+                                   (upper-case f)
+                                   (if (or (keyword? aggregates)
+                                           (some (fn [i] (= (nskeyword i) (nskeyword f))) aggregates))
+                                     f
+                                     (add-tname tname f)))))
                     (interpose " ")
                     (apply str))
-               (str (name %) " asc")))
+               (if (or (keyword? aggregates)
+                       (some (fn [i] (= (nskeyword i) (nskeyword %))) aggregates))
+                 (str (nskeyword %) " asc")
+                 (str (add-tname tname %) " asc"))))
        (interpose ",")
        (apply str)))
 
@@ -130,6 +146,14 @@
              (str aggr "(" (split-fields p col) ")"))
            (add-tname p c))))))
 
+(defn emit-case
+  [{:keys [alias clauses returns else]}]
+  (format "CASE %s %s END AS %s"
+          (reduce #(str %1 (format " WHEN %s THEN ?" %2))
+                  "" clauses)
+          (if else " ELSE ?" "")
+          (nskeyword alias)))
+
 (defn to-fieldlist
   "Converts a column specification to SQL notation field list
 
@@ -146,8 +170,10 @@
                      (re-find #"(.*)\((.*)\)" item))))
                (item->string [i]
                  (cond
-                  (string? i) i
-                  (vector? i)
+                  (string? i) i       ;User passed a string
+                  (map? i)            ;Used case
+                  (emit-case i)
+                  (vector? i)         ;Either aliased or aggregated
                   (if (aggregate? (first i))
                     (let [[col _ alias] (map nskeyword i)
                           [_ fn aggr] (split-aggregate col)]
@@ -188,7 +214,16 @@
                     (map (comp name last)))]
     (if (seq alias)
       alias
-      (-> tcols first nskeyword))))
+      [(-> tcols first nskeyword)])))
+
+(defn find-aggregates
+  "Goes through tcols looking for vectors with 3 items and returns
+   the alias for those found."
+  [tcols]
+  ; TODO: Dangerous, vector? should be table? and arguments reversed
+  (-?>> (if (vector? tcols) tcols (:tcols tcols))
+        (filter #(and (vector? %) (= 3 (count %))))
+        (map (comp name last))))
 
 (defn requires-subselect?
   [table]
@@ -208,7 +243,9 @@
         :let [{:keys [tname tcols]} tbl-or-kwd
               aliases (find-aliases tcols)]]
     (into [(to-tablename tname)]
-          (map #(str (name tname) "_subselect." %) aliases))))
+          (map #(if (map? tname)
+                  (str (-> tname vals last nskeyword) \. %)
+                  (str (name tname) "_subselect." %)) aliases))))
 
 (defn with-rename
   "Renames fields that have had their parent aliased.
@@ -257,19 +294,6 @@
           (recur (inc i) (rep retr i)))))))
 
                                         ; SQL Specifics
-
-(defmacro in-connection*
-  "For internal use only!
-
-   This lets users supply a nil argument as the connection when
-   constructing a table, and instead wrapping their calls in
-   with-connection"
-  [& body]
-  `(if (or ~'cnx
-           (contains? @clojureql.core/global-connections
-                      ::clojureql.core/default-connection))
-     (clojureql.core/with-cnx ~'cnx (do ~@body))
-     (do ~@body)))
 
 (defn result-seq
   "Creates and returns a lazy sequence of structmaps corresponding to
@@ -338,7 +362,13 @@
         (.setObject stmt idx v))
       (.addBatch stmt))
     (csql/transaction
-     (seq (.executeBatch stmt)))))
+     (let [retr (.executeBatch stmt)
+           ks   (.getGeneratedKeys stmt)]
+       (with-meta
+         (seq retr)
+         {:last-index (if (.next ks)
+                        (.getInt ks 1)
+                        nil)})))))
 
 (defn conj-rows
   "Inserts rows into a table with values for specified columns only.

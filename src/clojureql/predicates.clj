@@ -3,9 +3,13 @@
         [clojure.string :only [join] :rename {join join-str}]))
 
 (defn sanitize [expression]
-  (reduce #(conj %1 %2) [] (remove keyword? expression)))
+  "Returns all values from an expression"
+  (reduce #(if (coll? %2)
+             (into %1 %2)
+             (conj %1 %2)) [] (remove keyword? expression)))
 
 (defn parameterize [expression]
+  "Replace all values with questionmarks in an expression"
   (map #(if (keyword? %) (str (to-tablename %)) "?") expression))
 
 (declare predicate)
@@ -18,7 +22,7 @@
   (infix      [this op exprs]        "Compiles an infix operation")
   (prefix     [this op field exprs]  "Compiles a prefix operation"))
 
-(defrecord APredicate [stmt env]
+(defrecord APredicate [stmt env cols]
   Object
   (toString [this] (apply str stmt))
   Predicate
@@ -26,25 +30,31 @@
     (if (empty? (-> exprs first :stmt))
       (assoc this
         :stmt (map str exprs)
+        :cols (into (or cols []) (mapcat :cols exprs))
         :env  (mapcat :env exprs))
       (assoc this
         :stmt (conj stmt (str "(" (join-str " OR " exprs) ")"))
+        :cols (into (or cols []) (mapcat :cols exprs))
         :env  (into env (mapcat :env exprs)))))
   (sql-and   [this exprs]
     (if (empty? (-> exprs first :stmt))
       (assoc this
         :stmt (map str exprs)
+        :cols (into (or cols []) (mapcat :cols exprs))
         :env  (mapcat :env exprs))
       (assoc this
         :stmt (conj stmt (str "(" (join-str " AND " exprs) ")"))
+        :cols (into (or cols []) (mapcat :cols exprs))
         :env  (into env (mapcat :env exprs)))))
   (sql-not   [this expr]
     (if (empty? (-> expr first :stmt))
       (assoc this
         :stmt (map str expr)
+        :cols (into (or cols []) (mapcat :cols expr))
         :env  (mapcat :env expr))
       (assoc this
         :stmt (conj stmt (str "NOT(" (join-str expr) ")"))
+        :cols (into (or cols []) (mapcat :cols expr))
         :env  (into env (mapcat :env expr)))))
   (spec-op [this expr]
     (let [[op p1 p2] expr]
@@ -58,6 +68,7 @@
        (nil? p2)
        (assoc this
          :stmt (conj stmt (str "(" (name p1) " " op " NULL)"))
+         :cols (into (or cols []) (filter keyword? [p1 p2]))
          :env [])
        :else
        (infix this "=" (rest expr)))))
@@ -66,6 +77,7 @@
       :stmt (conj stmt (format "(%s)"
                          (join-str (format " %s " (upper-name op))
                                    (parameterize expr))))
+      :cols (filter keyword? expr)
       :env  (into env (sanitize expr))))
   (prefix [this op field expr]
     (assoc this
@@ -77,12 +89,15 @@
                                       expr)
                                     parameterize
                                     (join-str ","))))
+      :cols [field]
       :env (into env (sanitize expr)))))
 
 (defn predicate
   ([]         (predicate [] []))
   ([stmt]     (predicate stmt []))
-  ([stmt env] (APredicate. stmt env)))
+  ([stmt env] (predicate stmt env nil))
+  ([stmt env col]
+              (APredicate. stmt env col)))
 
 (defn fuse-predicates
   "Combines two predicates into one using AND"
@@ -90,7 +105,25 @@
   (if (and (nil? (:env p1)) (nil? (:stmt p1)))
     p2
     (predicate (join-str " AND " [p1 p2])
-               (mapcat :env [p1 p2]))))
+               (mapcat :env [p1 p2])
+               (mapcat :cols [p1 p2]))))
+
+(defn qualify-predicate
+  [this pred]
+  (let [tname (to-tablename (:tname this))
+        {:keys [stmt env cols]} pred
+        aggregates (find-aggregates this)]
+    (predicate
+     (reduce #(let [colname (nskeyword %2)]
+                (.replaceAll %1 colname
+                      (if (some (fn [i] (= colname (nskeyword i))) aggregates)
+                        colname
+                        (if (.contains colname ".")
+                          colname
+                          (str tname \. colname)))))
+             (str pred) (set cols))
+     env
+     cols)))
 
 (defn or*  [& args] (sql-or (predicate) args))
 (defn and* [& args] (sql-and (predicate) args))
@@ -105,6 +138,9 @@
   (if (some #(nil? %) args)
     (spec-op (predicate) (into ["IS NOT"] args))
     (infix (predicate) "!=" args)))
+
+(defn nil?* [field]
+  (=* nil field))
 
 (defmacro definfixoperator [name op doc]
   `(defn ~name ~doc [& args#]

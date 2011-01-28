@@ -1,12 +1,16 @@
 (ns clojureql.test
-  (refer-clojure :exclude [compile drop take sort distinct conj! disj!])
+  (:refer-clojure :exclude [compile drop take sort distinct conj! disj! case])
   (:use clojure.contrib.sql
         clojure.test
         clojureql.core
+        [clojure.contrib.io :only [delete-file]]
         [cake :only [*opts*]]))
 
 (when (:show-sql *opts*)
   (alter-var-root #'clojureql.core/*debug* (constantly true)))
+
+(when (:integration *opts*)
+  (delete-file "/tmp/cql.sqlite3" true))
 
 (def mysql
   {:classname   "com.mysql.jdbc.Driver"

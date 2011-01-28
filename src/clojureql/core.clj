@@ -4,10 +4,10 @@
              you to access tables and rows as objects that have uniform interfaces
              for queries, inserts and deletions.
 
-             Please see the README.md for documentation"
+             Please see the http://www.clojureql.org for documentation"
     :url    "http://github.com/LauJensen/clojureql"}
   (:refer-clojure
-   :exclude [take drop sort distinct conj! disj! compile])
+   :exclude [take drop sort distinct conj! disj! compile case])
   (:use
    [clojureql internal predicates]
    [clojure.string :only [join upper-case] :rename {join join-str}]
@@ -39,6 +39,20 @@
   [[results tble] & body]
   `(apply-on ~tble (fn [~results] ~@body)))
 
+(def predicate-symbols
+  '{=    clojureql.predicates/=*
+    !=   clojureql.predicates/!=*
+    <    clojureql.predicates/<*
+    >    clojureql.predicates/>*
+    <=   clojureql.predicates/<=*
+    >=   clojureql.predicates/>=*
+    and  clojureql.predicates/and*
+    or   clojureql.predicates/or*
+    not  clojureql.predicates/not*
+    like clojureql.predicates/like
+    nil? clojureql.predicates/nil?*
+    in   clojureql.predicates/in})
+
 (defmacro where [clause]
   "Constructs a where-clause for queries.
 
@@ -48,18 +62,32 @@
    (:env) you will see the captured environment
 
    Use as: (select tble (where ...))"
-  `~(postwalk-replace
-     '{=   clojureql.predicates/=*
-       !=  clojureql.predicates/!=*
-       <   clojureql.predicates/<*
-       >   clojureql.predicates/>*
-       <=  clojureql.predicates/<=*
-       >=  clojureql.predicates/>=*
-       and clojureql.predicates/and*
-       or  clojureql.predicates/or*
-       not clojureql.predicates/not*
-       in  clojureql.predicates/in}
-     clause))
+  `~(postwalk-replace predicate-symbols clause))
+
+(defmacro case
+  "Lets you specify a column using the SQL CASE operator.
+
+   The first argument is your alias for the return of CASE, the remaining
+   arguments are a series of conditions and their returns similar to condp.
+   The final two arguments can optionally be ':else value'.
+
+   Example:
+     (project (table :t1)
+           [:id (case :wages
+                  (<= :wage 5)  \"low\"
+                  (>= :wage 10) \"high\"
+                  :else         \"average\")])"
+  [alias & clauses]
+  (let [pairs (->> (if (= :else (-> clauses vec rseq second))
+                     (drop-last 2 clauses)
+                     clauses)
+                   `~(postwalk-replace predicate-symbols)
+                   (partition 2))]
+    {:alias   alias
+     :clauses (vec (map first pairs))
+     :else    (when (= :else (-> clauses vec rseq second))
+                (last clauses))
+     :returns (vec (map last pairs))}))
 
 (defprotocol Relation
   (select     [this predicate]
@@ -166,15 +194,15 @@
 
 (defrecord RTable [cnx tname tcols restriction renames joins
                    grouped-by pre-scope scope order-by modifiers
-                   combinations]
+                   combinations having]
   clojure.lang.IDeref
   (deref [this]
     (apply-on this doall))
 
   Relation
   (apply-on [this f]
-    (in-connection*
-     (with-results* (compile this cnx) f)))
+    (with-cnx cnx
+      (with-results* (compile this cnx) f)))
 
   (pick! [this kw]
     (let [results @this]
@@ -185,9 +213,13 @@
         (throw (Exception. "Multiple items in resultsetseq, keyword lookup not possible")))))
 
   (select [this clause]
-    (assoc this :restriction
-           (fuse-predicates (or restriction (predicate nil nil))
-                            clause)))
+    (if (and (has-aggregate? this) (seq grouped-by))
+      (assoc this :having ; TODO: Throw exception if clause contains column not in grouped-by
+             (->> (qualify-predicate this clause)
+                  (fuse-predicates (or having (predicate nil nil)))))
+      (assoc this :restriction
+             (->> (qualify-predicate this clause)
+                  (fuse-predicates (or restriction (predicate nil nil)))))))
 
   (project [this fields]
     (assoc this :tcols fields))
@@ -261,27 +293,30 @@
         table)))
 
   (conj! [this records]
-     (in-connection*
-      (if (map? records)
-        (insert-records tname records)
-        (apply insert-records tname records)))
-     this)
+    (let [return (with-cnx cnx
+                   (if (map? records)
+                     (conj-rows tname (keys records) (vals records))
+                     (->> records
+                          (map #(conj-rows tname (keys %) (vals %)))
+                          last)))]
+      (with-meta this (meta return))))
 
   (disj! [this predicate]
-     (in-connection*
+     (with-cnx cnx
        (delete-rows tname (into [(str predicate)] (:env predicate))))
     this)
 
   (update-in! [this pred records]
-    (let [predicate (into [(str pred)] (:env pred))]
-      (when *debug* (prn predicate))
-      (in-connection*
-       (if (map? records)
-         (update-or-insert-vals tname predicate records)
-         (apply update-or-insert-vals tname predicate records)))
-      this))
+    (let [predicate (into [(str pred)] (:env pred))
+          retr      (with-cnx cnx
+                      (when *debug* (prn predicate))
+                      (if (map? records)
+                        (update-or-insert-vals tname predicate records)
+                        (apply update-or-insert-vals tname predicate records)))]
+      (with-meta this (meta retr))))
 
   (grouped [this field]
+    ;TODO: We shouldn't call to-fieldlist here, first in the compiler
     (let [colname (with-meta [(to-fieldlist tname field)] {:prepend true})]
       (assoc this :grouped-by
              (conj (or grouped-by [])
@@ -386,7 +421,7 @@
      (let [connection-info (if (fn? connection-info)
                              (connection-info)
                              connection-info)]
-       (RTable. connection-info table-name [:*] nil nil nil nil nil nil nil nil nil))))
+       (RTable. connection-info table-name [:*] nil nil nil nil nil nil nil nil nil nil))))
 
 (defn table?
   "Returns true if tinstance is an instnce of RTable"
