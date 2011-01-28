@@ -6,8 +6,10 @@
         clojureql.pagination))
 
 (deftest test-offset
-  (is (thrown-with-msg? IllegalArgumentException #"Page must be greater than 0."
+  (is (thrown-with-msg? IllegalArgumentException #"The \"page\" parameter must be greater than 0."
         (offset 0 25)))
+  (is (thrown-with-msg? IllegalArgumentException #"The \"per-page\" parameter can't be negative."
+        (offset 1 -1)))
   (are [page per-page expected]
     (is (= expected (offset page per-page)))
     1 25 0
@@ -21,8 +23,10 @@
 (database-test test-paginate
   (binding [*per-page* 2]
     (let [users (sort (table :users) [:name])]
-      (is (thrown-with-msg? IllegalArgumentException #"Page must be greater than 0."
+      (is (thrown-with-msg? IllegalArgumentException #"The \"page\" parameter must be greater than 0."
             (paginate users :page 0)))
+      (is (thrown-with-msg? IllegalArgumentException #"The \"per-page\" parameter can't be negative."
+            (paginate users :per-page -1)))
       (testing "page #1"
         (is (= (paginate users) (paginate users :page 1)))
         (let [result (paginate users)]
@@ -57,5 +61,7 @@
             (is (= 3 (:per-page meta)))
             (is (= 4 (:total meta))))))
       (testing "pagination params given as string"
+        (is (= (paginate users :page 1)
+               (paginate users :page "1")))
         (is (= (paginate users :page 1 :per-page 5)
                (paginate users :page "1" :per-page "5")))))))
