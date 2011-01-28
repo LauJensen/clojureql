@@ -10,7 +10,7 @@
    :exclude [take drop sort distinct conj! disj! compile])
   (:use
    [clojureql internal predicates]
-   [clojure.string :only [join upper-case] :rename {join join-str}]
+   [clojure.string :only [join upper-case split] :rename {join join-str}]
    [clojure.contrib sql [core :only [-?> -?>>]]]
    [clojure.contrib.sql.internal :as sqlint]
    [clojure.walk :only (postwalk-replace)]))
@@ -195,26 +195,45 @@
     (outer-join this table2 nil join-on))
 
   (outer-join [this table2 type join-on]
-    (if (requires-subselect? table2)
-      (assoc this
-        :tcols (into (or tcols [])
-                     (rename-subselects (:tname table2)
-                                        (-> table2 :grouped-by first)))
-        :joins (conj (or joins [])
-                 {:data     [table2 join-on]
-                 :type     (if (keyword? type) :outer :join)
-                 :position type}))
-      (assoc this
-        :tcols (if-let [t2cols (seq (:tcols table2))]
-                 (apply conj (or tcols [])
-                        (map #(add-tname (:tname table2) %)
-                             (if (coll? t2cols)
-                               t2cols [t2cols])))
-                 tcols)
-        :joins (conj (or joins [])
-                 {:data     [(to-tablename (:tname table2)) join-on]
-                  :type     (if (keyword? type) :outer :join)
-                  :position type}))))
+	      (let [sort-joins (fn sort-joins [joins]
+				 (let [to-tbl-name (fn to-tbl-name [{[table-name join-on] :data :as join}]
+						     (->> (filter #(.matches % ".*\\..*") (-> join-on :stmt first (.replaceAll "[)(]" "") (split #" ")))
+							  (map #(-> % name (.replaceAll "\\..*" "")))
+							  (filter #(not= % table-name))
+							  first))
+				       to-graph-el (fn to-graph-el [m {[table-name join-on] :data :as join}]
+						     (let [required-table (to-tbl-name join)]
+						       (assoc m table-name required-table)))
+				       map-of-joins (reduce #(let [{[table-name join-on] :data :as join} %2
+								   k table-name]
+							       (assoc %1 k (conj (%1 k) join))) {} joins)
+				       edges (reduce to-graph-el {} joins)
+				       set-of-root-nodes (clojure.set/difference (into #{} (vals edges)) (into #{} (keys edges)))
+				       add-deps (fn add-deps [tbl]
+						  (into [(map-of-joins tbl)] (map add-deps (filter #(= tbl (edges %)) (keys edges)))))
+				       sorted-joins (filter #(not (nil? %)) (flatten (map add-deps set-of-root-nodes)))]
+				   sorted-joins))
+		    j (into (or joins []) (-> table2 :joins (or [])))]
+		(if (requires-subselect? table2)
+		  (assoc this
+		    :tcols (into (or tcols [])
+				 (rename-subselects (:tname table2)
+						    (-> table2 :grouped-by first)))
+		    :joins (sort-joins (conj j
+					     {:data     [table2 join-on]
+					      :type     (if (keyword? type) :outer :join)
+					      :position type})))
+		  (assoc this
+		    :tcols (if-let [t2cols (seq (:tcols table2))]
+			     (apply conj (or tcols [])
+				    (map #(add-tname (:tname table2) %)
+					 (if (coll? t2cols)
+					   t2cols [t2cols])))
+			     tcols)
+		    :joins (sort-joins (conj j
+					     {:data     [(to-tablename (:tname table2)) join-on]
+					      :type     (if (keyword? type) :outer :join)
+					      :position type}))))))
 
   (modify [this new-modifiers]
     (assoc this :modifiers
