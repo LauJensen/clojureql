@@ -423,6 +423,21 @@
                              connection-info)]
        (RTable. connection-info table-name [:*] nil nil nil nil nil nil nil nil nil nil))))
 
+(defmacro declare-tables
+  "Given a connection info map (or nil) and as list
+   of tablenames as keywords a number of tables will
+   be (def)ined with identical names of the keywords
+   given.
+
+   Ex. (declare-tables db :t1 :t2)
+       @t1
+       ({....} {...})"
+  [conn-info & names]
+  `(do
+     ~@(for [nm names]
+         (list 'def (-> nm name symbol)
+               (list 'cql/table conn-info nm)))))
+
 (defn table?
   "Returns true if tinstance is an instnce of RTable"
   [tinstance]
