@@ -183,3 +183,30 @@
                             [:name :as :dupe]])]
     (is (= (map :name @users)
            (map :dupe @tbl)))))
+
+(database-test test-transform
+  (is (= @(transform users #(map (juxt :id :name) %))
+         '([1 "Lau Jensen"] [2 "Christophe"] [3 "sthuebner"] [4 "Frank"]))))
+
+(database-test test-transform-and-with-results
+  (with-results [names (transform users #(map :name %))]
+    (is (= names
+           '("Lau Jensen" "Christophe" "sthuebner" "Frank")))))
+
+(database-test test-pick
+  (is (= @(-> (select users (where (= :id 4)))
+              (pick :name))
+         "Frank")))
+
+(database-test test-composing-transforms
+  (is (= @(-> users
+              (transform #(map (juxt :id :name) %))
+              (transform first))
+         [1 "Lau Jensen"])))
+
+(database-test test-transform-with-join
+  (is (= @(-> users
+              (transform #(map (juxt :name :wage) %))
+              (join (transform salary first) ; this transform will be ignored
+                    (where (= :users.id :salary.id))))
+         '(["Lau Jensen" 100] ["Christophe" 200] ["sthuebner" 300] ["Frank" 400]))))

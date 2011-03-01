@@ -135,15 +135,12 @@
              (modify \"TOP 5\")) ; MSSqls special LIMIT syntax
          (-> (table :one) distinct)")
 
-  (pick!      [this kw]
-    "For queries where you know only a single result will be returned,
-     pick calls the keyword on that result. You can supply multiple keywords
-     in a collection.  Returns nil for no-hits, throws
-     an exception on multiple hits.
-
+  (transform  [this fn]
+    "Transforms results using fn when deref or with-results is called.
+     The pick helper function is implemented using this.
      Ex. (-> (table :users)
-             (select (where (= :id 5))) ; We know this will only match 1 row
-             (pick :email))")
+             (select (where (= :id 5)))
+             (transform #(map :email %))")
 
   (conj!      [this records]
     "Inserts record(s) into the table
@@ -194,7 +191,7 @@
 
 (defrecord RTable [cnx tname tcols restriction renames joins
                    grouped-by pre-scope scope order-by modifiers
-                   combinations having]
+                   combinations having transform]
   clojure.lang.IDeref
   (deref [this]
     (apply-on this doall))
@@ -202,15 +199,16 @@
   Relation
   (apply-on [this f]
     (with-cnx cnx
-      (with-results* (compile this cnx) f)))
+      (with-results* (compile this cnx)
+        (fn [results]
+          (f (if transform
+               (transform results)
+               results))))))
 
-  (pick! [this kw]
-    (let [results @this]
-      (if (or (= 1 (count results)) (empty? results))
-        (if (coll? kw)
-          (map (first results) kw)
-          (kw (first results)))
-        (throw (Exception. "Multiple items in resultsetseq, keyword lookup not possible")))))
+  (transform [this fn]
+    (if transform
+      (assoc this :transform (comp fn transform))
+      (assoc this :transform fn)))
 
   (select [this clause]
     (if (and (has-aggregate? this) (seq grouped-by))
@@ -421,7 +419,7 @@
      (let [connection-info (if (fn? connection-info)
                              (connection-info)
                              connection-info)]
-       (RTable. connection-info table-name [:*] nil nil nil nil nil nil nil nil nil nil))))
+       (RTable. connection-info table-name [:*] nil nil nil nil nil nil nil nil nil nil nil))))
 
 (defmacro declare-tables
   "Given a connection info map (or nil) and as list
@@ -442,3 +440,12 @@
   "Returns true if tinstance is an instnce of RTable"
   [tinstance]
   (instance? clojureql.core.RTable tinstance))
+
+(defn pick [table kw]
+  (transform table
+             (fn [results]
+               (if (or (= 1 (count results)) (empty? results))
+                 (if (coll? kw)
+                   (map (first results) kw)
+                   (kw (first results)))
+                 (throw (Exception. "Multiple items in resultsetseq, keyword lookup not possible"))))))
