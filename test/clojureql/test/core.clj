@@ -243,13 +243,13 @@
          (-> (table :users)
              (join (table :wages) :wid)
              (join (table :commits) :cid))
-         "SELECT users.*,wages.*,commits.* FROM users JOIN commits USING(cid) JOIN wages USING(wid)"
+         "SELECT users.*,wages.*,commits.* FROM users JOIN wages USING(wid) JOIN commits USING(cid)"
          select-countries-with-region-and-spot-count
-         (str "SELECT countries.*,regions_subselect.country_id,spots_subselect.country_id,spots_subselect.spots,regions_subselect.regions FROM countries "
-              "LEFT OUTER JOIN (SELECT spots.country_id,count(spots.id) AS spots FROM spots GROUP BY spots.country_id) AS spots_subselect "
-              "ON (countries.id = spots_subselect.country_id) "
+         (str "SELECT countries.*,regions_subselect.country_id,spots_subselect.country_id,regions_subselect.regions,spots_subselect.spots FROM countries "
               "LEFT OUTER JOIN (SELECT regions.country_id,count(regions.id) AS regions FROM regions GROUP BY regions.country_id) AS regions_subselect "
               "ON (countries.id = regions_subselect.country_id) "
+              "LEFT OUTER JOIN (SELECT spots.country_id,count(spots.id) AS spots FROM spots GROUP BY spots.country_id) AS spots_subselect "
+              "ON (countries.id = spots_subselect.country_id) "
               "WHERE (regions_subselect.country_id = spots_subselect.country_id)")))
 
   (testing "joins are associative"
@@ -257,13 +257,13 @@
 	  tb (join (table :t3) ta :id)] ;; swapping argument order of "ta" and "(table :t3)" works
       (are [x y] (= (-> x (compile nil) interpolate-sql) y)
 	   tb
-	   "SELECT t3.*,t1.*,t2.* FROM t3 JOIN t1 USING(id) JOIN t2 USING(id)"))
+	   "SELECT t3.*,t1.*,t2.* FROM t3 JOIN t2 USING(id) JOIN t1 USING(id)"))
     (let [ta (join (table :t1) (table :t2) (where (= :t1.a :t2.a)))
 	  tb (join (table :t3) (table :t4) (where (= :t3.b :t4.b)))
 	  qu (join ta tb (where (= :t1.field :t3.field)))]
       (are [x y] (= (-> x (compile nil) interpolate-sql) y)
 	   qu
-	   "SELECT t1.*,t2.*,t3.*,t4.* FROM t1 JOIN t3 ON (t1.field = t3.field) JOIN t2 ON (t1.a = t2.a) JOIN t4 ON (t3.b = t4.b)")))
+	   "SELECT t1.*,t2.*,t3.*,t4.* FROM t1 JOIN t2 ON (t1.a = t2.a) JOIN t4 ON (t3.b = t4.b) JOIN t3 ON (t1.field = t3.field)")))
   
   (testing "update-in!"
     (expect [update-or-insert-vals (has-args [:users ["(id = ?)" 1] {:name "Bob"}])

@@ -228,7 +228,7 @@
     (outer-join this table2 nil join-on))
 
   (outer-join [this table2 type join-on]
-	      (let [j (concat (or joins []) (-> table2 :joins (or [])))]
+	      (let [j (into (or joins []) (-> table2 :joins (or [])))]
 		(if (requires-subselect? table2)
 		  (assoc this
 		    :tcols (into (or tcols [])
