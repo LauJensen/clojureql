@@ -228,26 +228,27 @@
     (outer-join this table2 nil join-on))
 
   (outer-join [this table2 type join-on]
-    (if (requires-subselect? table2)
-      (assoc this
-        :tcols (into (or tcols [])
-                     (rename-subselects (:tname table2)
-                                        (-> table2 :grouped-by first)))
-        :joins (conj (or joins [])
-                 {:data     [table2 join-on]
-                 :type     (if (keyword? type) :outer :join)
-                 :position type}))
-      (assoc this
-        :tcols (if-let [t2cols (seq (:tcols table2))]
-                 (apply conj (or tcols [])
-                        (map #(add-tname (:tname table2) %)
-                             (if (coll? t2cols)
-                               t2cols [t2cols])))
-                 tcols)
-        :joins (conj (or joins [])
-                 {:data     [(to-tablename (:tname table2)) join-on]
-                  :type     (if (keyword? type) :outer :join)
-                  :position type}))))
+	      (let [j (concat (or joins []) (-> table2 :joins (or [])))]
+		(if (requires-subselect? table2)
+		  (assoc this
+		    :tcols (into (or tcols [])
+				 (rename-subselects (:tname table2)
+						    (-> table2 :grouped-by first)))
+		    :joins (conj j
+				 {:data     [table2 join-on]
+				  :type     (if (keyword? type) :outer :join)
+				  :position type}))
+		  (assoc this
+		    :tcols (if-let [t2cols (seq (:tcols table2))]
+			     (apply conj (or tcols [])
+				    (map #(add-tname (:tname table2) %)
+					 (if (coll? t2cols)
+					   t2cols [t2cols])))
+			     tcols)
+		    :joins (conj j
+				 {:data     [(to-tablename (:tname table2)) join-on]
+				  :type     (if (keyword? type) :outer :join)
+				  :position type})))))
 
   (modify [this new-modifiers]
     (assoc this :modifiers
