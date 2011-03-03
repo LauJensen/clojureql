@@ -255,9 +255,86 @@
   (testing "joins are associative"
     (let [ta (join (table :t1) (table :t2) :id)
 	  tb (join (table :t3) ta :id)] ;; swapping argument order of "ta" and "(table :t3)" works
-      (are [x y] (= (-> x (compile nil) interpolate-sql) y)
+      (are [x y] (= (-> x (compile nil) interpolate-sql (.replaceAll "SELECT .* FROM" "SELECT * FROM")) y)
 	   tb
-	   "SELECT t1.*,t2.*,t3.* FROM t1 JOIN t2 USING(id) JOIN t3 USING(id)"))) 
+	   "SELECT * FROM t3 JOIN t1 USING(id) JOIN t2 USING(id)"))
+    (let [ta (-> (table :t1)
+		 (join (table :t2) (where (= :t1.a :t2.a)))
+		 (join (table :t6) (where (= :t6.e :t2.e))))
+	  tb (-> (table :t3)
+		 (join (table :t4) (where (= :t3.b :t4.b)))
+		 (join (table :t5) (where (= :t5.d :t4.d))))
+	  qu (join ta tb (where (= :t3.c :t2.c)))]
+      (are [x y] (= (-> x (compile nil) interpolate-sql (.replaceAll "SELECT .* FROM" "SELECT * FROM")) y)
+	   qu
+	   (str "SELECT * FROM t1 "
+		"JOIN t2 ON (t1.a = t2.a) "
+		"JOIN t6 ON (t6.e = t2.e) "
+		"JOIN t3 ON (t3.c = t2.c) "
+		"JOIN t4 ON (t3.b = t4.b) "
+		"JOIN t5 ON (t5.d = t4.d)")))
+    (let [product-variants-table (project (table :product_variants)
+					      [[:id			:as :product_variant_id]
+					       [:product_id		:as :product_variant_product_id]
+					       [:product_code		:as :product_variant_product_code]
+					       [:status			:as :product_variant_status]
+					       [:price_id		:as :product_variant_price_id]])
+	  products-table (project (table :products)
+				      [[:id				:as :product_id]
+				       [:name				:as :product_name]
+				       [:description			:as :product_description]
+				       [:manufacturer_id		:as :product_manufacturer_id]])
+	  product-variant-skus-table (project (table :product_variant_skus)
+						  [[:id			:as :product_variant_sku_id]
+						   [:product_variant_id	:as :product_variant_sku_product_variant_id]
+						   [:sku_id		:as :product_variant_sku_sku_id]
+						   [:quantity		:as :product_variant_sku_quantity]])
+	  orders-table   (project (table :orders)
+				      [[:id				:as :order_id]
+				       [:customer_id			:as :order_customer_id]
+				       [:customer_ref			:as :order_customer_ref]
+				       [:created			:as :order_created]
+				       [:status				:as :order_status]
+				       [:created_by			:as :order_created_by]
+				       [:source_id			:as :order_source_id]
+				       [:updated			:as :order_updated]
+				       [:cancellation_reason_id		:as :order_cancellation_reason_id]
+				       [:expirable			:as :order_expirable]
+				       [:shipping_method_id		:as :order_shipping_method_id]])
+	  order-lines-table (project (table :order_lines)
+					 [[:id				:as :order_line_id]
+					  [:order_id			:as :order_line_order_id]
+					  [:product_variant_id		:as :order_line_product_variant_id]
+					  [:quantity			:as :order_line_quantity]
+					  [:status			:as :order_line_status]
+					  [:updated			:as :order_line_updated]
+					  [:price_id			:as :order_line_price_id]
+					  [:shippable_estimate		:as :order_line_shippable_estimate]])
+	  orders-with-lines-query (-> orders-table
+				      (join order-lines-table (where (= :orders.id :order_lines.order_id))))
+	  sku-table (project (table :skus) [[:id		:as :sku_id]
+						    [:stock_code	:as :sku_stock_code]
+						    [:barcode		:as :sku_barcode]
+						    [:reorder_quantity	:as :sku_reorder_quantity]
+						    [:minimum_level	:as :sku_minimum_level]])
+	  products-with-skus-query (-> product-variants-table
+				       (join products-table (where (= :products.id :product_variants.product_id)))
+				       (join product-variant-skus-table (where (= :product_variants.id :product_variant_skus.product_variant_id)))
+				       (join sku-table (where (= :skus.id :product_variant_skus.sku_id))))
+	  orders-with-skus-query (-> orders-with-lines-query
+				     (join products-with-skus-query
+					       (where (= :order_lines.product_variant_id :product_variants.id))))
+	  open-orders-with-skus-query  (-> orders-with-skus-query
+					   (select (where (= :orders.status 1))))]
+      (are [x y] (= (-> x (compile nil) interpolate-sql (.replaceAll "SELECT .* FROM" "SELECT * FROM")) y)
+	   open-orders-with-skus-query
+	   (str "SELECT * FROM orders "
+		"JOIN order_lines ON (orders.id = order_lines.order_id) "
+		"JOIN product_variants ON (order_lines.product_variant_id = product_variants.id) "
+		"JOIN product_variant_skus ON (product_variants.id = product_variant_skus.product_variant_id) "
+		"JOIN skus ON (skus.id = product_variant_skus.sku_id) "
+		"JOIN products ON (products.id = product_variants.product_id) "
+		"WHERE (orders.status = 1)"))))
   
   (testing "update-in!"
     (expect [update-or-insert-vals (has-args [:users ["(id = ?)" 1] {:name "Bob"}])
