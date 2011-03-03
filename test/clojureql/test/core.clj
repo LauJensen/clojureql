@@ -257,7 +257,13 @@
 	  tb (join (table :t3) ta :id)] ;; swapping argument order of "ta" and "(table :t3)" works
       (are [x y] (= (-> x (compile nil) interpolate-sql) y)
 	   tb
-	   "SELECT t1.*,t2.*,t3.* FROM t1 JOIN t2 USING(id) JOIN t3 USING(id)"))) 
+	   "SELECT t1.*,t2.*,t3.* FROM t1 JOIN t2 USING(id) JOIN t3 USING(id)"))
+    (let [ta (join (table :t1) (table :t2) (where (= :t1.a :t2.a)))
+	  tb (join (table :t3) (table :t4) (where (= :t3.b :t4.b)))
+	  qu (join ta tb (where (= :t1.field :t3.field)))]
+      (are [x y] (= (-> x (compile nil) interpolate-sql) y)
+	   qu
+	   "SELECT t1.*,t2.*,t3.*,t4.* FROM t1 JOIN t2 ON (t1.a = t2.a) JOIN t3 ON (t1.field = t3.field) JOIN t4 ON (t3.b = t4.b)")))
   
   (testing "update-in!"
     (expect [update-or-insert-vals (has-args [:users ["(id = ?)" 1] {:name "Bob"}])
