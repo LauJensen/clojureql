@@ -228,16 +228,30 @@
     (outer-join this table2 nil join-on))
 
   (outer-join [this table2 type join-on]
-	      (let [j (into (or joins []) (-> table2 :joins (or [])))]
+	      (let [sort-joins (fn sort-joins [joins]
+				 (reduce (fn insert-join [lst {[table-name join-on] :data :as join}]
+					   (if (-> lst count (< 2))
+					     (conj lst join)
+					     (let [to-t-name (fn to-t-name [l] (-> l :data first))
+						   required-tables (->> join-on :cols (map #(-> % name (.replaceAll "\\..*" ""))))
+						   {:keys [pos]} (reduce (fn find-fn [m {[el] :data :as join}]
+									   (if (:found m)
+									     m
+									     {:pos (inc (:pos m 0))
+									      :found (-> m :list (or #{}) (some required-tables))
+									      :list (conj (:list m #{}) el)})) {} lst)]
+					       (concat (clojure.core/take pos lst) [join] (clojure.core/drop pos lst)))))
+					 [] joins))
+		    j (into (or joins []) (-> table2 :joins (or [])))]
 		(if (requires-subselect? table2)
 		  (assoc this
 		    :tcols (into (or tcols [])
 				 (rename-subselects (:tname table2)
 						    (-> table2 :grouped-by first)))
-		    :joins (conj j
-				 {:data     [table2 join-on]
-				  :type     (if (keyword? type) :outer :join)
-				  :position type}))
+		    :joins (sort-joins (conj j
+					     {:data     [table2 join-on]
+					      :type     (if (keyword? type) :outer :join)
+					      :position type})))
 		  (assoc this
 		    :tcols (if-let [t2cols (seq (:tcols table2))]
 			     (apply conj (or tcols [])
@@ -245,10 +259,10 @@
 					 (if (coll? t2cols)
 					   t2cols [t2cols])))
 			     tcols)
-		    :joins (conj j
-				 {:data     [(to-tablename (:tname table2)) join-on]
-				  :type     (if (keyword? type) :outer :join)
-				  :position type})))))
+		    :joins (sort-joins (conj j
+					     {:data     [(to-tablename (:tname table2)) join-on]
+					      :type     (if (keyword? type) :outer :join)
+					      :position type}))))))
 
   (modify [this new-modifiers]
     (assoc this :modifiers

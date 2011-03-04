@@ -255,15 +255,24 @@
   (testing "joins are associative"
     (let [ta (join (table :t1) (table :t2) :id)
 	  tb (join (table :t3) ta :id)] ;; swapping argument order of "ta" and "(table :t3)" works
-      (are [x y] (= (-> x (compile nil) interpolate-sql) y)
+      (are [x y] (= (-> x (compile nil) interpolate-sql (.replaceAll "SELECT .* FROM" "SELECT * FROM")) y)
 	   tb
-	   "SELECT t3.*,t1.*,t2.* FROM t3 JOIN t2 USING(id) JOIN t1 USING(id)"))
-    (let [ta (join (table :t1) (table :t2) (where (= :t1.a :t2.a)))
-	  tb (join (table :t3) (table :t4) (where (= :t3.b :t4.b)))
-	  qu (join ta tb (where (= :t1.field :t3.field)))]
-      (are [x y] (= (-> x (compile nil) interpolate-sql) y)
+	   "SELECT * FROM t3 JOIN t2 USING(id) JOIN t1 USING(id)"))
+    (let [ta (-> (table :t1)
+		 (join (table :t2) (where (= :t1.a :t2.a)))
+		 (join (table :t6) (where (= :t6.e :t2.e))))
+	  tb (-> (table :t3)
+		 (join (table :t4) (where (= :t3.b :t4.b)))
+		 (join (table :t5) (where (= :t5.d :t4.d))))
+	  qu (join ta tb (where (= :t3.c :t2.c)))]
+      (are [x y] (= (-> x (compile nil) interpolate-sql (.replaceAll "SELECT .* FROM" "SELECT * FROM")) y)
 	   qu
-	   "SELECT t1.*,t2.*,t3.*,t4.* FROM t1 JOIN t2 ON (t1.a = t2.a) JOIN t4 ON (t3.b = t4.b) JOIN t3 ON (t1.field = t3.field)")))
+	   (str "SELECT * FROM t1 "
+		"JOIN t2 ON (t1.a = t2.a) "
+		"JOIN t6 ON (t6.e = t2.e) "
+		"JOIN t3 ON (t3.c = t2.c) "
+		"JOIN t4 ON (t3.b = t4.b) "
+		"JOIN t5 ON (t5.d = t4.d)"))))
   
   (testing "update-in!"
     (expect [update-or-insert-vals (has-args [:users ["(id = ?)" 1] {:name "Bob"}])
