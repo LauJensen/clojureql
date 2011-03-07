@@ -229,19 +229,23 @@
 
   (outer-join [this table2 type join-on]
 	      (let [sort-joins (fn sort-joins [joins]
-				 (reduce (fn insert-join [lst {[table-name join-on] :data :as join}]
-					   (if (-> lst count (< 2))
-					     (conj lst join)
-					     (let [to-t-name (fn to-t-name [l] (-> l :data first))
-						   required-tables (->> join-on :cols (map #(-> % name (.replaceAll "\\..*" ""))))
-						   {:keys [pos]} (reduce (fn find-fn [m {[el] :data :as join}]
-									   (if (:found m)
-									     m
-									     {:pos (inc (:pos m 0))
-									      :found (-> m :list (or #{}) (some required-tables))
-									      :list (conj (:list m #{}) el)})) {} lst)]
-					       (concat (clojure.core/take pos lst) [join] (clojure.core/drop pos lst)))))
-					 [] joins))
+				 (let [to-tbl-name (fn to-tbl-name [{[table-name join-on] :data :as join}]
+						     (->> join-on :cols
+							  (map #(-> % name (.replaceAll "\\..*" "")))
+							  (filter #(not= % table-name))
+							  first))
+				       to-graph-el (fn to-graph-el [m {[table-name join-on] :data :as join}]
+						     (let [required-table (to-tbl-name join)]
+						       (assoc m table-name required-table)))
+				       map-of-joins (reduce #(let [{[table-name join-on] :data :as join} %2
+								   k table-name]
+							       (assoc %1 k (conj (%1 k) join))) {} joins)
+				       edges (reduce to-graph-el {} joins)
+				       set-of-root-nodes (clojure.set/difference (into #{} (vals edges)) (into #{} (keys edges)))
+				       add-deps (fn add-deps [tbl]
+						  (into [(map-of-joins tbl)] (map add-deps (filter #(= tbl (edges %)) (keys edges)))))
+				       sorted-joins (filter #(not (nil? %)) (flatten (map add-deps set-of-root-nodes)))]
+				   sorted-joins))
 		    j (into (or joins []) (-> table2 :joins (or [])))]
 		(if (requires-subselect? table2)
 		  (assoc this
