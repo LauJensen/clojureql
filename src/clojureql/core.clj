@@ -453,7 +453,7 @@
   `(do
      ~@(for [nm names]
          (list 'def (-> nm name symbol)
-               (list 'cql/table conn-info nm)))))
+               (list 'table conn-info nm)))))
 
 (defn table?
   "Returns true if tinstance is an instnce of RTable"
