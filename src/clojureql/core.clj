@@ -94,6 +94,18 @@
     "Confines the query to rows for which the predicate is true
 
      Ex. (select (table :users) (where (= :id 5)))")
+
+  (select-if  [this test predicate]
+              [this test predicate else]
+    "Evaluates test. If logical true, confines the query to rows for which
+     the predicate is true. Optionally accepts a predicate to confine the
+     query if the test is logical false.
+
+     Ex. (select-if (table :users)
+                    (nil? s)
+                      (where (= :email \"default@website.com\"))
+                      (where (= :email s))")
+
   (project    [this fields]
     "Confines the query to the fieldlist supplied in fields
 
@@ -218,6 +230,12 @@
       (assoc this :restriction
              (->> (qualify-predicate this clause)
                   (fuse-predicates (or restriction (predicate nil nil)))))))
+
+  (select-if [this test clause]
+    (if test (select this clause) this))
+
+  (select-if [this test clause else]
+    (if test (select this clause) (select this else)))
 
   (project [this fields]
     (assoc this :tcols fields))
