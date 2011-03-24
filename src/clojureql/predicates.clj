@@ -120,7 +120,7 @@
                         colname
                         (if (.contains colname ".")
                           colname
-                          (str tname \. colname)))))
+                          (str (to-tablealias (:tname this)) \. colname)))))
              (str pred) (set cols))
      env
      cols)))

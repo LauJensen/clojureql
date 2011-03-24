@@ -236,7 +236,9 @@
                 "JOIN salary w1 ON (u1.id = w1.id) WHERE (s2.article IS NULL)")
            (-> u1 (join (project w1 [[:wage :as :income]]) (where (= :u1.id :w1.id))))
            (str "SELECT u1.id,u1.article,u1.price,w1.wage AS income "
-                "FROM users u1 JOIN salary w1 ON (u1.id = w1.id)"))))
+                "FROM users u1 JOIN salary w1 ON (u1.id = w1.id)")
+           (select (table {:users :developers}) (where (= :title "Dev")))
+           "SELECT developers.* FROM users developers WHERE (developers.title = Dev)")))
 
   (testing "joining on multiple tables"
     (are [x y] (= (-> x (compile nil) interpolate-sql) y)
@@ -335,7 +337,7 @@
 		"JOIN skus ON (skus.id = product_variant_skus.sku_id) "
 		"JOIN products ON (products.id = product_variants.product_id) "
 		"WHERE (orders.status = 1)"))))
-  
+
   (testing "update-in!"
     (expect [update-or-insert-vals (has-args [:users ["(id = ?)" 1] {:name "Bob"}])
              find-connection (returns true)]
