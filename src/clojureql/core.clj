@@ -135,15 +135,12 @@
              (modify \"TOP 5\")) ; MSSqls special LIMIT syntax
          (-> (table :one) distinct)")
 
-  (pick!      [this kw]
-    "For queries where you know only a single result will be returned,
-     pick calls the keyword on that result. You can supply multiple keywords
-     in a collection.  Returns nil for no-hits, throws
-     an exception on multiple hits.
-
+  (transform  [this fn]
+    "Transforms results using fn when deref or with-results is called.
+     The pick helper function is implemented using this.
      Ex. (-> (table :users)
-             (select (where (= :id 5))) ; We know this will only match 1 row
-             (pick :email))")
+             (select (where (= :id 5)))
+             (transform #(map :email %))")
 
   (conj!      [this records]
     "Inserts record(s) into the table
@@ -194,7 +191,7 @@
 
 (defrecord RTable [cnx tname tcols restriction renames joins
                    grouped-by pre-scope scope order-by modifiers
-                   combinations having]
+                   combinations having transform]
   clojure.lang.IDeref
   (deref [this]
     (apply-on this doall))
@@ -202,15 +199,16 @@
   Relation
   (apply-on [this f]
     (with-cnx cnx
-      (with-results* (compile this cnx) f)))
+      (with-results* (compile this cnx)
+        (fn [results]
+          (f (if transform
+               (transform results)
+               results))))))
 
-  (pick! [this kw]
-    (let [results @this]
-      (if (or (= 1 (count results)) (empty? results))
-        (if (coll? kw)
-          (map (first results) kw)
-          (kw (first results)))
-        (throw (Exception. "Multiple items in resultsetseq, keyword lookup not possible")))))
+  (transform [this fn]
+    (if transform
+      (assoc this :transform (comp fn transform))
+      (assoc this :transform fn)))
 
   (select [this clause]
     (if (and (has-aggregate? this) (seq grouped-by))
@@ -228,26 +226,45 @@
     (outer-join this table2 nil join-on))
 
   (outer-join [this table2 type join-on]
-    (if (requires-subselect? table2)
-      (assoc this
-        :tcols (into (or tcols [])
-                     (rename-subselects (:tname table2)
-                                        (-> table2 :grouped-by first)))
-        :joins (conj (or joins [])
-                 {:data     [table2 join-on]
-                 :type     (if (keyword? type) :outer :join)
-                 :position type}))
-      (assoc this
-        :tcols (if-let [t2cols (seq (:tcols table2))]
-                 (apply conj (or tcols [])
-                        (map #(add-tname (:tname table2) %)
-                             (if (coll? t2cols)
-                               t2cols [t2cols])))
-                 tcols)
-        :joins (conj (or joins [])
-                 {:data     [(to-tablename (:tname table2)) join-on]
-                  :type     (if (keyword? type) :outer :join)
-                  :position type}))))
+	      (let [sort-joins (fn sort-joins [joins]
+				 (let [to-tbl-name (fn to-tbl-name [{[table-name join-on] :data :as join}]
+						     (->> join-on :cols
+							  (map #(-> % name (.replaceAll "\\..*" "")))
+							  (filter #(not= % table-name))
+							  first))
+				       to-graph-el (fn to-graph-el [m {[table-name join-on] :data :as join}]
+						     (let [required-table (to-tbl-name join)]
+						       (assoc m table-name required-table)))
+				       map-of-joins (reduce #(let [{[table-name join-on] :data :as join} %2
+								   k table-name]
+							       (assoc %1 k (conj (%1 k) join))) {} joins)
+				       edges (reduce to-graph-el {} joins)
+				       set-of-root-nodes (clojure.set/difference (into #{} (vals edges)) (into #{} (keys edges)))
+				       add-deps (fn add-deps [tbl]
+						  (into [(map-of-joins tbl)] (map add-deps (filter #(= tbl (edges %)) (keys edges)))))
+				       sorted-joins (filter #(not (nil? %)) (flatten (map add-deps set-of-root-nodes)))]
+				   sorted-joins))
+		    j (into (or joins []) (-> table2 :joins (or [])))]
+		(if (requires-subselect? table2)
+		  (assoc this
+		    :tcols (into (or tcols [])
+				 (rename-subselects (:tname table2)
+						    (-> table2 :grouped-by first)))
+		    :joins (sort-joins (conj j
+					     {:data     [table2 join-on]
+					      :type     (if (keyword? type) :outer :join)
+					      :position type})))
+		  (assoc this
+		    :tcols (if-let [t2cols (seq (:tcols table2))]
+			     (apply conj (or tcols [])
+				    (map #(add-tname (:tname table2) %)
+					 (if (coll? t2cols)
+					   t2cols [t2cols])))
+			     tcols)
+		    :joins (sort-joins (conj j
+					     {:data     [(to-tablename (:tname table2)) join-on]
+					      :type     (if (keyword? type) :outer :join)
+					      :position type}))))))
 
   (modify [this new-modifiers]
     (assoc this :modifiers
@@ -421,9 +438,33 @@
      (let [connection-info (if (fn? connection-info)
                              (connection-info)
                              connection-info)]
-       (RTable. connection-info table-name [:*] nil nil nil nil nil nil nil nil nil nil))))
+       (RTable. connection-info table-name [:*] nil nil nil nil nil nil nil nil nil nil nil))))
+
+(defmacro declare-tables
+  "Given a connection info map (or nil) and as list
+   of tablenames as keywords a number of tables will
+   be (def)ined with identical names of the keywords
+   given.
+
+   Ex. (declare-tables db :t1 :t2)
+       @t1
+       ({....} {...})"
+  [conn-info & names]
+  `(do
+     ~@(for [nm names]
+         (list 'def (-> nm name symbol)
+               (list 'table conn-info nm)))))
 
 (defn table?
   "Returns true if tinstance is an instnce of RTable"
   [tinstance]
   (instance? clojureql.core.RTable tinstance))
+
+(defn pick [table kw]
+  (transform table
+             (fn [results]
+               (if (or (= 1 (count results)) (empty? results))
+                 (if (coll? kw)
+                   (map (first results) kw)
+                   (kw (first results)))
+                 (throw (Exception. "Multiple items in resultsetseq, keyword lookup not possible"))))))

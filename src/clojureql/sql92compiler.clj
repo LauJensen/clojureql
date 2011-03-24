@@ -113,12 +113,12 @@
                            (interleave (mapcat #(mapcat (fn [clause] (:env clause)) %)
                                                (map :clauses cases))
                                        (mapcat :returns cases)))
+                         (mapcat last jdata)
                          (map :else (filter map? tcols))
                          (map (comp :env second) jdata)
                          (if (table? tcols) (rest tables))
                          (if preds [(:env preds)])
-                         (if having [(:env having)])
-                         (mapcat last jdata)]
+                         (if having [(:env having)])]
                         flatten (remove nil?) vec)
                    (->> (mapcat rest combs)
                         (remove nil?)))

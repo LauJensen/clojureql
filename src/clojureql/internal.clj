@@ -3,6 +3,7 @@
    [clojure.contrib.sql.internal :as sqlint]
    [clojure.contrib.sql :as csql])
   (:use [clojure.string :only [join upper-case] :rename {join join-str}]
+        [clojure.contrib.string :only (as-str)]
         [clojure.contrib.core :only [-?> -?>>]]))
 
 (defn upper-name [kw]
@@ -145,6 +146,14 @@
            (let [[aggr col] (-> (nskeyword c) (.split "/"))]
              (str aggr "(" (split-fields p col) ")"))
            (add-tname p c))))))
+
+(defn to-tablealias
+  "Returns the alias of a :tname. If :tname is not aliased it
+  returns the same as to-tablename."
+  [c]
+  (if (map? c)
+    (as-str (first (vals c)))
+    (to-tablename c)))
 
 (defn emit-case
   [{:keys [alias clauses returns else]}]
