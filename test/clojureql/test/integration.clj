@@ -96,6 +96,10 @@
                            (conj! [{:name "Alice" :title "Developer"} {:name "Bob"}]))]
       (is (= alice (first @(select users (where (!= :title nil)))))))))
 
+(database-test test-select-equals
+  (is (= @(select users (where (= :title "Dev")))
+         '({:title "Dev", :name "Lau Jensen", :id 1}))))
+
 (database-test test-select-or
   (is (= @(select users (where (or (= :id 1) (>= :id 10))))
          '({:title "Dev", :name "Lau Jensen", :id 1}))))
