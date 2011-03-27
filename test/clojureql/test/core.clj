@@ -407,44 +407,47 @@
 
   (testing "sort"
     (are [x y] (= (-> x (compile nil) interpolate-sql) y)
+         (-> (table :continents)
+             (sort [(str "distance(location, ST_GeomFromText('SRID=4326;POINT(0 0)'))")]))
+         "SELECT continents.* FROM continents ORDER BY distance(location, ST_GeomFromText('SRID=4326;POINT(0 0)')) ASC"
          (-> (table :t1)
              (sort [:id]))
-         "SELECT t1.* FROM t1 ORDER BY t1.id asc"
+         "SELECT t1.* FROM t1 ORDER BY t1.id ASC"
          (-> (table :t1)
              (sort [:id])
              (take 5))
-         "SELECT t1.* FROM t1 ORDER BY t1.id asc LIMIT 5"
+         "SELECT t1.* FROM t1 ORDER BY t1.id ASC LIMIT 5"
          (-> (table :t1)
              (sort [:id])
              (take 5)
              (sort [:wage]))
-         "SELECT * FROM (SELECT t1.* FROM t1 ORDER BY t1.id asc LIMIT 5) ORDER BY wage asc"
+         "SELECT * FROM (SELECT t1.* FROM t1 ORDER BY t1.id ASC LIMIT 5) ORDER BY wage ASC"
          (-> (table :t1)
              (sort [:id])
              (drop 10)
              (take 5)
              (sort [:wage]))
-         "SELECT * FROM (SELECT t1.* FROM t1 ORDER BY t1.id asc LIMIT 5 OFFSET 10) ORDER BY wage asc"))
+         "SELECT * FROM (SELECT t1.* FROM t1 ORDER BY t1.id ASC LIMIT 5 OFFSET 10) ORDER BY wage ASC"))
   ;TODO: Last two examples should not qualify wage?
 
   (testing "combinations with sort/limit"
     (are [x y] (= (-> x (compile nil) interpolate-sql) y)
          (-> (union (table :t1) (table :t2))
              (sort [:t2.id]))
-         "(SELECT t1.* FROM t1 ) UNION (SELECT t2.* FROM t2) ORDER BY t2.id asc"
+         "(SELECT t1.* FROM t1 ) UNION (SELECT t2.* FROM t2) ORDER BY t2.id ASC"
          (-> (table :t1)
              (union (sort (table :t2) [:id])))
-         "(SELECT t1.* FROM t1 ) UNION (SELECT t2.* FROM t2 ORDER BY t2.id asc)"
+         "(SELECT t1.* FROM t1 ) UNION (SELECT t2.* FROM t2 ORDER BY t2.id ASC)"
          (-> (sort (table :t1) [:username])
              (union (table :t2)))
-         "(SELECT t1.* FROM t1 ORDER BY t1.username asc) UNION (SELECT t2.* FROM t2)"
+         "(SELECT t1.* FROM t1 ORDER BY t1.username ASC) UNION (SELECT t2.* FROM t2)"
          (union (sort (table :t1) [:id])
                 (sort (table :t2) [:id]))
-         "(SELECT t1.* FROM t1 ORDER BY t1.id asc) UNION (SELECT t2.* FROM t2 ORDER BY t2.id asc)"
+         "(SELECT t1.* FROM t1 ORDER BY t1.id ASC) UNION (SELECT t2.* FROM t2 ORDER BY t2.id ASC)"
          (-> (union (sort (table :t1) [:id])
                     (sort (table :t2) [:id]))
              (sort [:em]))
-         "(SELECT t1.* FROM t1 ORDER BY t1.id asc) UNION (SELECT t2.* FROM t2 ORDER BY t2.id asc) ORDER BY em asc"
+         "(SELECT t1.* FROM t1 ORDER BY t1.id ASC) UNION (SELECT t2.* FROM t2 ORDER BY t2.id ASC) ORDER BY em ASC"
          (-> (aggregate (table :t1) [[:count/* :as :cnt]] [:id])
              (union (table :t2)))
          "(SELECT t1.id,count(*) AS cnt FROM t1 GROUP BY t1.id) UNION (SELECT t2.* FROM t2) GROUP BY t1.id"

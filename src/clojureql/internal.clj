@@ -114,8 +114,8 @@
                     (apply str))
                (if (or (keyword? aggregates)
                        (some (fn [i] (= (nskeyword i) (nskeyword %))) aggregates))
-                 (str (nskeyword %) " asc")
-                 (str (add-tname tname %) " asc"))))
+                 (str (nskeyword %) " ASC")
+                 (str (if (keyword? %) (add-tname tname %) %) " ASC"))))
        (interpose ",")
        (apply str)))
 
