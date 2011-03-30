@@ -112,6 +112,11 @@
   (is (= @(select users (where (not (or (< :id 2) (not (< :id 3))))))
          '({:title "Design Guru", :name "Christophe", :id 2}))))
 
+(database-test test-update!
+  (is (= @(-> (update! users (where (= :id 2)) {:name "John"})
+              (select (where (= :id 2))))
+         '({:title "Design Guru", :name "John", :id 2}))))
+
 (database-test test-update-in!
   (is (= @(-> (update-in! users (where (= :id 2)) {:name "John"})
               (select (where (= :id 2))))

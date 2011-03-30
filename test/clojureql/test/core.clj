@@ -1,7 +1,7 @@
 (ns clojureql.test.core
   (:refer-clojure
    :exclude [compile take drop sort distinct conj! disj! case])
-  (:use [clojureql.internal :only [update-or-insert-vals]]
+  (:use [clojureql.internal :only [update-or-insert-vals update-vals]]
         [clojure.contrib.sql :only [with-connection find-connection]]
         clojure.test
         clojureql.core
@@ -337,6 +337,14 @@
 		"JOIN skus ON (skus.id = product_variant_skus.sku_id) "
 		"JOIN products ON (products.id = product_variants.product_id) "
 		"WHERE (orders.status = 1)"))))
+
+  (testing "update!"
+    (expect [update-vals (has-args [:users ["(id = ?)" 1] {:name "Bob"}])
+             find-connection (returns true)]
+      (update! (table :users) (where (= :id 1)) {:name "Bob"}))
+    (expect [update-vals (has-args [:users ["(salary IS NULL)"] {:salary 1000}])
+             find-connection (returns true)]
+      (update! (table :users) (where (= :salary nil)) {:salary 1000})))
 
   (testing "update-in!"
     (expect [update-or-insert-vals (has-args [:users ["(id = ?)" 1] {:name "Bob"}])
