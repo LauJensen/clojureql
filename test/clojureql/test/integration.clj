@@ -1,4 +1,11 @@
 (ns clojureql.test.integration
+  "To run integration tests, you can use cake command line arguments:
+
+  cake test --integration=true
+
+  You will need to create MySQL, PostgreSQL and Sqlite3 databases according
+  to the parameters you can find in test/clojureql/test.clj"
+
   (:import java.sql.Timestamp)
   (:use clojure.test clojureql.core clojureql.test)
   (:refer-clojure
