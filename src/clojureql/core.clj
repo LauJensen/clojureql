@@ -164,9 +164,10 @@
 
      Ex. (disj! (table :one) (where (= :age 22)))")
 
-  (update-in! [this pred records]
-    "Inserts or updates record(s) where pred is true. Accepts records
-     as both maps and collections.
+  (update-in! [this pred record]
+    "Inserts or updates a record where pred is true. Record
+     is a map from strings or keywords (identifying columns)
+     to updated values.
 
      Ex. (update-in! (table :one) (where (= :id 5))
             {:age 22})")
@@ -341,13 +342,11 @@
        (delete-rows tname (into [(str predicate)] (:env predicate))))
     this)
 
-  (update-in! [this pred records]
+  (update-in! [this pred record]
     (let [predicate (into [(str pred)] (:env pred))
           retr      (with-cnx cnx
                       (when *debug* (prn predicate))
-                      (if (map? records)
-                        (update-or-insert-vals tname predicate records)
-                        (apply update-or-insert-vals tname predicate records)))]
+                      (update-or-insert-vals tname predicate record))]
       (with-meta this (meta retr))))
 
   (grouped [this field]
