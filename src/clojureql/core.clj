@@ -9,14 +9,15 @@
   (:refer-clojure
    :exclude [take drop sort distinct conj! disj! compile case])
   (:use
-   [clojureql internal predicates]
-   [clojure.string :only [join upper-case] :rename {join join-str}]
-   [clojure.contrib sql [core :only [-?> -?>>]]]
-   [clojure.contrib.sql.internal :as sqlint]
-   [clojure.walk :only (postwalk-replace)]))
+    [clojureql internal predicates]
+    [clojure.string :only [join upper-case] :rename {join join-str}]
+    [clojure.java.jdbc :only [delete-rows]]
+    [clojure.java.jdbc.internal :as jdbcint]
+    [clojure.core.incubator :only [-?> -?>>]]
+    [clojure.walk :only (postwalk-replace)]))
 
                                         ; GLOBALS
-(def *debug* false)
+(def ^{:dynamic true} *debug* false)
 
 (declare table?)
 (declare table)

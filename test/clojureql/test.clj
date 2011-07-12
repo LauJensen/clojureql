@@ -1,9 +1,9 @@
 (ns clojureql.test
-  (:refer-clojure :exclude [compile drop take sort distinct conj! disj! case])
-  (:use clojure.contrib.sql
+  (:refer-clojure :exclude [compile drop take sort distinct conj! disj! case resultset-seq])
+  (:use clojure.java.jdbc
         clojure.test
         clojureql.core
-        [clojure.contrib.io :only [delete-file]]
+        [clojure.java.io :only [delete-file]]
         [cake :only [*opts*]]))
 
 (when (:show-sql *opts*)
