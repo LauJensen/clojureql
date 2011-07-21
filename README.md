@@ -11,7 +11,7 @@ http://en.wikipedia.org/wiki/Relational_algebra
 For the user this means that all queries compose and are never executed unless dereferenced
 or called with a function that has the ! suffix.
 
-As a help for debugging, wrap your statements in (binding [*debug* true]) to see the
+As a help for debugging, wrap your statements in (binding [\*debug\* true]) to see the
 compiled SQL statement printed to stdout.
 
 Installation
@@ -21,14 +21,14 @@ Add the following to your **project.clj** or pom.xml:
 
 Cake/Lein artifact:
 
-    [clojureql "1.0.0"]
+    [clojureql "1.0.1"]
 
 Maven:
 
     <dependency>
       <groupId>clojureql</groupId>
       <artifactId>clojureql</artifactId>
-      <version>1.0.0</version>
+      <version>1.0.1</version>
     </dependency>
 
 Then execute
