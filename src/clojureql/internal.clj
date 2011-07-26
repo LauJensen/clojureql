@@ -1,10 +1,9 @@
 (ns clojureql.internal
   (:require
-   [clojure.contrib.sql.internal :as sqlint]
-   [clojure.contrib.sql :as csql])
+    [clojure.java.jdbc.internal :as jdbcint]
+    [clojure.java.jdbc :as jdbc])
   (:use [clojure.string :only [join upper-case] :rename {join join-str}]
-        [clojure.contrib.string :only (as-str)]
-        [clojure.contrib.core :only [-?> -?>>]]))
+        [clojure.core.incubator :only [-?> -?>>]]))
 
 (defn upper-name [kw]
   (-> kw name .toUpperCase))
@@ -152,7 +151,7 @@
   returns the same as to-tablename."
   [c]
   (if (map? c)
-    (as-str (first (vals c)))
+    (name (first (vals c)))
     (to-tablename c)))
 
 (defn emit-case
@@ -348,13 +347,13 @@
   [[sql & params :as sql-params] func]
   (when-not (vector? sql-params)
     (throw (Exception. "sql-params must be a vector")))
-  (with-open [stmt (.prepareStatement (:connection sqlint/*db*) sql)]
+  (with-open [stmt (jdbc/prepare-statement (:connection jdbcint/*db*) sql)]
     (doseq [[idx v] (map vector (iterate inc 1) params)]
       (.setObject stmt idx v))
-    (if-let [fetch-size (-> sqlint/*db* :opts :fetch-size)]
+    (if-let [fetch-size (-> jdbcint/*db* :opts :fetch-size)]
       (do
         (.setFetchSize stmt fetch-size)
-        (csql/transaction
+        (jdbc/transaction
          (with-open [rset (.executeQuery stmt)]
            (func (result-seq rset)))))
       (with-open [rset (.executeQuery stmt)]
@@ -365,12 +364,12 @@
   open database connection. Each param-group is a seq of values for all of
   the parameters."
   [sql & param-groups]
-  (with-open [stmt (.prepareStatement (:connection sqlint/*db*) sql)]
+  (with-open [stmt (jdbc/prepare-statement (:connection jdbcint/*db*) sql)]
     (doseq [param-group param-groups]
       (doseq [[idx v] (map vector (iterate inc 1) param-group)]
         (.setObject stmt idx v))
       (.addBatch stmt))
-    (csql/transaction
+    (jdbc/transaction
      (let [retr (.executeBatch stmt)
            ks   (.getGeneratedKeys stmt)]
        (with-meta
@@ -418,7 +417,7 @@
   criteria followed by values for any parameters. record is a map from
   strings or keywords (identifying columns) to updated values."
   [table where-params record]
-  (csql/transaction
+  (jdbc/transaction
    (let [result (update-vals table where-params record)]
      (if (zero? (first result))
        (conj-rows table (keys record) (vals record))

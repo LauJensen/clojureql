@@ -2,7 +2,8 @@
   (:refer-clojure
    :exclude [compile take drop sort distinct conj! disj! case])
   (:use [clojureql.internal :only [update-or-insert-vals update-vals]]
-        [clojure.contrib.sql :only [with-connection find-connection]]
+        [clojure.java.jdbc :only [with-connection]]
+        [clojure.java.jdbc.internal :only [find-connection*]]
         clojure.test
         clojureql.core
         clojure.contrib.mock)
@@ -28,7 +29,7 @@
 
 (defn resolve-table-db [spec-on-tble]
   (with-cnx spec-on-tble
-    (get (find-connection) :id)))
+    (get (find-connection*) :id)))
 
 (deftest connection-sources
   (testing "missing connection info"
@@ -340,18 +341,18 @@
 
   (testing "update!"
     (expect [update-vals (has-args [:users ["(id = ?)" 1] {:name "Bob"}])
-             find-connection (returns true)]
+             find-connection* (returns true)]
       (update! (table :users) (where (= :id 1)) {:name "Bob"}))
     (expect [update-vals (has-args [:users ["(salary IS NULL)"] {:salary 1000}])
-             find-connection (returns true)]
+             find-connection* (returns true)]
       (update! (table :users) (where (= :salary nil)) {:salary 1000})))
 
   (testing "update-in!"
     (expect [update-or-insert-vals (has-args [:users ["(id = ?)" 1] {:name "Bob"}])
-             find-connection (returns true)]
+             find-connection* (returns true)]
       (update-in! (table :users) (where (= :id 1)) {:name "Bob"}))
     (expect [update-or-insert-vals (has-args [:users ["(salary IS NULL)"] {:salary 1000}])
-             find-connection (returns true)]
+             find-connection* (returns true)]
       (update-in! (table :users) (where (= :salary nil)) {:salary 1000})))
 
   (testing "difference"
