@@ -365,7 +365,7 @@
   open database connection. Each param-group is a seq of values for all of
   the parameters."
   [sql & param-groups]
-  (with-open [stmt (.prepareStatement (:connection sqlint/*db*) sql)]
+  (with-open [stmt (.prepareStatement (:connection sqlint/*db*) sql java.sql.Statement/RETURN_GENERATED_KEYS)]
     (doseq [param-group param-groups]
       (doseq [[idx v] (map vector (iterate inc 1) param-group)]
         (.setObject stmt idx v))
