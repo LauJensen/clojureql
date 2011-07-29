@@ -1,4 +1,5 @@
 (ns clojureql.internal
+  (:import [java.sql Statement])
   (:require
     [clojure.java.jdbc.internal :as jdbcint]
     [clojure.java.jdbc :as jdbc])
@@ -363,20 +364,26 @@
   "Executes an (optionally parameterized) SQL prepared statement on the
   open database connection. Each param-group is a seq of values for all of
   the parameters."
-  [sql & param-groups]
-  (with-open [stmt (jdbc/prepare-statement (:connection jdbcint/*db*) sql)]
-    (doseq [param-group param-groups]
-      (doseq [[idx v] (map vector (iterate inc 1) param-group)]
-        (.setObject stmt idx v))
-      (.addBatch stmt))
-    (jdbc/transaction
-     (let [retr (.executeBatch stmt)
-           ks   (.getGeneratedKeys stmt)]
-       (with-meta
-         (seq retr)
-         {:last-index (if (.next ks)
-                        (.getInt ks 1)
-                        nil)})))))
+  ([sql param-group]
+     (with-open [stmt (jdbc/prepare-statement (:connection jdbcint/*db*)
+                                              sql :return-keys true)]
+       (doseq [[idx v] (map vector (iterate inc 1) param-group)]
+         (.setObject stmt idx v))
+       (jdbc/transaction
+        (let [retr (.execute stmt)
+              ks (.getGeneratedKeys stmt)]
+          (with-meta [(.getUpdateCount stmt)]
+            {:last-index (and
+                          (.next ks)
+                          (.getInt ks 1))})))))
+  ([sql param-group & param-groups]
+     (with-open [stmt (jdbc/prepare-statement (:connection jdbcint/*db*) sql)]
+       (doseq [param-group (cons param-group param-groups)]
+         (doseq [[idx v] (map vector (iterate inc 1) param-group)]
+           (.setObject stmt idx v))
+         (.addBatch stmt))
+       (jdbc/transaction
+        (seq (.executeBatch stmt))))))
 
 (defn conj-rows
   "Inserts rows into a table with values for specified columns only.
