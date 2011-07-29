@@ -3,8 +3,11 @@
   (:use clojure.java.jdbc
         clojure.test
         clojureql.core
-        [clojure.java.io :only [delete-file]]
-        [cake :only [*opts*]]))
+        [clojure.java.io :only [delete-file]]))
+
+(if (find-ns 'cake)
+  (refer 'cake :only ['*opts*])
+  (def *opts* {:integration (System/getProperty "integration")}))
 
 (when (:show-sql *opts*)
   (alter-var-root #'clojureql.core/*debug* (constantly true)))
