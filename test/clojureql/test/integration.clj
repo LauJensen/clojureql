@@ -24,6 +24,13 @@
            {:wage 300, :id 7}
            {:wage 400, :id 8}))))
 
+(database-test test-generated-keys
+  (is (= 5 (-> (conj! salary {:wage 1337})
+               meta :last-index)))
+  (is (= 6 (-> (update-in! salary (where (= :id 512))
+                           {:wage 1337})
+               meta :last-index))))
+
 (database-test test-join-explicitly
   (is (= @(join users salary (where (= :users.id :salary.id)))
          '({:wage 100, :title "Dev", :name "Lau Jensen", :id 1}
@@ -130,14 +137,16 @@
          '({:title "Design Guru", :name "John", :id 2}))))
 
 (database-test test-update-in!-with-nil
-  (when (or (postgresql?) (sqlite3?)) ; TODO: MySQL does not insert new row!?
-    (is (= @(-> (update-in! users (where (= :id nil)) {:name "John"})
-                (project [:id :name :title]))
-           '({:title "Dev", :name "Lau Jensen", :id 1}
-             {:title "Design Guru", :name "Christophe", :id 2}
-             {:title "Mr. Macros", :name "sthuebner", :id 3}
-             {:title "Engineer", :name "Frank", :id 4}
-             {:title nil, :name "John", :id 5})))))
+  (let [t #(is (= @(-> (update-in! users (where (= :id nil)) {:name "John"})
+                       (project [:id :name :title]))
+                  '({:title "Dev", :name "Lau Jensen", :id 1}
+                    {:title "Design Guru", :name "Christophe", :id 2}
+                    {:title "Mr. Macros", :name "sthuebner", :id 3}
+                    {:title "Engineer", :name "Frank", :id 4}
+                    {:title nil, :name "John", :id 5})))]
+    (if (mysql?) ;; mysql bugs here, if we stay in the same connection
+      (clojure.java.jdbc/with-connection mysql (t))
+      (t))))
 
 (database-test test-update-in!-with-timestamp
   (let [user (first @(update-in! users
