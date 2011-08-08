@@ -37,4 +37,10 @@
        (not* (or* (<* :id 100) (>* :id 101)))
        ["NOT(((id < ?) OR (id > ?)))" [100 101]]
        (not* (or* (=* :id 5) (not* (like :name "frank%"))))
-       ["NOT(((id = ?) OR NOT((name LIKE ?))))" [5 "frank%"]]))
+       ["NOT(((id = ?) OR NOT((name LIKE ?))))" [5 "frank%"]]
+       (in :x [1 2])
+       ["x IN (?,?)" [1 2]]
+       (in :x '(1 2))
+       ["x IN (?,?)" [1 2]]
+       (in :x #{1 2})
+       ["x IN (?,?)" [1 2]]))
