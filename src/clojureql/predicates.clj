@@ -84,7 +84,7 @@
       :stmt (conj stmt (format "%s %s (%s)"
                                (nskeyword field)
                                (upper-name op)
-                               (->> (if (vector? (first expr))
+                               (->> (if (coll? (first expr))
                                       (first expr)
                                       expr)
                                     parameterize
