@@ -14,6 +14,16 @@
        :like      [:x "joh%"] "(x LIKE ?)"
        "like"     [:x "joh%"] "(x LIKE ?)"))
 
+(deftest qualify
+  (is (= (qualify-predicate
+          {:tname :table}
+          (predicate ["tablefield" "field"] [] [:tablefield :field]))
+         (predicate ["table.tablefield" "table.field"] [] [:tablefield :field])))
+  (is (= (str (qualify-predicate
+               {:tname :new}
+               (predicate ["nonew" "=" "no" \space "menno"] [] [:newnew :no :menno])))
+         "nonew=new.no new.menno")))
+
 (deftest test-compile-expr
   (are [expression result] (= result ((juxt str :env) expression))
        (=* :id 5)

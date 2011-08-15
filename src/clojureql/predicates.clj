@@ -1,12 +1,13 @@
 (ns clojureql.predicates
+  (:require [clojure.set :as set] )
   (:use clojureql.internal
         [clojure.string :only [join] :rename {join join-str}]))
 
 (defn sanitize [expression]
   "Returns all values from an expression"
   (reduce #(if (coll? %2)
-             (into %1 %2)
-             (conj %1 %2)) [] (remove keyword? expression)))
+             (concat %1 %2)
+             (concat %1 [%2])) [] (remove keyword? expression)))
 
 (defn parameterize [expression]
   "Replace all values with questionmarks in an expression"
@@ -24,73 +25,74 @@
 
 (defrecord APredicate [stmt env cols]
   Object
-  (toString [this] (apply str stmt))
+  (toString [this] (apply str (flatten stmt)))
   Predicate
   (sql-or    [this exprs]
     (if (empty? (-> exprs first :stmt))
       (assoc this
-        :stmt (map str exprs)
-        :cols (into (or cols []) (mapcat :cols exprs))
+        :stmt (mapcat :stmt exprs)
+        :cols (concat (or cols '()) (mapcat :cols exprs))
         :env  (mapcat :env exprs))
       (assoc this
-        :stmt (conj stmt (str "(" (join-str " OR " exprs) ")"))
-        :cols (into (or cols []) (mapcat :cols exprs))
-        :env  (into env (mapcat :env exprs)))))
+        :stmt (list stmt "(" (interpose " OR " (map :stmt exprs)) ")")
+        :cols (concat (or cols '()) (mapcat :cols exprs))
+        :env  (concat env (mapcat :env exprs)))))
   (sql-and   [this exprs]
     (if (empty? (-> exprs first :stmt))
       (assoc this
-        :stmt (map str exprs)
-        :cols (into (or cols []) (mapcat :cols exprs))
+        :stmt (mapcat :stmt exprs)
+        :cols (concat (or cols '()) (mapcat :cols exprs))
         :env  (mapcat :env exprs))
       (assoc this
-        :stmt (conj stmt (str "(" (join-str " AND " exprs) ")"))
-        :cols (into (or cols []) (mapcat :cols exprs))
-        :env  (into env (mapcat :env exprs)))))
+        :stmt (list stmt "(" (interpose " AND " (map :stmt exprs)) ")")
+        :cols (concat (or cols '()) (mapcat :cols exprs))
+        :env  (concat env (mapcat :env exprs)))))
   (sql-not   [this expr]
     (if (empty? (-> expr first :stmt))
       (assoc this
-        :stmt (map str expr)
-        :cols (into (or cols []) (mapcat :cols expr))
+        :stmt (mapcat :stmt expr)
+        :cols (concat (or cols '()) (mapcat :cols expr))
         :env  (mapcat :env expr))
       (assoc this
-        :stmt (conj stmt (str "NOT(" (join-str expr) ")"))
-        :cols (into (or cols []) (mapcat :cols expr))
-        :env  (into env (mapcat :env expr)))))
+        :stmt (list stmt "NOT(" (map :stmt expr) ")")
+        :cols (concat (or cols '()) (mapcat :cols expr))
+        :env  (concat env (mapcat :env expr)))))
   (spec-op [this expr]
     (let [[op p1 p2] expr]
       (cond
        (every? nil? (rest expr))
        (assoc this
-         :stmt (conj stmt "(NULL " op " NULL)")
+         :stmt (list stmt "(NULL " op " NULL)")
          :env  env)
        (nil? p1)
        (.spec-op this [op p2 p1])
        (nil? p2)
        (assoc this
-         :stmt (conj stmt (str "(" (name p1) " " op " NULL)"))
-         :cols (into (or cols []) (filter keyword? [p1 p2]))
-         :env [])
+         :stmt (list stmt "(" (name p1) " " op " NULL)")
+         :cols (concat (or cols []) (filter keyword? [p1 p2]))
+         :env '())
        :else
        (infix this "=" (rest expr)))))
   (infix [this op expr]
     (assoc this
-      :stmt (conj stmt (format "(%s)"
-                         (join-str (format " %s " (upper-name op))
-                                   (parameterize expr))))
+      :stmt (list stmt "(" (interpose (str \space (upper-name op) \space)
+                                      (parameterize expr))
+                  ")")
       :cols (filter keyword? expr)
-      :env  (into env (sanitize expr))))
+      :env  (concat env (sanitize expr))))
   (prefix [this op field expr]
     (assoc this
-      :stmt (conj stmt (format "%s %s (%s)"
-                               (nskeyword field)
-                               (upper-name op)
-                               (->> (if (coll? (first expr))
-                                      (first expr)
-                                      expr)
-                                    parameterize
-                                    (join-str ","))))
-      :cols [field]
-      :env (into env (sanitize expr)))))
+      :stmt (list stmt
+                  (nskeyword field) \space
+                  (upper-name op) \space
+                  "(" (->> (if (coll? (first expr))
+                             (first expr)
+                             expr)
+                           parameterize
+                           (interpose ","))
+                  ")")
+      :cols (list field)
+      :env (concat env (sanitize expr)))))
 
 (defn predicate
   ([]         (predicate [] []))
@@ -104,7 +106,7 @@
   [p1 p2]
   (if (and (nil? (:env p1)) (nil? (:stmt p1)))
     p2
-    (predicate (join-str " AND " [p1 p2])
+    (predicate (list (:stmt p1) " AND " (:stmt p2))
                (mapcat :env [p1 p2])
                (mapcat :cols [p1 p2]))))
 
@@ -112,16 +114,14 @@
   [this pred]
   (let [tname (to-tablename (:tname this))
         {:keys [stmt env cols]} pred
-        aggregates (find-aggregates this)]
+        aggregates (set (map nskeyword (find-aggregates this)))
+        colnames (set (remove #(.contains % ".")
+                              (map nskeyword cols)))
+        qualify? (set/difference colnames aggregates)]
     (predicate
-     (reduce #(let [colname (nskeyword %2)]
-                (.replaceAll %1 colname
-                      (if (some (fn [i] (= colname (nskeyword i))) aggregates)
-                        colname
-                        (if (.contains colname ".")
-                          colname
-                          (str (to-tablealias (:tname this)) \. colname)))))
-             (str pred) (set cols))
+     (map #(if (qualify? %) (str (to-tablealias (:tname this))
+                                 \. %) %)
+          (flatten stmt))
      env
      cols)))
 
