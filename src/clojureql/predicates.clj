@@ -121,7 +121,9 @@
     (predicate
      (map #(if (qualify? %) (str (to-tablealias (:tname this))
                                  \. %) %)
-          (flatten stmt))
+          (if (string? pred)
+            [pred]
+            (flatten stmt)))
      env
      cols)))
 

@@ -150,6 +150,12 @@
              (select (where (= :title "Developer"))))
          "SELECT users.* FROM users WHERE (users.id = 5) AND (users.title = Developer)"))
 
+  (testing "String predicates"
+    (are [x y] (= (-> x (compile nil) interpolate-sql) y)
+         (-> (table :users)
+             (select "name = 'Frank'"))
+         "SELECT users.* FROM users WHERE name = 'Frank'"))
+
   (testing "projections"
     (are [x y] (= (-> x (compile nil) interpolate-sql) y)
          (-> (table :users)
