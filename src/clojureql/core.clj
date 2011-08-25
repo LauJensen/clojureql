@@ -367,7 +367,9 @@
 
   (grouped [this field]
     ;TODO: We shouldn't call to-fieldlist here, first in the compiler
-    (let [colname (with-meta [(to-fieldlist tname field)] {:prepend true})]
+    (let [colname (with-meta [(to-fieldlist tname
+                                            (map #(if (vector? %) (first %) (identity %))
+                                                 field))] {:prepend true})]
       (assoc this :grouped-by
              (conj (or grouped-by [])
                    (if (seq combinations)

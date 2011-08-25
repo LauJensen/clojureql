@@ -207,7 +207,22 @@
          select-country-ids-with-region-count
          (str "SELECT regions.country_id,count(regions.id) AS regions FROM regions GROUP BY regions.country_id")
          select-country-ids-with-spot-count
-         (str "SELECT spots.country_id,count(spots.id) AS spots FROM spots GROUP BY spots.country_id")))
+         (str "SELECT spots.country_id,count(spots.id) AS spots FROM spots GROUP BY spots.country_id")
+         (-> (table :users)
+             (select (where (= :admin true)))
+             (aggregate [[:count/* :as :user_count]] [:country]))
+         (str "SELECT users.country,count(*) AS user_count FROM users "
+              "WHERE (users.admin = true) GROUP BY users.country")
+         (-> (table :users)
+             (select (where (= :admin true)))
+             (aggregate [:count/*] [[:country :as :user_country]]))
+         (str "SELECT users.country AS user_country,count(*) FROM users "
+              "WHERE (users.admin = true) GROUP BY users.country")
+         (-> (table :users)
+             (select (where (= :admin true)))
+             (aggregate [:count/*] [:name [:country :as :user_country]]))
+         (str "SELECT users.name,users.country AS user_country,count(*) FROM users "
+              "WHERE (users.admin = true) GROUP BY users.name,users.country")))
 
   (testing "join with aggregate"
     (let [photo-counts-by-user (-> (table :photos)
