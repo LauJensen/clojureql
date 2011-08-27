@@ -8,7 +8,7 @@
                      [mysql/mysql-connector-java  "5.1.17"]
                      [org.xerial/sqlite-jdbc      "3.7.2"]
                      [postgresql/postgresql       "8.4-702.jdbc4"]
-                     [hsqldb/hsqldb               "1.6.1"]]
+                     [com.sybase.sqlanywhere/jodbc "12.0.0.2670"]]
 
   :repositories {"clojure-releases"  {:url "http://build.clojure.org/releases"}})
 
