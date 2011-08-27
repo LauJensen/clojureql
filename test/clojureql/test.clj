@@ -39,7 +39,14 @@
    :subname     "/tmp/cql.sqlite3"
    :create      true})
 
-(def databases [mysql postgresql sqlite3])
+(def sa-jodbc
+  {:classname   "ianywhere.ml.jdbcodbc.IDriver"
+   :subprotocol "ianywhere"
+   :subname     "DSN=test"
+   :user        "dba"
+   :password    "sql"})
+
+(def databases [mysql postgresql sqlite3 sa-jodbc])
 
 (defn mysql? []
   (isa? (class (connection)) com.mysql.jdbc.JDBC4Connection))
@@ -49,6 +56,9 @@
 
 (defn sqlite3? []
   (isa? (class (connection)) org.sqlite.Conn))
+
+(defn sa-jodbc? []
+  (isa? (class (connection)) ianywhere.ml.jdbcodbc.IConnection))
 
 (defn drop-if [table]
   (try (drop-table table) (catch Exception _)))
@@ -93,6 +103,18 @@
   (create-table
    :salary
    [:id        :integer "PRIMARY KEY" "AUTOINCREMENT"]
+   [:wage      :integer]))
+
+(defmethod create-schema ianywhere.ml.jdbcodbc.IConnection []
+  (create-table
+   :users
+   [:id        :integer "PRIMARY KEY" "DEFAULT AUTOINCREMENT"]
+   [:name      "varchar(255)"]
+   [:title     "varchar(255)"]
+   [:birthday  "TIMESTAMP"])
+  (create-table
+   :salary
+   [:id        :integer "PRIMARY KEY" "DEFAULT AUTOINCREMENT"]
    [:wage      :integer]))
 
 (def users  (-> (table :users) (project [:id :name :title])))
