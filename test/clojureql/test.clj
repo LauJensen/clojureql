@@ -7,7 +7,7 @@
 
 (if (find-ns 'cake)
   (refer 'cake :only ['*opts*])
-  (def *opts* {:integration (System/getProperty "integration")}))
+  (def *opts* {:integration true :show-sql true}))
 
 (when (:show-sql *opts*)
   (alter-var-root #'clojureql.core/*debug* (constantly true)))
@@ -46,7 +46,7 @@
    :user        "dba"
    :password    "sql"})
 
-(def databases [mysql postgresql sqlite3 sa-jodbc])
+(def databases [sa-jodbc])
 
 (defn mysql? []
   (isa? (class (connection)) com.mysql.jdbc.JDBC4Connection))
@@ -59,6 +59,10 @@
 
 (defn sa-jodbc? []
   (isa? (class (connection)) ianywhere.ml.jdbcodbc.IConnection))
+
+(defn supports-join-jusing? [] (not sa-jodbc?))
+
+(defn supports-generated-keys? [] (not sa-jodbc?))
 
 (defn drop-if [table]
   (try (drop-table table) (catch Exception _)))

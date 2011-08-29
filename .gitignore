@@ -5,3 +5,5 @@ pom.xml
 lib
 classes
 build
+.lein-failures
+logfile
