@@ -7,7 +7,7 @@
 
 (if (find-ns 'cake)
   (refer 'cake :only ['*opts*])
-  (def *opts* {:integration true :show-sql true}))
+  (def *opts* {:integration (System/getProperty "integration")}))
 
 (when (:show-sql *opts*)
   (alter-var-root #'clojureql.core/*debug* (constantly true)))
@@ -39,14 +39,7 @@
    :subname     "/tmp/cql.sqlite3"
    :create      true})
 
-(def sa-jodbc
-  {:classname   "ianywhere.ml.jdbcodbc.IDriver"
-   :subprotocol "ianywhere"
-   :subname     "DSN=test"
-   :user        "dba"
-   :password    "sql"})
-
-(def databases [sa-jodbc])
+(def databases [mysql postgresql sqlite3])
 
 (defn mysql? []
   (isa? (class (connection)) com.mysql.jdbc.JDBC4Connection))
@@ -56,13 +49,6 @@
 
 (defn sqlite3? []
   (isa? (class (connection)) org.sqlite.Conn))
-
-(defn sa-jodbc? []
-  (isa? (class (connection)) ianywhere.ml.jdbcodbc.IConnection))
-
-(defn supports-join-jusing? [] (not sa-jodbc?))
-
-(defn supports-generated-keys? [] (not sa-jodbc?))
 
 (defn drop-if [table]
   (try (drop-table table) (catch Exception _)))
@@ -107,18 +93,6 @@
   (create-table
    :salary
    [:id        :integer "PRIMARY KEY" "AUTOINCREMENT"]
-   [:wage      :integer]))
-
-(defmethod create-schema ianywhere.ml.jdbcodbc.IConnection []
-  (create-table
-   :users
-   [:id        :integer "PRIMARY KEY" "DEFAULT AUTOINCREMENT"]
-   [:name      "varchar(255)"]
-   [:title     "varchar(255)"]
-   [:birthday  "TIMESTAMP"])
-  (create-table
-   :salary
-   [:id        :integer "PRIMARY KEY" "DEFAULT AUTOINCREMENT"]
    [:wage      :integer]))
 
 (def users  (-> (table :users) (project [:id :name :title])))
