@@ -360,22 +360,25 @@
       (with-open [rset (.executeQuery stmt)]
         (func (result-seq rset))))))
 
-(defn supports-generated-keys [conn]
+(defn supports-generated-keys? [conn]
+  "Checks if the JDBC Driver supports generated keys"
   (try (.supportsGetGeneratedKeys (.getMetaData conn))
        (catch AbstractMethodError _ false)))
 
-(defn generated-keys [stmt]
-  {:last-index 
-   (when (supports-generated-keys (.getConnection stmt))
-     (let [ks (.getGeneratedKeys stmt)]
-       (and
-        (.next ks)
-        (.getInt ks 1))))})
-
 (defn prepare-statement [conn sql]
-  (if (supports-generated-keys conn)
+  "When supported by the JDBC Driver, creates a new prepared statement which will return the generated keys - else returns a 'normal' prepared statement"
+  (if (supports-generated-keys? conn)
     (jdbc/prepare-statement conn sql :return-keys true)
     (jdbc/prepare-statement conn sql)))
+
+(defn generated-keys [stmt]
+  "When supported by the JDBC driver, returns the generated keys of the latest executed statement"
+  (when (supports-generated-keys? (.getConnection stmt))
+    (let [ks (.getGeneratedKeys stmt)]
+      {:last-index 
+       (and
+        (.next ks)
+        (.getInt ks 1))})))
 
 (defn exec-prepared
   "Executes an (optionally parameterized) SQL prepared statement on the
