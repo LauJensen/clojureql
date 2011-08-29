@@ -7,7 +7,8 @@
   to the parameters you can find in test/clojureql/test.clj"
 
   (:import java.sql.Timestamp)
-  (:use clojure.test clojureql.core clojureql.test)
+  (:use clojure.test clojureql.core clojureql.test
+        [clojureql.internal :only [supports-generated-keys?]])
   (:refer-clojure
    :exclude [compile take sort drop distinct conj! disj! case]
    :rename {take take-coll}))
@@ -25,7 +26,7 @@
            {:wage 400, :id 8}))))
 
 (database-test test-generated-keys
-  (when (supports-generated-keys?)
+  (when (supports-generated-keys? (:connection clojure.java.jdbc.internal/*db*))
     (is (= 5 (-> (conj! salary {:wage 1337})
                  meta :last-index)))
     (is (= 6 (-> (update-in! salary (where (= :id 512))
@@ -40,12 +41,11 @@
            {:wage 400, :title "Engineer", :name "Frank", :id 4}))))
 
 (database-test test-join-using
-  (when (supports-join-jusing?)
-    (is (= @(join users salary :id)
-           '({:wage 100, :title "Dev", :name "Lau Jensen", :id 1}
-             {:wage 200, :title "Design Guru", :name "Christophe", :id 2}
-             {:wage 300, :title "Mr. Macros", :name "sthuebner", :id 3}
-             {:wage 400, :title "Engineer", :name "Frank", :id 4})))))
+  (is (= @(join users salary :id)
+         '({:wage 100, :title "Dev", :name "Lau Jensen", :id 1}
+           {:wage 200, :title "Design Guru", :name "Christophe", :id 2}
+           {:wage 300, :title "Mr. Macros", :name "sthuebner", :id 3}
+           {:wage 400, :title "Engineer", :name "Frank", :id 4}))))
 
 (database-test test-case
   (is (= @(-> (project salary
@@ -90,8 +90,6 @@
                         '({:avg 250.0000M})))
    (sqlite3?)    (is (= @(-> (table :salary) (project [[:avg/wage :as :avg]]))
                         '({:avg 250.0})))
-   (sa-jodbc?)    (is (= @(-> (table :salary) (project [[:avg/wage :as :avg]]))
-                        '({:avg 250.0})))
    :else true))
 
 (database-test test-select-with-nil-and-value
@@ -102,7 +100,7 @@
     (is (empty? @(select (table :users) (where (= nil nil))))))
 
 (database-test test-select-is-null
-  (when (or (postgresql?) (mysql?) (sa-jodbc?)) ; (where true) not supported by sqlite3
+  (when (or (postgresql?) (mysql?)) ; (where true) not supported by sqlite3
     (let [[alice bob] @(-> (disj! users (where true))
                            (conj! [{:name "Alice" :title "Developer"}
                                    {:name "Bob"}]))]

@@ -4,11 +4,10 @@
                      [org.clojure/core.incubator  "0.1.0"]
                      [org.clojure.contrib/mock    "1.3.0-alpha4"]
                      [org.clojure/java.jdbc       "0.0.5"]]
-  :dev-dependencies [[swank-clojure               "1.3.2"]
+  :dev-dependencies [[swank-clojure               "1.3.0-SNAPSHOT"]
                      [mysql/mysql-connector-java  "5.1.17"]
                      [org.xerial/sqlite-jdbc      "3.7.2"]
-                     [postgresql/postgresql       "8.4-702.jdbc4"]
-                     [com.sybase.sqlanywhere/jodbc "12.0.0.2670"]]
+                     [postgresql/postgresql       "8.4-702.jdbc4"]]
 
   :repositories {"clojure-releases"  {:url "http://build.clojure.org/releases"}})
 
