@@ -7,7 +7,8 @@
   to the parameters you can find in test/clojureql/test.clj"
 
   (:import java.sql.Timestamp)
-  (:use clojure.test clojureql.core clojureql.test)
+  (:use clojure.test clojureql.core clojureql.test
+        [clojureql.internal :only [supports-generated-keys?]])
   (:refer-clojure
    :exclude [compile take sort drop distinct conj! disj! case]
    :rename {take take-coll}))
@@ -25,11 +26,12 @@
            {:wage 400, :id 8}))))
 
 (database-test test-generated-keys
-  (is (= 5 (-> (conj! salary {:wage 1337})
-               meta :last-index)))
-  (is (= 6 (-> (update-in! salary (where (= :id 512))
+  (when (supports-generated-keys? (:connection clojure.java.jdbc.internal/*db*))
+    (is (= 5 (-> (conj! salary {:wage 1337})
+                 meta :last-index)))
+    (is (= 6 (-> (update-in! salary (where (= :id 512))
                            {:wage 1337})
-               meta :last-index))))
+                 meta :last-index)))))
 
 (database-test test-join-explicitly
   (is (= @(join users salary (where (= :users.id :salary.id)))
