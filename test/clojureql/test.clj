@@ -45,7 +45,9 @@
    :subname     "/tmp/cql.derby"
    :create      true})
 
-(def register-derby-driver (-> (Class/forName "org.apache.derby.jdbc.EmbeddedDriver") .newInstance))
+(def register-derby-driver
+  (-> (Class/forName "org.apache.derby.jdbc.EmbeddedDriver")
+      .newInstance))
 
 (def databases [mysql postgresql sqlite3 derby])
 
