@@ -39,7 +39,15 @@
    :subname     "/tmp/cql.sqlite3"
    :create      true})
 
-(def databases [mysql postgresql sqlite3])
+(def derby
+  {:classname   "org.apache.derby.jdbc.EmbeddedDriver"
+   :subprotocol "derby"
+   :subname     "/tmp/cql.derby"
+   :create      true})
+
+(def register-derby-driver (-> (Class/forName "org.apache.derby.jdbc.EmbeddedDriver") .newInstance))
+
+(def databases [mysql postgresql sqlite3 derby])
 
 (defn mysql? []
   (isa? (class (connection)) com.mysql.jdbc.JDBC4Connection))
@@ -49,6 +57,9 @@
 
 (defn sqlite3? []
   (isa? (class (connection)) org.sqlite.Conn))
+
+(defn derby? []
+  (isa? (class (connection)) org.apache.derby.impl.jdbc.EmbedConnection))
 
 (defn drop-if [table]
   (try (drop-table table) (catch Exception _)))
@@ -93,6 +104,18 @@
   (create-table
    :salary
    [:id        :integer "PRIMARY KEY" "AUTOINCREMENT"]
+   [:wage      :integer]))
+
+(defmethod create-schema org.apache.derby.impl.jdbc.EmbedConnection []
+  (create-table
+   :users
+   [:id        :integer "PRIMARY KEY" "GENERATED ALWAYS AS IDENTITY"]
+   [:name      "varchar(255)"]
+   [:title     "varchar(255)"]
+   [:birthday  "TIMESTAMP"])
+  (create-table
+   :salary
+   [:id        :integer "PRIMARY KEY" "GENERATED ALWAYS AS IDENTITY"]
    [:wage      :integer]))
 
 (def users  (-> (table :users) (project [:id :name :title])))
