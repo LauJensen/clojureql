@@ -360,22 +360,38 @@
       (with-open [rset (.executeQuery stmt)]
         (func (result-seq rset))))))
 
+(defn supports-generated-keys? [conn]
+  "Checks if the JDBC Driver supports generated keys"
+  (try (.supportsGetGeneratedKeys (.getMetaData conn))
+       (catch AbstractMethodError _ false)))
+
+(defn prepare-statement [conn sql]
+  "When supported by the JDBC Driver, creates a new prepared statement which will return the generated keys - else returns a 'normal' prepared statement"
+  (if (supports-generated-keys? conn)
+    (jdbc/prepare-statement conn sql :return-keys true)
+    (jdbc/prepare-statement conn sql)))
+
+(defn generated-keys [stmt]
+  "When supported by the JDBC driver, returns the generated keys of the latest executed statement"
+  (when (supports-generated-keys? (.getConnection stmt))
+    (let [ks (.getGeneratedKeys stmt)]
+      {:last-index 
+       (and
+        (.next ks)
+        (.getInt ks 1))})))
+
 (defn exec-prepared
   "Executes an (optionally parameterized) SQL prepared statement on the
   open database connection. Each param-group is a seq of values for all of
   the parameters."
   ([sql param-group]
-     (with-open [stmt (jdbc/prepare-statement (:connection jdbcint/*db*)
-                                              sql :return-keys true)]
+     (with-open [stmt (prepare-statement (:connection jdbcint/*db*) sql)]
        (doseq [[idx v] (map vector (iterate inc 1) param-group)]
          (.setObject stmt idx v))
        (jdbc/transaction
-        (let [retr (.execute stmt)
-              ks (.getGeneratedKeys stmt)]
+        (let [retr (.execute stmt)]
           (with-meta [(.getUpdateCount stmt)]
-            {:last-index (and
-                          (.next ks)
-                          (.getInt ks 1))})))))
+            (generated-keys stmt))))))
   ([sql param-group & param-groups]
      (with-open [stmt (jdbc/prepare-statement (:connection jdbcint/*db*) sql)]
        (doseq [param-group (cons param-group param-groups)]
