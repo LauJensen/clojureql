@@ -219,9 +219,13 @@
            '("Lau Jensen" "Christophe" "sthuebner" "Frank")))))
 
 (database-test test-pick
-  (is (= @(-> (select users (where (= :id 4)))
-              (pick :name))
-         "Frank")))
+  (let [q (select users (where (= :id 4)))
+        eq (select users (where (= :id 1337)))]
+    (is (= @(pick q :name) "Frank"))
+    (is (= @(pick q :id) 4))
+    (is (= @(pick q [:title :name]) ["Engineer" "Frank"]))
+    (is (= @(pick eq :name) nil))
+    (is (= @(pick eq [:title :name])) nil)))
 
 (database-test test-composing-transforms
   (is (= @(-> users
