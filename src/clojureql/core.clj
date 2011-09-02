@@ -498,8 +498,9 @@
 (defn pick [table kw]
   (transform table
              (fn [results]
-               (if (or (= 1 (count results)) (empty? results))
-                 (if (coll? kw)
-                   (map (first results) kw)
-                   (kw (first results)))
-                 (throw (Exception. "Multiple items in resultsetseq, keyword lookup not possible"))))))
+               (cond
+                (= 1 (count results)) (if (coll? kw)
+                                        (map (first results) kw)
+                                        ((first results) kw))
+                (empty? results) nil
+                :else (throw (Exception. "Multiple items in resultsetseq, keyword lookup not possible"))))))
