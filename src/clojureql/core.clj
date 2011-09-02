@@ -216,7 +216,8 @@
                    combinations having transform]
   clojure.lang.IDeref
   (deref [this]
-    (apply-on this doall))
+    ;; we might not get a sequence, if transform is set
+    (apply-on this #(if (seq? %) (doall %) %)))
 
   Relation
   (apply-on [this f]
