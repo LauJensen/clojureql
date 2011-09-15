@@ -222,7 +222,10 @@
              (select (where (= :admin true)))
              (aggregate [:count/*] [:name [:country :as :user_country]]))
          (str "SELECT users.name,users.country AS user_country,count(*) FROM users "
-              "WHERE (users.admin = true) GROUP BY users.name,users.country")))
+              "WHERE (users.admin = true) GROUP BY users.name,users.country")
+	 (-> (table :users)
+	     (aggregate [] [:birthday]))
+	 (str "SELECT users.* FROM users GROUP BY users.birthday")))
 
   (testing "join with aggregate"
     (let [photo-counts-by-user (-> (table :photos)
