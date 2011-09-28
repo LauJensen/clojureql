@@ -445,3 +445,28 @@
      (if (zero? (first result))
        (conj-rows table (keys record) (vals record))
        result))))
+
+(defn to-tbl-name 
+  [{[table-name join-on] :data :as join}]
+  (->> join-on :cols
+       (map #(-> % name (.replaceAll "\\..*" "")))
+       (filter #(not= % table-name))
+       first))
+
+(defn to-graph-el 
+  [m {[table-name join-on] :data :as join}]
+  (let [required-table (to-tbl-name join)]
+    (assoc m table-name required-table)))
+
+(defn add-deps 
+  [map-of-joins edges tbl]
+  (into [(map-of-joins tbl)] (map #(add-deps map-of-joins edges %) (filter #(= tbl (edges %)) (keys edges)))))
+
+(defn sort-joins 
+  [joins]
+  (let [map-of-joins (reduce #(let [{[table-name join-on] :data :as join} %2
+                                    k table-name]
+                                (assoc %1 k (conj (%1 k) join))) {} joins)
+        edges (reduce to-graph-el {} joins)
+        set-of-root-nodes (clojure.set/difference (into #{} (vals edges)) (into #{} (keys edges)))]
+    (filter #(not (nil? %)) (flatten (map #(add-deps map-of-joins edges %) set-of-root-nodes)))))
