@@ -37,7 +37,7 @@ Then execute
 
 And import the library into your namespace
 
-    (:use clojureql.core)
+    (:use '[clojureql.core :as cql])
 
 
 Manual
