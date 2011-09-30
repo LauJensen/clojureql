@@ -146,4 +146,50 @@
        {"b" :b-join "c" :c-join}
        {"b" "a" "c" "b"}
        "c"
-       [:c-join]))
+       [:c-join]
+       
+       ;; deps for a from a (join b join c) (join d join e)
+       {"b" :b-join "c" :c-join "d" :d-join "e" :e-join}
+       {"b" "a" "c" "b" "d" "a" "e" "d"}
+       "a"
+       [nil [:b-join [:c-join]] [:d-join [:e-join]]]
+       
+       ;; deps for a from a (join b (join c) (join d)) (join e (join f) (join g))
+       {"b" :b-join "c" :c-join "d" :d-join "e" :e-join "f" :f-join "g" :g-join}
+       {"b" "a" "c" "b" "d" "b" "e" "a" "f" "e" "g" "e"}
+       "a"
+       [nil [:b-join [:c-join] [:d-join]] [:e-join [:f-join] [:g-join]]]
+       
+       ;; deps for a from (a (join b join c join d) (e (join f) (join g))
+       {"b" :b-join "c" :c-join "d" :d-join "e" :e-join "f" :f-join "g" :g-join}
+       {"b" "a" "c" "b" "d" "c" "f" "e" "g" "e"}
+       "a"
+       [nil [:b-join [:c-join [:d-join]]]]
+       
+       ;; deps for e from (a (join b join c join d) (e (join f (join g) (join h)))
+       {"b" :b-join "c" :c-join "d" :d-join "f" :f-join "g" :g-join "h" :h-join}
+       {"b" "a" "c" "b" "d" "c" "f" "e" "g" "f" "h" "f"}
+       "e"
+       [nil [:f-join [:g-join] [:h-join]]]))
+
+(deftest test-flatten-deps
+  (are [map-of-joins edges set-of-root-nodes expected]
+       (is (= expected (flatten-deps map-of-joins edges set-of-root-nodes)))
+       
+       ;; deps for a from a (join b join c) (join d join e)
+       {"b" :b-join "c" :c-join "d" :d-join "e" :e-join}
+       {"b" "a" "c" "b" "d" "a" "e" "d"}
+       #{"a"}
+       [:b-join :c-join :d-join :e-join]
+       
+       ;; deps for a from a (join b (join c) (join d)) (join e (join f) (join g))
+       {"b" :b-join "c" :c-join "d" :d-join "e" :e-join "f" :f-join "g" :g-join}
+       {"b" "a" "c" "b" "d" "b" "e" "a" "f" "e" "g" "e"}
+       #{"a"}
+       [:b-join :c-join :d-join :e-join :f-join :g-join]
+       
+       ;; deps for e from (a (join b join c join d) (e (join f (join g) (join h)))
+       {"b" :b-join "c" :c-join "d" :d-join "f" :f-join "g" :g-join "h" :h-join}
+       {"b" "a" "c" "b" "d" "c" "f" "e" "g" "f" "h" "f"}
+       #{"a" "e"}
+       [:b-join :c-join :d-join :f-join :g-join :h-join]))

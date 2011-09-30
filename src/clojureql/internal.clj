@@ -542,10 +542,14 @@
                                   (filter #(= tbl (edges %)) 
                                           (keys edges)))))
 
+(defn flatten-deps
+  [map-of-joins edges set-of-root-nodes]
+  (filter #(not (nil? %)) (flatten (map #(add-deps map-of-joins edges %) set-of-root-nodes))))
+
 (defn sort-joins 
   "sort a list of joins into dependency order"
   [joins]
   (let [map-of-joins (joins-by-table-alias joins)
         edges (reduce to-graph-el {} joins)
         set-of-root-nodes (clojure.set/difference (into #{} (vals edges)) (into #{} (keys edges)))]
-    (filter #(not (nil? %)) (flatten (map #(add-deps map-of-joins edges %) set-of-root-nodes)))))
+    (flatten-deps map-of-joins edges set-of-root-nodes)))
