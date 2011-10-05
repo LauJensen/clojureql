@@ -1,6 +1,7 @@
 (ns clojureql.internal
   (:import [java.sql Statement])
   (:require
+    clojure.set
     [clojure.java.jdbc.internal :as jdbcint]
     [clojure.java.jdbc :as jdbc])
   (:use [clojure.string :only [join split upper-case replace] :rename {join join-str replace replace-str}]
