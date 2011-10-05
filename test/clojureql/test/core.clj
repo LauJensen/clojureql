@@ -180,6 +180,20 @@
              (project [:users.id :salary.wage]))
          "SELECT users.id,salary.wage FROM users JOIN salary ON (users.id = salary.id)"))
 
+  (testing "ordering in joins"
+    (are [x y] (= (-> x (compile nil) interpolate-sql) y)
+         (-> (table :users)
+             (join (table :salary) (where (= :wages.id :salary.id)))
+             (join (table :wages) (where (= :wages.id :users.id))))
+         "SELECT users.*,salary.*,wages.* FROM users JOIN wages ON (wages.id = users.id) JOIN salary ON (wages.id = salary.id)"))
+
+  (testing "ordering in joins with table alias"
+    (are [x y] (= (-> x (compile nil) interpolate-sql) y)
+         (-> (table {:users :u})
+             (join (table {:salary :s}) (where (= :w.id :s.id)))
+             (join (table {:wages :w}) (where (= :w.id :u.id))))
+         "SELECT u.*,s.*,w.* FROM users u JOIN wages w ON (w.id = u.id) JOIN salary s ON (w.id = s.id)"))
+
   (testing "renaming in joins"
     (are [x y] (= (-> x (compile nil) interpolate-sql) y)
          (-> (table :users)
