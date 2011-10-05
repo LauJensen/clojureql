@@ -3,7 +3,7 @@
   (:require
     [clojure.java.jdbc.internal :as jdbcint]
     [clojure.java.jdbc :as jdbc])
-  (:use [clojure.string :only [join upper-case] :rename {join join-str}]
+  (:use [clojure.string :only [join split upper-case replace] :rename {join join-str replace replace-str}]
         [clojure.core.incubator :only [-?> -?>>]]))
 
 (defn upper-name [kw]
@@ -445,3 +445,111 @@
      (if (zero? (first result))
        (conj-rows table (keys record) (vals record))
        result))))
+
+(defn table-alias
+  "given an RTable tname, which is either
+    - a simple table-name string
+    - a {:table-name :alias} map
+   return
+     in the case of the simple string, the string itself
+     in the case of the alias map, the value of the explicit alias"
+  [tname]
+  (if (map? tname)
+    (str (nskeyword (-> tname vals last)))
+    (nskeyword tname)))
+
+(defn subselect-table-alias
+  "given an RTable tname, which is either
+    - a simple table-name string
+    - a {:table-name :alias} map
+   return
+     in the case of the simple string, the string with _subselect appended
+     in the case of the alias map, the value of the explicit alias"
+  [tname]
+  (if (map? tname)
+    (str (nskeyword (-> tname vals last)))
+    (str (nskeyword tname) "_subselect")))
+
+(defn join-table-alias
+  "given tna from the first position of the :data value of a join definition,
+   which is one of
+     - an RTable (for subselects)
+     - a simple table-name
+     - a space separated \"table-name alias\" pair
+   return
+     - if the object was an RTable, return the subselect table
+       alias, which is either an explicit alias, or
+        (str (nskeyword (:tname tna)) \"_subselect\")
+     - if the object was a simple table-name, return it
+     - if the object was an aliased table-name, return
+       just the alias"
+  [tna]
+  (if (map? tna)
+    (subselect-table-alias (:tname tna))
+    (let [[table-name alias] (split tna #"\s+")]
+      (or alias table-name))))
+
+(defn joins-by-table-alias
+  "given a list of joins return a map of joins 
+   keyed by the join table-alias or,
+   in the case of subselects, the subselect table alias"
+  [joins]
+  (reduce #(let [{[table-name-alias join-on] :data :as join} %2
+                 k (join-table-alias table-name-alias)]
+             (assoc %1 k join)) 
+          {} 
+          joins))
+
+(defn join-column-names
+  "given table-name-alias from the first position of the :data value of a join def,
+   if table-name-alias is an RTable, representing a subselect, then return the renamed
+   join cols according the the subselect alias. if table-name-alias is not an
+   RTable then return cols unmodified"
+  [table-name-alias cols]
+  (if (map? table-name-alias)
+    (let [otn (table-alias (:tname table-name-alias))
+          sstn (subselect-table-alias (:tname table-name-alias))
+          otn-patt (re-pattern (str otn "\\..*"))
+          col-strs (map nskeyword cols)
+          subselect-col-strs (filter #(re-matches otn-patt %) col-strs)
+          other-col-strs (filter #(not (re-matches otn-patt %)) col-strs)
+          renamed-subselect-col-strs (map #(replace-str % (re-pattern (str otn "\\.")) (str sstn "."))
+                                          subselect-col-strs)]
+      (concat renamed-subselect-col-strs other-col-strs))
+    cols))
+
+(defn to-tbl-name 
+  "given a join definition, return a table alias
+   that the join depends on"
+  [{[table-name-alias join-on] :data :as join}]
+  (->> join-on :cols
+       (join-column-names table-name-alias)
+       (map #(-> % name (.replaceAll "\\..*" "")))
+       (filter #(not= % (join-table-alias table-name-alias)))
+       first))
+
+(defn to-graph-el 
+  "given a join definition return an edge in the table
+   alias dependency graph"
+  [m {[table-name-alias join-on] :data :as join}]
+  (let [required-table (to-tbl-name join)]
+    (assoc m (join-table-alias table-name-alias) required-table)))
+
+(defn add-deps 
+  "recursively add dependencies of tbl into a list"
+  [map-of-joins edges tbl]
+  (into [(map-of-joins tbl)] (map #(add-deps map-of-joins edges %) 
+                                  (filter #(= tbl (edges %)) 
+                                          (keys edges)))))
+
+(defn flatten-deps
+  [map-of-joins edges set-of-root-nodes]
+  (filter #(not (nil? %)) (flatten (map #(add-deps map-of-joins edges %) set-of-root-nodes))))
+
+(defn sort-joins 
+  "sort a list of joins into dependency order"
+  [joins]
+  (let [map-of-joins (joins-by-table-alias joins)
+        edges (reduce to-graph-el {} joins)
+        set-of-root-nodes (clojure.set/difference (into #{} (vals edges)) (into #{} (keys edges)))]
+    (flatten-deps map-of-joins edges set-of-root-nodes)))

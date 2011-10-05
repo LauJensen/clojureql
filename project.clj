@@ -1,4 +1,4 @@
-(defproject clojureql "1.0.2"
+(defproject clojureql "1.1.0-SNAPSHOT"
   :description      "Superior SQL integration for Clojure"
   :dependencies     [[org.clojure/clojure         "1.2.1"]
                      [org.clojure/core.incubator  "0.1.0"]
