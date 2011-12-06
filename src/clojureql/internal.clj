@@ -379,7 +379,7 @@
       {:last-index 
        (and
         (.next ks)
-        (.getInt ks 1))})))
+        (.getObject ks 1))})))
 
 (defn exec-prepared
   "Executes an (optionally parameterized) SQL prepared statement on the
