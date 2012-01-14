@@ -45,10 +45,10 @@
         mods       (join-str \space (map upper-name modifiers))
         combs      (if (seq combinations)
                      (for [{:keys [table mode opts]} combinations]
-                       (let [[stmt & [env]] (compile table (or (:dialect cnx) :default))]
-                         [(format " %s (%s)"
+                       (let [[stmt & [& env]] (compile table (or (:dialect cnx) :default))]
+                         (into [(format " %s (%s)"
                                   (str (upper-name mode) (if opts (str \space (upper-name opts))))
-                                  stmt) env])))
+                                  stmt)] env))))
         fields     (when-not (table? tcols)
                      (str (if tcols (to-fieldlist tname tcols) "*")
                           (when (seq aliases)
