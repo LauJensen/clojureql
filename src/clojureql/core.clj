@@ -346,7 +346,7 @@
           retr      (with-cnx cnx
                       (when *debug* (prn predicate))
                       (update-vals tname predicate record))]
-      (with-meta this (meta retr))))
+      (with-meta this (assoc (meta retr) :update-count (first retr)))))
 
   (grouped [this field]
     ;TODO: We shouldn't call to-fieldlist here, first in the compiler
