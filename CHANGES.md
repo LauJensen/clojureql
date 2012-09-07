@@ -1,3 +1,8 @@
+1.0.4
+=====
+
+Compatibility with clojure.java.jdbc 0.2.3
+
 1.0.3
 =====
 

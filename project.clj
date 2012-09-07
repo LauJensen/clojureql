@@ -1,4 +1,4 @@
-(defproject clojureql "1.0.4-SNAPSHOT"
+(defproject clojureql "1.0.4"
   :description      "Superior SQL integration for Clojure"
   :dependencies     [[org.clojure/clojure         "1.4.0"]
                      [org.clojure/core.incubator  "0.1.1"]
@@ -10,6 +10,3 @@
 
   :repositories {"clojure-releases"  {:url "http://build.clojure.org/releases"}
                  "clojure-snapshots"  {:url "http://build.clojure.org/snapshots"}})
-
-
-

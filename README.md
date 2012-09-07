@@ -21,14 +21,14 @@ Add the following to your **project.clj** or pom.xml:
 
 Cake/Lein artifact:
 
-    [clojureql "1.0.3"]
+    [clojureql "1.0.4"]
 
 Maven:
 
     <dependency>
       <groupId>clojureql</groupId>
       <artifactId>clojureql</artifactId>
-      <version>1.0.3</version>
+      <version>1.0.4</version>
     </dependency>
 
 Then execute
@@ -65,4 +65,3 @@ License
 =======
 
 Eclipse Public License - v 1.0, see LICENSE.
-
