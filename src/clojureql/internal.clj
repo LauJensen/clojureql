@@ -2,7 +2,6 @@
   (:import [java.sql Statement])
   (:require
     clojure.set
-    [clojure.java.jdbc.internal :as jdbcint]
     [clojure.java.jdbc :as jdbc])
   (:use [clojure.string :only [join split upper-case replace] :rename {join join-str replace replace-str}]
         [clojure.core.incubator :only [-?> -?>>]]))
@@ -349,10 +348,10 @@
   [[sql & params :as sql-params] func]
   (when-not (vector? sql-params)
     (throw (Exception. "sql-params must be a vector")))
-  (with-open [stmt (jdbc/prepare-statement (:connection jdbcint/*db*) sql)]
+  (with-open [stmt (jdbc/prepare-statement (jdbc/find-connection) sql)]
     (doseq [[idx v] (map vector (iterate inc 1) params)]
       (.setObject stmt idx v))
-    (if-let [fetch-size (-> jdbcint/*db* :opts :fetch-size)]
+    (if-let [fetch-size (-> @#'jdbc/*db* :opts :fetch-size)]
       (do
         (.setFetchSize stmt fetch-size)
         (jdbc/transaction
@@ -386,7 +385,7 @@
   open database connection. Each param-group is a seq of values for all of
   the parameters."
   ([sql param-group]
-     (with-open [stmt (prepare-statement (:connection jdbcint/*db*) sql)]
+     (with-open [stmt (prepare-statement (jdbc/find-connection) sql)]
        (doseq [[idx v] (map vector (iterate inc 1) param-group)]
          (.setObject stmt idx v))
        (jdbc/transaction
@@ -394,7 +393,7 @@
           (with-meta [(.getUpdateCount stmt)]
             (generated-keys stmt))))))
   ([sql param-group & param-groups]
-     (with-open [stmt (jdbc/prepare-statement (:connection jdbcint/*db*) sql)]
+     (with-open [stmt (jdbc/prepare-statement (jdbc/find-connection) sql)]
        (doseq [param-group (cons param-group param-groups)]
          (doseq [[idx v] (map vector (iterate inc 1) param-group)]
            (.setObject stmt idx v))

@@ -12,7 +12,6 @@
     [clojureql internal predicates]
     [clojure.string :only [join upper-case] :rename {join join-str}]
     [clojure.java.jdbc :only [delete-rows]]
-    [clojure.java.jdbc.internal :as jdbcint]
     [clojure.core.incubator :only [-?> -?>>]]
     [clojure.walk :only (postwalk-replace)]))
 
