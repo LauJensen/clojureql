@@ -65,30 +65,30 @@ Example
 (def db
  {:classname   "com.mysql.jdbc.Driver"
   :subprotocol "mysql"
-  :user              "cql"
-  :password     "cql"
-  :subname      "//localhost:3306/cql"})
+  :user        "cql"
+  :password    "cql"
+  :subname     "//localhost:3306/cql"})
 ```
 Complete specification
 
 ### DriverManager:
-  `:classname`    (required) a String, the jdbc driver class name
-  `:subprotocol` (required) a String, the jdbc subprotocol
-  `:subname`      (required) a String, the jdbc subname
-  `(others)`         (optional) passed to the driver as properties.
+`:classname`   (required) a `String`, the jdbc driver class name.  
+`:subprotocol` (required) a `String`, the jdbc subprotocol.  
+`:subname`     (required) a `String`, the jdbc subname.  
+`(others)`     (optional) passed to the driver as properties.  
 
 ### DataSource:
-  `:datasource`  (optional) a javax.sql.DataSource
-  `:username`    (optional) a String
-  `:password`    (optional) a String, required if :username is supplied
+`:datasource`  (optional) a `javax.sql.DataSource`  
+`:username`    (optional) a `String`  
+`:password`    (optional) a `String`, required if `:username` is supplied  
 
 ### JNDI:
-  `:name`             (optional) a String or javax.naming.Name
-  `:environment` (optional) a java.util.Map"
+`:name`        (optional) a String or `javax.naming.Name`  
+`:environment` (optional) a `java.util.Map`  
 
 ### Options:
-  `:auto-commit` (optional) a Boolean
-  `:fetch-size`      (optional) an integer
+`:auto-commit` (optional) a `Boolean`  
+`:fetch-size`  (optional) an integer  
 
 ## Public functions for composing queries
 
@@ -96,7 +96,7 @@ Complete specification
 
 Creates a table object optionally associated with a connection
 specification. This can be either a keyword from a previous call to
-(open-global) or a hash-map.
+(`open-global`) or a `hash-map`.
 
 ### select (args: this, predicate)
 
