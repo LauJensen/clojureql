@@ -2,13 +2,13 @@ ClojureQL
 =========
 
 ClojureQL is an abstraction layer sitting on top of standard low-level JDBC SQL integration.
-It let's you interact with a database through a series of objects which work as Clojure data
-type.
+It lets you interact with a database through a series of objects which work as Clojure data
+types.
 
 ClojureQL is modeled around the primitives defined in Relational Algebra.
 http://en.wikipedia.org/wiki/Relational_algebra
 
-For the user this means that all queries compose and are never executed unless dereferenced
+For the user, this means that all queries compose and are never executed unless dereferenced
 or called with a function that has the ! suffix.
 
 As a help for debugging, wrap your statements in (binding [\*debug\* true]) to see the
