@@ -53,6 +53,9 @@
     nil? clojureql.predicates/nil?*
     in   clojureql.predicates/in})
 
+(defn- where* [clause]
+  (postwalk-replace predicate-symbols clause))
+
 (defmacro where [clause]
   "Constructs a where-clause for queries.
 
@@ -62,7 +65,7 @@
    (:env) you will see the captured environment
 
    Use as: (select tble (where ...))"
-  `~(postwalk-replace predicate-symbols clause))
+  (where* clause))
 
 (defmacro case
   "Lets you specify a column using the SQL CASE operator.
@@ -81,7 +84,7 @@
   (let [pairs (->> (if (= :else (-> clauses vec rseq second))
                      (drop-last 2 clauses)
                      clauses)
-                   `~(postwalk-replace predicate-symbols)
+                   where*
                    (partition 2))]
     {:alias   alias
      :clauses (vec (map first pairs))
