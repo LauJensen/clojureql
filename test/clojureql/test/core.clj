@@ -201,6 +201,14 @@
              (rename {:users.id :idx})) ; TODO: This should only work with fully qualified names
          "SELECT users.id,salary.wage FROM users AS users(idx) JOIN salary ON (users.id = salary.id)"))
                                         ; TODO: Shouldn't this be ON (users.idx = salary.id) ?
+
+  (testing "joins on subselects"
+    (are [x y] (= (-> x (compile nil) interpolate-sql) y)
+         (-> (select (table nil {:company :c}) (where (= :c.name "MongoDB")))
+             (join (select (table nil {:investment :k}) (where (= :k.type "angel"))) 
+                   (where (= :k.permalink :c.company_permalink))))
+         "SELECT c.*,k.* FROM company c JOIN (SELECT k.* FROM investment k WHERE (k.type = angel)) AS k ON (k.permalink = c.company_permalink) WHERE (c.name = MongoDB)"))
+
   (testing "aggregate functions"
     (are [x y] (= (-> x (compile nil) interpolate-sql) y)
          (-> (table :users)
