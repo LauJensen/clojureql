@@ -1,0 +1,6 @@
+language: clojure
+lein: lein
+script: lein test
+jdk:
+  - openjdk7
+  - openjdk6
