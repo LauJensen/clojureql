@@ -115,7 +115,8 @@
                                        (mapcat :returns cases)))
                          (mapcat last jdata)
                          (map :else (filter map? tcols))
-                         (map (comp :env second) jdata)
+                         ; Not sure why jdata is referenced twice; see issue #138
+                         ;(map (comp :env second) jdata)
                          (if (table? tcols) (rest tables))
                          (if preds [(:env preds)])
                          (if having [(:env having)])]
