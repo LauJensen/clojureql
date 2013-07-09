@@ -201,6 +201,20 @@
              (rename {:users.id :idx})) ; TODO: This should only work with fully qualified names
          "SELECT users.id,salary.wage FROM users AS users(idx) JOIN salary ON (users.id = salary.id)"))
                                         ; TODO: Shouldn't this be ON (users.idx = salary.id) ?
+  (testing "simple renaming"
+    (are [x y] (= (-> x (compile nil) interpolate-sql) y)
+         (-> (table :users)
+             (project [:users.id])
+             (rename {:users.id :idx}))
+         "SELECT users.id FROM users AS users(idx)"))
+
+  (testing "renaming with a table alias"
+    (are [x y] (= (-> x (compile nil) interpolate-sql) y)
+         (-> (table {:users :people})
+             (project [:people.id])
+             (rename {:people.id :idx}))
+         "SELECT people.id FROM users people AS people(idx)"))
+
   (testing "aggregate functions"
     (are [x y] (= (-> x (compile nil) interpolate-sql) y)
          (-> (table :users)
