@@ -269,7 +269,7 @@
                             (subs s (inc (.indexOf s ".")))))]
     (if (map? renames)
       (format "%s AS %s(%s)" oname alias
-                    (reduce #(let [[orig new] %2]
+              (reduce #(let [[orig new] %2]
                          (.replaceAll %1 (unqualify orig) (unqualify new)))
                       (join-str "," (->> (map nskeyword tcols)
                                          (filter #(.contains % alias))
