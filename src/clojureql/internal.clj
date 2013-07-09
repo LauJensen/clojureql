@@ -264,14 +264,15 @@
    :one [:one.a :one.b] {:one :two} => 'one AS one(a,b)' "
   [tname tcols renames]
   (let [oname (to-tablename tname)
+        alias (to-tablealias tname)
         unqualify (fn [s] (let [s (nskeyword s)]
                             (subs s (inc (.indexOf s ".")))))]
     (if (map? renames)
-      (format "%s AS %s(%s)" oname oname
-              (reduce #(let [[orig new] %2]
+      (format "%s AS %s(%s)" oname alias
+                    (reduce #(let [[orig new] %2]
                          (.replaceAll %1 (unqualify orig) (unqualify new)))
                       (join-str "," (->> (map nskeyword tcols)
-                                         (filter #(.contains % oname))
+                                         (filter #(.contains % alias))
                                          (map #(subs % (inc (.indexOf % "."))))))
                       renames))
       (str oname "(" (to-fieldlist tcols) ")"))))
@@ -375,7 +376,7 @@
   "When supported by the JDBC driver, returns the generated keys of the latest executed statement"
   (when (supports-generated-keys? (.getConnection stmt))
     (let [ks (.getGeneratedKeys stmt)]
-      {:last-index 
+      {:last-index
        (and
         (.next ks)
         (.getObject ks 1))})))
@@ -490,14 +491,14 @@
       (or alias table-name))))
 
 (defn joins-by-table-alias
-  "given a list of joins return a map of joins 
+  "given a list of joins return a map of joins
    keyed by the join table-alias or,
    in the case of subselects, the subselect table alias"
   [joins]
   (reduce #(let [{[table-name-alias join-on] :data :as join} %2
                  k (join-table-alias table-name-alias)]
-             (assoc %1 k join)) 
-          {} 
+             (assoc %1 k join))
+          {}
           joins))
 
 (defn join-column-names
@@ -518,7 +519,7 @@
       (concat renamed-subselect-col-strs other-col-strs))
     cols))
 
-(defn to-tbl-name 
+(defn to-tbl-name
   "given a join definition, return a table alias
    that the join depends on"
   [{[table-name-alias join-on] :data :as join}]
@@ -528,25 +529,25 @@
        (filter #(not= % (join-table-alias table-name-alias)))
        first))
 
-(defn to-graph-el 
+(defn to-graph-el
   "given a join definition return an edge in the table
    alias dependency graph"
   [m {[table-name-alias join-on] :data :as join}]
   (let [required-table (to-tbl-name join)]
     (assoc m (join-table-alias table-name-alias) required-table)))
 
-(defn add-deps 
+(defn add-deps
   "recursively add dependencies of tbl into a list"
   [map-of-joins edges tbl]
-  (into [(map-of-joins tbl)] (map #(add-deps map-of-joins edges %) 
-                                  (filter #(= tbl (edges %)) 
+  (into [(map-of-joins tbl)] (map #(add-deps map-of-joins edges %)
+                                  (filter #(= tbl (edges %))
                                           (keys edges)))))
 
 (defn flatten-deps
   [map-of-joins edges set-of-root-nodes]
   (filter #(not (nil? %)) (flatten (map #(add-deps map-of-joins edges %) set-of-root-nodes))))
 
-(defn sort-joins 
+(defn sort-joins
   "sort a list of joins into dependency order"
   [joins]
   (let [map-of-joins (joins-by-table-alias joins)
