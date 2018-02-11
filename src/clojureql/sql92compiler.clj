@@ -116,9 +116,9 @@
                                        (mapcat :returns cases)))
                          (mapcat last jdata)
                          (map :else (filter map? tcols))
-                         (map (comp :env second) jdata)
+;                         (map (comp :env second) jdata)
                          (if (table? tcols) (rest tables))
-                         (if preds [(:env preds)])
+                         (if preds (:env preds))
                          (if having [(:env having)])]
                         flatten (remove nil?) vec)
                    (->> (mapcat rest combs)
