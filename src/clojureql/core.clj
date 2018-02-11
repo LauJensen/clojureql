@@ -12,7 +12,6 @@
     [clojureql internal predicates]
     [clojure.string :only [join upper-case] :rename {join join-str}]
     [clojure.java.jdbc :only [delete-rows]]
-    [clojure.core.incubator :only [-?> -?>>]]
     [clojure.walk :only (postwalk-replace)]))
 
                                         ; GLOBALS
@@ -257,7 +256,7 @@
     (outer-join this table2 nil join-on))
 
   (outer-join [this table2 type join-on]
-	      (let [j (into (or joins []) (-> table2 :joins (or [])))]
+	      (let [j (into (-> table2 :joins (or [])) (or joins []))]
 		(if (requires-subselect? table2)
 		  (assoc this
 		    :tcols (into (or tcols [])

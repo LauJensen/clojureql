@@ -8,7 +8,7 @@
   "Opens a global connection with the supplied specs. If given a
   conn-name, use it as a key to access that connection, else set the
   default global connection."
-  ([specs] (open-global ::clojureql.internal/default-connection specs))
+  ([specs] (open-global :clojureql.internal/default-connection specs))
   ([conn-name specs]
      (let [con (#'jdbc/get-connection specs)]
        (when-let [ac (-> specs :auto-commit)]
@@ -20,7 +20,7 @@
   connection is closed and the reference dropped. When called without
   argument, close the default global connection."
   [& [conn-name]]
-  (let [conn-name (or conn-name ::clojureql.internal/default-connection)]
+  (let [conn-name (or conn-name :clojureql.internal/default-connection)]
     (if-let [conn (conn-name @global-connections)]
       (do
         (.close (:connection conn))
@@ -46,7 +46,7 @@
 
     (jdbc/find-connection) ; an already open c.j.jdbc connection takes precedence
     (func)
-    
+
     (map? con-info) ; then we try a passed connection info (presumably associated with some table in the query)
     (jdbc/with-connection con-info
       (.setAutoCommit (jdbc/find-connection)

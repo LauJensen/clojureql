@@ -1,4 +1,4 @@
-(ns clojureql.test.core
+(ns clojureql.core-test
   (:refer-clojure
    :exclude [compile take drop sort distinct conj! disj! case])
   (:use [clojureql.internal :only [update-or-insert-vals update-vals]]
@@ -291,21 +291,21 @@
 
   (testing "joining on multiple tables"
     (are [x y] (= (-> x (compile nil) interpolate-sql) y)
-         (-> (table :users)
-             (join (table :wages) :wid)
-             (join (table :commits) :cid))
-         "SELECT users.*,wages.*,commits.* FROM users JOIN wages USING(wid) JOIN commits USING(cid)"
-         select-countries-with-region-and-spot-count
-         (str "SELECT countries.*,regions_subselect.country_id,spots_subselect.country_id,regions_subselect.regions,spots_subselect.spots FROM countries "
-              "LEFT OUTER JOIN (SELECT regions.country_id,count(regions.id) AS regions FROM regions GROUP BY regions.country_id) AS regions_subselect "
-              "ON (countries.id = regions_subselect.country_id) "
-              "LEFT OUTER JOIN (SELECT spots.country_id,count(spots.id) AS spots FROM spots GROUP BY spots.country_id) AS spots_subselect "
-              "ON (countries.id = spots_subselect.country_id) "
-              "WHERE (regions_subselect.country_id = spots_subselect.country_id)")))
+      (-> (table :users)
+          (join (table :wages) :wid)
+          (join (table :commits) :cid))
+      "SELECT users.*,wages.*,commits.* FROM users JOIN wages USING(wid) JOIN commits USING(cid)"
+      select-countries-with-region-and-spot-count
+      (str "SELECT countries.*,regions_subselect.country_id,spots_subselect.country_id,regions_subselect.regions,spots_subselect.spots FROM countries "
+           "LEFT OUTER JOIN (SELECT regions.country_id,count(regions.id) AS regions FROM regions GROUP BY regions.country_id) AS regions_subselect "
+           "ON (countries.id = regions_subselect.country_id) "
+           "LEFT OUTER JOIN (SELECT spots.country_id,count(spots.id) AS spots FROM spots GROUP BY spots.country_id) AS spots_subselect "
+           "ON (countries.id = spots_subselect.country_id) "
+           "WHERE (regions_subselect.country_id = spots_subselect.country_id)")))
 
   (testing "joins are associative"
     (let [ta (join (table :t1) (table :t2) :id)
-	  tb (join (table :t3) ta :id)] ;; swapping argument order of "ta" and "(table :t3)" works
+	  tb (join (table :t3) ta :id)] ;; swapping argument order of "ta" and "(table :t3)"
       (are [x y] (= (-> x (compile nil) interpolate-sql (.replaceAll "SELECT .* FROM" "SELECT * FROM")) y)
 	   tb
 	   "SELECT * FROM t3 JOIN t1 USING(id) JOIN t2 USING(id)"))

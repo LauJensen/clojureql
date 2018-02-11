@@ -39,9 +39,10 @@
   (let [{:keys [cnx tname tcols restriction renames joins combinations
                 grouped-by pre-scope scope order-by modifiers having]} tble
         aliases    (when joins (extract-aliases joins))
-        aggregates (-?>> (if (table? tcols) (:tcols tcols) tcols)
-                         (filter #(and (vector? %) (= 3 (count %))))
-                         (map (comp name last)))
+        aggregates (some->>
+                    (if (table? tcols) (:tcols tcols) tcols)
+                    (filter #(and (vector? %) (= 3 (count %))))
+                    (map (comp name last)))
         mods       (join-str \space (map upper-name modifiers))
         combs      (if (seq combinations)
                      (for [{:keys [table mode opts]} combinations]
