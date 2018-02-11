@@ -47,7 +47,10 @@
     (jdbc/find-connection) ; an already open c.j.jdbc connection takes precedence
     (func)
 
-    (map? con-info) ; then we try a passed connection info (presumably associated with some table in the query)
+    (or (map? con-info)
+        (string? con-info)
+        (instance? java.net.URI con-info))
+                                        ; then we try a passed connection info (presumably associated with some table in the query)
     (jdbc/with-connection con-info
       (.setAutoCommit (jdbc/find-connection)
                       (:auto-commit con-info true))
