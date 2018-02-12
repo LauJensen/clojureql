@@ -1,5 +1,7 @@
 (defproject clojureql "1.0.5"
   :description      "Superior SQL integration for Clojure"
+  :url              "http://clojureql.sabrecms.com"
+  :license          "MIT"
   :profiles       {:repl {:plugins [[cider/cider-nrepl "0.16.0"]]}}
   :dependencies     [[org.clojure/clojure         "1.9.0"]
                      [org.clojure/core.incubator  "0.1.4"]
