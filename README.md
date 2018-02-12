@@ -2,8 +2,8 @@ ClojureQL
 =========
 
 ClojureQL is an abstraction layer sitting on top of standard low-level JDBC SQL integration.
-It lets you interact with a database through a series of objects which work as Clojure data
-types.
+It lets you interact with a database through objects which work as Clojure data
+types and thus can be composed and extended.
 
 ClojureQL is modeled around the primitives defined in Relational Algebra.
 http://en.wikipedia.org/wiki/Relational_algebra
@@ -21,19 +21,19 @@ Add the following to your **project.clj** or pom.xml:
 
 Cake/Lein artifact:
 
-    [clojureql "1.0.4"]
+    [clojureql "1.0.5"]
 
 Maven:
 
     <dependency>
       <groupId>clojureql</groupId>
       <artifactId>clojureql</artifactId>
-      <version>1.0.4</version>
+      <version>1.0.5</version>
     </dependency>
 
 Then execute
 
-    cake deps
+    cake deps or lein deps
 
 And import the library into your namespace
 
@@ -43,12 +43,12 @@ And import the library into your namespace
 Manual
 ============
 
-Please visit [ClojureQL.org](http://www.clojureql.org) for updated documentation.
+Please visit [ClojureQL.SabreCMS.com](http://clojureql.sabrecms.com/en/welcome) for updated documentation.
 
 Credit
 ======
 
-ClojureQL is primarily developed by [Lau Jensen](http://twitter.com/laujensen) of
+ClojureQL was bootstrapped by Lau Jensen of [SabreCMS](https://www.sabrecms.com) and
 [Best In Class](http://www.bestinclass.dk).
 
 Large and **significant** contributions to both the design and codebase have been
@@ -60,6 +60,9 @@ In addition, the following people have made important contributions to ClojureQL
    - Roman Scherer      (r0man)
    - Christian Kebekus  (ck)
    - Herwig Hochleitner (bendlas)
+   - And several others
+
+If you want to pitch in, we're actively looking for more brainpower.
 
 License
 =======
