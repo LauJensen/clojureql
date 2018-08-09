@@ -339,7 +339,7 @@
                             (transient empty)
                             idxs))
                    (rows)))))]
-    (rows)))
+    (with-meta (rows) {:column-names keys})))
 
 
 (defn with-results*
